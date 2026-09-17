@@ -4,7 +4,9 @@ import android.util.Log
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
 import com.example.data.model.UserProfile
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
@@ -19,7 +21,21 @@ class FirestoreManager {
 
   val firestore: FirebaseFirestore? by lazy {
     try {
-      FirebaseFirestore.getInstance()
+      val db = FirebaseFirestore.getInstance()
+      // Attempt anonymous auth in background to establish credentials
+      try {
+        val auth = FirebaseAuth.getInstance()
+        if (auth.currentUser == null) {
+          auth.signInAnonymously().addOnSuccessListener {
+            Log.d(tag, "Firebase anonymous sign-in success: ${it.user?.uid}")
+          }.addOnFailureListener {
+            Log.w(tag, "Firebase anonymous sign-in notice: ${it.message}")
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "FirebaseAuth init skipped: ${e.message}")
+      }
+      db
     } catch (e: Exception) {
       Log.w(tag, "Firestore initialization skipped/unavailable: ${e.message}")
       null
@@ -74,7 +90,11 @@ class FirestoreManager {
         .await()
       true
     } catch (e: Exception) {
-      Log.e(tag, "Failed to sync user profile to Firestore: ${e.message}")
+      if (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+        Log.w(tag, "Firestore profile sync notice: Permission denied in Firebase console rules. Using local database.")
+      } else {
+        Log.w(tag, "Firestore profile sync notice: ${e.message}")
+      }
       false
     }
   }
@@ -90,7 +110,11 @@ class FirestoreManager {
     val docRef = db.collection("users").document(userId)
     val listenerRegistration: ListenerRegistration = docRef.addSnapshotListener { snapshot, error ->
       if (error != null) {
-        Log.e(tag, "Error listening to user profile changes: ${error.message}")
+        if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+          Log.w(tag, "Firestore profile listener: Firestore rules are locked or pending. Serving data from local Room database.")
+        } else {
+          Log.w(tag, "Firestore profile listener notice: ${error.message}")
+        }
         return@addSnapshotListener
       }
       if (snapshot != null && snapshot.exists()) {
@@ -132,7 +156,7 @@ class FirestoreManager {
             trySend(profile)
           }
         } catch (e: Exception) {
-          Log.e(tag, "Failed parsing user profile snapshot: ${e.message}")
+          Log.w(tag, "Failed parsing user profile snapshot: ${e.message}")
         }
       }
     }
@@ -183,7 +207,11 @@ class FirestoreManager {
 
       true
     } catch (e: Exception) {
-      Log.e(tag, "Failed to send chat message to Firestore: ${e.message}")
+      if (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+        Log.w(tag, "Firestore message send notice: Firestore rules are locked. Stored locally.")
+      } else {
+        Log.w(tag, "Firestore message send notice: ${e.message}")
+      }
       false
     }
   }
@@ -203,7 +231,11 @@ class FirestoreManager {
 
     val listenerRegistration = collectionRef.addSnapshotListener { snapshot, error ->
       if (error != null) {
-        Log.e(tag, "Error listening to chat messages: ${error.message}")
+        if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+          Log.w(tag, "Firestore chat listener: Firestore rules are locked. Serving chat messages from local Room database.")
+        } else {
+          Log.w(tag, "Firestore chat listener notice: ${error.message}")
+        }
         return@addSnapshotListener
       }
       if (snapshot != null) {
@@ -274,8 +306,13 @@ class FirestoreManager {
       batch.commit().await()
       true
     } catch (e: Exception) {
-      Log.e(tag, "Failed to sync discovery profiles: ${e.message}")
+      if (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+        Log.w(tag, "Firestore discovery sync notice: Firestore rules are locked. Serving from local database.")
+      } else {
+        Log.w(tag, "Firestore discovery sync notice: ${e.message}")
+      }
       false
     }
   }
 }
+
