@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
     ChatMessageEntity::class,
     SubscriptionEntity::class
   ],
-  version = 1,
+  version = 2,
   exportSchema = false
 )
 abstract class KatkatDatabase : RoomDatabase() {

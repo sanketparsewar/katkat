@@ -253,6 +253,7 @@ class KatkatRepository(
   }
 
   suspend fun resetDeckForTesting() {
+    dao.deleteAllProfiles()
     val initial = SeedData.getInitialProfiles()
     dao.insertProfiles(initial)
   }
@@ -261,8 +262,7 @@ class KatkatRepository(
     return when (name) {
       "Maya Lin" -> "Hey Alex! Loved your taste in photography and vinyl. Have you visited the modern art museum's rooftop terrace yet? 🎨"
       "Lucas Thorne" -> "Hey! Saw you're into indie records too 🎧 What's the best concert you've been to recently?"
-      "Julian Vance" -> "Hey there! Ready for a mountain hike or are you more of a campfire & coffee person? 🌲☕"
-      "Sienna Rivera" -> "Omg hi!! Fellow cat lover spotted 🐾 Are you playing any cozy games right now?"
+      "Chloe Dubois" -> "Bonjour Alex! 🥐 Loved your photos! Ever tried baking fresh brioche from scratch on a cozy Sunday morning?"
       else -> "Hey Alex! So happy we matched! How is your week going? ✨"
     }
   }

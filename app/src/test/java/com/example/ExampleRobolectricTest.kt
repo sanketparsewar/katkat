@@ -38,6 +38,15 @@ class ExampleRobolectricTest {
   }
 
   @Test
+  fun `verify initial database seed contains 3 profiles`() {
+    val profiles = com.example.data.repository.SeedData.getInitialProfiles()
+    assertEquals(3, profiles.size)
+    assertEquals("profile_1", profiles[0].id)
+    assertEquals("profile_2", profiles[1].id)
+    assertEquals("profile_3", profiles[2].id)
+  }
+
+  @Test
   fun `verify haptic feedback helper triggers without crashing`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     com.example.util.HapticHelper.triggerHaptic(context, "match")

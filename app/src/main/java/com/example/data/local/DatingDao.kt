@@ -28,6 +28,9 @@ interface DatingDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertProfile(profile: ProfileEntity)
 
+  @Query("DELETE FROM dating_profiles")
+  suspend fun deleteAllProfiles()
+
   @Update
   suspend fun updateProfile(profile: ProfileEntity)
 
