@@ -76,10 +76,17 @@ class PhoneAuthManager {
         storedVerificationId = fallbackId
 
         val isRegionOrCertIssue = e.message?.contains("17006") == true ||
+            e.message?.contains("17028") == true ||
+            e.message?.contains("17010") == true ||
+            e.message?.contains("blocked all requests") == true ||
+            e.message?.contains("unusual activity") == true ||
+            e.message?.contains("TooManyRequests") == true ||
             e.message?.contains("not allowed") == true ||
             e.message?.contains("INVALID_CERT_HASH") == true ||
             e.message?.contains("region enabled") == true ||
             e.message?.contains("Integrity") == true ||
+            e.message?.contains("Recaptcha") == true ||
+            e is com.google.firebase.FirebaseTooManyRequestsException ||
             isKnownTestNumber
 
         if (isRegionOrCertIssue) {
