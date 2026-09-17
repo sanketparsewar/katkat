@@ -99,6 +99,66 @@ class FirestoreManager {
     }
   }
 
+  suspend fun deleteUserProfile(userId: String): Boolean {
+    val db = firestore ?: return false
+    return try {
+      db.collection("users").document(userId).delete().await()
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Firestore profile delete notice: ${e.message}")
+      false
+    }
+  }
+
+  suspend fun fetchUserByPhone(phoneNumber: String): UserProfile? {
+    val db = firestore ?: return null
+    return try {
+      val querySnapshot = db.collection("users")
+        .whereEqualTo("phoneNumber", phoneNumber)
+        .limit(1)
+        .get()
+        .await()
+      val doc = querySnapshot.documents.firstOrNull() ?: return null
+      val data = doc.data ?: return null
+      @Suppress("UNCHECKED_CAST")
+      UserProfile(
+        id = doc.id,
+        name = data["name"] as? String ?: "",
+        age = (data["age"] as? Number)?.toInt() ?: 0,
+        gender = data["gender"] as? String ?: "",
+        pronouns = data["pronouns"] as? String ?: "",
+        bio = data["bio"] as? String ?: "",
+        occupation = data["occupation"] as? String ?: "",
+        education = data["education"] as? String ?: "",
+        hometown = data["hometown"] as? String ?: "",
+        height = data["height"] as? String ?: "",
+        zodiac = data["zodiac"] as? String ?: "",
+        datingIntention = data["datingIntention"] as? String ?: "",
+        drinking = data["drinking"] as? String ?: "",
+        smoking = data["smoking"] as? String ?: "",
+        pets = data["pets"] as? String ?: "",
+        passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+        photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+        promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
+        promptAnswer = data["promptAnswer"] as? String ?: "",
+        isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
+        phoneNumber = data["phoneNumber"] as? String ?: "",
+        countryCode = data["countryCode"] as? String ?: "+91",
+        email = data["email"] as? String ?: "",
+        dob = data["dob"] as? String ?: "",
+        currentLocationCity = data["currentLocationCity"] as? String ?: "",
+        currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
+        latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+        longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+        isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
+        isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false
+      )
+    } catch (e: Exception) {
+      Log.w(tag, "Firestore fetchUserByPhone notice: ${e.message}")
+      null
+    }
+  }
+
   fun observeUserProfile(userId: String): Flow<UserProfile?> = callbackFlow {
     val db = firestore
     if (db == null) {

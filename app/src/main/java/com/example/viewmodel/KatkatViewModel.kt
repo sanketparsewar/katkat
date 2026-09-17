@@ -232,11 +232,52 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  fun updateProfile(profile: UserProfile) {
+  fun autoSaveProfile(profile: UserProfile) {
     viewModelScope.launch {
       repository.saveUserProfile(profile)
-      _uiEvents.emit(UiEvent.ShowToast("Profile saved successfully! ✨"))
+      _uiEvents.emit(UiEvent.ShowToast("Profile updated"))
       _uiEvents.emit(UiEvent.VibrateFeedback("save"))
+    }
+  }
+
+  fun updateProfile(profile: UserProfile, showToast: Boolean = true) {
+    viewModelScope.launch {
+      repository.saveUserProfile(profile)
+      if (showToast) {
+        _uiEvents.emit(UiEvent.ShowToast("Profile updated"))
+        _uiEvents.emit(UiEvent.VibrateFeedback("save"))
+      }
+    }
+  }
+
+  fun initUserByPhone(phone: String, countryCode: String) {
+    viewModelScope.launch {
+      val user = repository.getOrInitUserByPhone(phone, countryCode)
+      if (user.isOnboardingCompleted) {
+        _uiEvents.emit(UiEvent.ShowToast("Welcome back, ${user.name.ifBlank { "User" }}! ✨"))
+      }
+    }
+  }
+
+  fun disableAccount(disabled: Boolean) {
+    viewModelScope.launch {
+      repository.disableAccount(disabled)
+      val msg = if (disabled) "Account disabled. Profile hidden from Discover." else "Account activated! Profile is now visible."
+      _uiEvents.emit(UiEvent.ShowToast(msg))
+    }
+  }
+
+  fun deleteAccount() {
+    viewModelScope.launch {
+      repository.deleteAccount()
+      _uiEvents.emit(UiEvent.ShowToast("Account permanently deleted."))
+    }
+  }
+
+  fun logout() {
+    viewModelScope.launch {
+      restartOnboarding()
+      _uiEvents.emit(UiEvent.ShowToast("Logged out successfully"))
     }
   }
 

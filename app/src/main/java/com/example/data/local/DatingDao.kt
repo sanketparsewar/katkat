@@ -60,11 +60,26 @@ interface DatingDao {
   suspend fun deleteSwipeRecord(id: Long)
 
   // User Profile
-  @Query("SELECT * FROM user_profile WHERE id = 'my_profile' LIMIT 1")
+  @Query("SELECT * FROM user_profile LIMIT 1")
   fun getUserProfileFlow(): Flow<UserProfileEntity?>
+
+  @Query("SELECT * FROM user_profile WHERE phoneNumber = :phone LIMIT 1")
+  suspend fun getUserByPhone(phone: String): UserProfileEntity?
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun saveUserProfile(user: UserProfileEntity)
+
+  @Query("UPDATE user_profile SET isAccountDisabled = :disabled")
+  suspend fun setAccountDisabled(disabled: Boolean)
+
+  @Query("DELETE FROM user_profile")
+  suspend fun deleteUserProfile()
+
+  @Query("DELETE FROM chat_messages")
+  suspend fun deleteAllMessages()
+
+  @Query("DELETE FROM swipe_records")
+  suspend fun deleteAllSwipeRecords()
 
   // Chat Messages
   @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp ASC")

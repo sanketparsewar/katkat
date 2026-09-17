@@ -32,28 +32,24 @@ data class DatingProfile(
 
 data class UserProfile(
   val id: String = "my_profile",
-  val name: String = "Alex Rivera",
-  val age: Int = 24,
-  val gender: String = "Non-binary",
-  val pronouns: String = "They/Them",
-  val bio: String = "Creative photographer & warm coffee enthusiast ☕ Searching for someone to explore indie bookstores, cook pasta from scratch, and swap vinyl records with.",
-  val occupation: String = "UX Designer & Visual Artist",
-  val education: String = "NYU Tisch School of the Arts",
-  val hometown: String = "Brooklyn, NY",
-  val height: String = "5'9\"",
-  val zodiac: String = "Sagittarius ♐",
-  val datingIntention: String = "Long-term relationship 💖",
-  val drinking: String = "Socially 🍷",
-  val smoking: String = "Never 🚭",
-  val pets: String = "Have 2 rescue cats 🐾",
-  val passions: List<String> = listOf("Photography", "Coffee", "Vinyl Records", "Art Galleries", "Cooking", "Cats", "Hiking", "Indie Pop"),
-  val photos: List<String> = listOf(
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80",
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&q=80",
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&q=80"
-  ),
+  val name: String = "",
+  val age: Int = 0,
+  val gender: String = "",
+  val pronouns: String = "",
+  val bio: String = "",
+  val occupation: String = "",
+  val education: String = "",
+  val hometown: String = "",
+  val height: String = "",
+  val zodiac: String = "",
+  val datingIntention: String = "",
+  val drinking: String = "",
+  val smoking: String = "",
+  val pets: String = "",
+  val passions: List<String> = emptyList(),
+  val photos: List<String> = emptyList(),
   val promptQuestion: String = "My simple pleasures in life...",
-  val promptAnswer: String = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
+  val promptAnswer: String = "",
   val isOnboardingCompleted: Boolean = false,
   val phoneNumber: String = "",
   val countryCode: String = "+91",
@@ -63,8 +59,25 @@ data class UserProfile(
   val currentLocationCountry: String = "",
   val latitude: Double = 0.0,
   val longitude: Double = 0.0,
-  val isPhoneVerified: Boolean = false
-)
+  val isPhoneVerified: Boolean = false,
+  val isAccountDisabled: Boolean = false,
+  val createdAt: Long = System.currentTimeMillis()
+) {
+  fun calculateProfileStrength(): Int {
+    var score = 0
+    if (name.isNotBlank()) score += 10
+    if (age > 0 || dob.isNotBlank()) score += 10
+    if (gender.isNotBlank()) score += 5
+    if (photos.isNotEmpty()) score += 15
+    if (photos.size >= 2) score += 15
+    if (bio.isNotBlank()) score += 15
+    if (currentLocationCity.isNotBlank() || currentLocationCountry.isNotBlank()) score += 10
+    if (occupation.isNotBlank() || education.isNotBlank()) score += 10
+    if (passions.isNotEmpty()) score += 5
+    if (promptAnswer.isNotBlank()) score += 5
+    return score.coerceIn(0, 100)
+  }
+}
 
 data class ChatMessage(
   val id: String,

@@ -160,13 +160,26 @@ fun MainScreen(
               subscriptionState = subscriptionState,
               themeMode = themeMode,
               onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
-              onSaveProfile = { updated -> viewModel.updateProfile(updated) },
+              onSaveProfile = { updated -> viewModel.autoSaveProfile(updated) },
               onAddPhoto = { uri -> viewModel.addPhotoToProfile(uri) },
               onRemovePhoto = { idx -> viewModel.removePhotoFromProfile(idx) },
               onSetPrimaryPhoto = { idx -> viewModel.setPrimaryPhoto(idx) },
               onReplacePhoto = { idx, uri -> viewModel.replacePhotoAtSlot(idx, uri) },
               onOpenPaywall = { viewModel.openPaywall() },
               onRestartOnboarding = { viewModel.restartOnboarding() }
+            )
+          }
+
+          KatkatTab.ACCOUNT -> {
+            AccountScreen(
+              userProfile = userProfile,
+              subscriptionState = subscriptionState,
+              themeMode = themeMode,
+              onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
+              onOpenPaywall = { viewModel.openPaywall() },
+              onDisableAccount = { disabled -> viewModel.disableAccount(disabled) },
+              onDeleteAccount = { viewModel.deleteAccount() },
+              onLogout = { viewModel.logout() }
             )
           }
         }

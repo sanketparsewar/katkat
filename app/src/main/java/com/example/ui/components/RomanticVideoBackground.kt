@@ -56,10 +56,10 @@ fun RomanticVideoBackground(
   }
 
   Box(modifier = modifier.fillMaxSize()) {
-    // High-definition romantic sunset couple visual with subtle animated motion
+    // High-definition romantic golden sunset couple visual with subtle animated motion
     AsyncImage(
-      model = "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=1600&auto=format&fit=crop&q=85",
-      contentDescription = "Romantic Couple Sunset",
+      model = "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=1600&auto=format&fit=crop&q=85",
+      contentDescription = "Romantic Couple in Golden Hour",
       contentScale = ContentScale.Crop,
       modifier = Modifier
         .fillMaxSize()

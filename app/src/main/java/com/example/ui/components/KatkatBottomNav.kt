@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.LocalFireDepartment
@@ -48,7 +50,8 @@ enum class KatkatTab(
   DISCOVER("Discover", Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment, "tab_discover"),
   LIKES_YOU("Likes You", Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder, "tab_likes_you"),
   MATCHES("Matches", Icons.Filled.ChatBubble, Icons.Outlined.ChatBubbleOutline, "tab_matches"),
-  PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.PersonOutline, "tab_profile")
+  PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.PersonOutline, "tab_profile"),
+  ACCOUNT("Account", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle, "tab_account")
 }
 
 @Composable

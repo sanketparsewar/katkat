@@ -7,6 +7,8 @@ import com.example.data.local.ProfileEntity
 import com.example.data.local.SubscriptionEntity
 import com.example.data.local.SwipeRecordEntity
 import com.example.data.local.UserProfileEntity
+import com.example.data.local.toDomain
+import com.example.data.local.toEntity
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
 import com.example.data.model.MatchConversation
@@ -32,39 +34,45 @@ class KatkatRepository(
 
   init {
     appScope.launch {
-      // Seed database if empty
-      if (dao.getProfilesCount() == 0) {
-        val initialProfiles = SeedData.getInitialProfiles()
-        dao.insertProfiles(initialProfiles)
-        val initialUser = SeedData.getInitialUserProfile()
-        dao.saveUserProfile(initialUser)
-        dao.saveSubscription(
-          SubscriptionEntity(
-            id = "current_sub",
-            tierName = SubscriptionTier.FREE.name,
-            swipesUsedThisMonth = 3,
-            currentMonthKey = "2026-09",
-            isAnnualBilling = false,
-            subscriptionExpiryDate = "Renews Oct 16, 2026"
+      try {
+        // Seed database if empty
+        if (dao.getProfilesCount() == 0) {
+          val initialProfiles = SeedData.getInitialProfiles()
+          dao.insertProfiles(initialProfiles)
+          val initialUser = SeedData.getInitialUserProfile()
+          dao.saveUserProfile(initialUser)
+          dao.saveSubscription(
+            SubscriptionEntity(
+              id = "current_sub",
+              tierName = SubscriptionTier.FREE.name,
+              swipesUsedThisMonth = 3,
+              currentMonthKey = "2026-09",
+              isAnnualBilling = false,
+              subscriptionExpiryDate = "Renews Oct 16, 2026"
+            )
           )
-        )
-        // Initial cloud sync if Firestore is available
-        if (firestoreManager.isAvailable) {
-          firestoreManager.syncUserProfile(initialUser.toDomain())
-          firestoreManager.syncDiscoveryProfiles(initialProfiles.map { it.toDomain() })
+          // Initial cloud sync if Firestore is available
+          try {
+            if (firestoreManager.isAvailable) {
+              firestoreManager.syncUserProfile(initialUser.toDomain())
+              firestoreManager.syncDiscoveryProfiles(initialProfiles.map { it.toDomain() })
+            }
+          } catch (_: Exception) {}
         }
-      }
 
-      // Start observing real-time cloud profile updates if Firestore is active
-      if (firestoreManager.isAvailable) {
-        launch {
-          firestoreManager.observeUserProfile("my_profile").collect { cloudProfile ->
-            if (cloudProfile != null) {
-              dao.saveUserProfile(cloudProfile.toEntity())
+        // Start observing real-time cloud profile updates if Firestore is active
+        try {
+          if (firestoreManager.isAvailable) {
+            launch {
+              firestoreManager.observeUserProfile("my_profile").collect { cloudProfile ->
+                if (cloudProfile != null) {
+                  dao.saveUserProfile(cloudProfile.toEntity())
+                }
+              }
             }
           }
-        }
-      }
+        } catch (_: Exception) {}
+      } catch (_: Exception) {}
     }
   }
 
@@ -300,6 +308,65 @@ class KatkatRepository(
     }
   }
 
+  // Account creation / lookup based on mobile number
+  suspend fun getOrInitUserByPhone(phoneNumber: String, countryCode: String): UserProfile {
+    val cleanPhone = phoneNumber.filter { it.isDigit() }
+    val existingLocal = dao.getUserByPhone(phoneNumber) ?: dao.getUserByPhone(cleanPhone)
+    if (existingLocal != null) {
+      return existingLocal.toDomain()
+    }
+
+    if (firestoreManager.isAvailable) {
+      val existingCloud = firestoreManager.fetchUserByPhone(phoneNumber)
+      if (existingCloud != null) {
+        dao.saveUserProfile(existingCloud.toEntity())
+        return existingCloud
+      }
+    }
+
+    // Initialize new account based on mobile number
+    val newProfile = UserProfile(
+      id = "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}",
+      phoneNumber = phoneNumber,
+      countryCode = countryCode,
+      isPhoneVerified = true,
+      isOnboardingCompleted = false
+    )
+    dao.saveUserProfile(newProfile.toEntity())
+    if (firestoreManager.isAvailable) {
+      appScope.launch {
+        firestoreManager.syncUserProfile(newProfile)
+      }
+    }
+    return newProfile
+  }
+
+  suspend fun disableAccount(disabled: Boolean) {
+    dao.setAccountDisabled(disabled)
+    val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
+    if (current != null && firestoreManager.isAvailable) {
+      appScope.launch {
+        firestoreManager.syncUserProfile(current.copy(isAccountDisabled = disabled))
+      }
+    }
+  }
+
+  suspend fun deleteAccount(): Boolean {
+    val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
+    dao.deleteUserProfile()
+    dao.deleteAllMessages()
+    dao.deleteAllSwipeRecords()
+    if (current != null && firestoreManager.isAvailable) {
+      appScope.launch {
+        firestoreManager.deleteUserProfile(current.id)
+      }
+    }
+    // Re-create initial fresh un-onboarded entry
+    val freshInitial = SeedData.getInitialUserProfile()
+    dao.saveUserProfile(freshInitial)
+    return true
+  }
+
   suspend fun resetDeckForTesting() {
     dao.deleteAllProfiles()
     val initial = SeedData.getInitialProfiles()
@@ -342,101 +409,6 @@ sealed class SwipeResult {
   data class LimitReached(val tier: SubscriptionTier, val currentCount: Int) : SwipeResult()
   data class Error(val message: String) : SwipeResult()
 }
-
-// Extensions for Domain/Entity conversions
-fun ProfileEntity.toDomain() = DatingProfile(
-  id = id,
-  name = name,
-  age = age,
-  occupation = occupation,
-  company = company,
-  education = education,
-  location = location,
-  bio = bio,
-  photos = Converters.stringToList(photosJoined),
-  promptQuestion = promptQuestion,
-  promptAnswer = promptAnswer,
-  passions = Converters.stringToList(passionsJoined),
-  zodiac = zodiac,
-  height = height,
-  datingIntention = datingIntention,
-  drinking = drinking,
-  smoking = smoking,
-  pets = pets,
-  anthemSong = anthemSong,
-  anthemArtist = anthemArtist,
-  isVerified = isVerified,
-  likedMe = likedMe,
-  isLikedByMe = isLikedByMe,
-  isPassedByMe = isPassedByMe,
-  isSuperLikedByMe = isSuperLikedByMe,
-  isMutualMatch = isMutualMatch,
-  matchedTimestamp = matchedTimestamp
-)
-
-fun UserProfileEntity.toDomain() = UserProfile(
-  id = id,
-  name = name,
-  age = age,
-  gender = gender,
-  pronouns = pronouns,
-  bio = bio,
-  occupation = occupation,
-  education = education,
-  hometown = hometown,
-  height = height,
-  zodiac = zodiac,
-  datingIntention = datingIntention,
-  drinking = drinking,
-  smoking = smoking,
-  pets = pets,
-  passions = Converters.stringToList(passionsJoined),
-  photos = Converters.stringToList(photosJoined),
-  promptQuestion = promptQuestion,
-  promptAnswer = promptAnswer,
-  isOnboardingCompleted = isOnboardingCompleted,
-  phoneNumber = phoneNumber,
-  countryCode = countryCode,
-  email = email,
-  dob = dob,
-  currentLocationCity = currentLocationCity,
-  currentLocationCountry = currentLocationCountry,
-  latitude = latitude,
-  longitude = longitude,
-  isPhoneVerified = isPhoneVerified
-)
-
-fun UserProfile.toEntity() = UserProfileEntity(
-  id = id,
-  name = name,
-  age = age,
-  gender = gender,
-  pronouns = pronouns,
-  bio = bio,
-  occupation = occupation,
-  education = education,
-  hometown = hometown,
-  height = height,
-  zodiac = zodiac,
-  datingIntention = datingIntention,
-  drinking = drinking,
-  smoking = smoking,
-  pets = pets,
-  passionsJoined = Converters.listToString(passions),
-  photosJoined = Converters.listToString(photos),
-  promptQuestion = promptQuestion,
-  promptAnswer = promptAnswer,
-  isOnboardingCompleted = isOnboardingCompleted,
-  phoneNumber = phoneNumber,
-  countryCode = countryCode,
-  email = email,
-  dob = dob,
-  currentLocationCity = currentLocationCity,
-  currentLocationCountry = currentLocationCountry,
-  latitude = latitude,
-  longitude = longitude,
-  isPhoneVerified = isPhoneVerified
-)
 
 fun ChatMessageEntity.toDomain() = ChatMessage(
   id = id,
