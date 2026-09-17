@@ -130,6 +130,8 @@ enum class ProfileViewTab {
 fun ProfileEditScreen(
   userProfile: UserProfile,
   subscriptionState: SubscriptionState,
+  themeMode: com.example.ui.theme.AppThemeMode = com.example.ui.theme.AppThemeMode.LIGHT,
+  onThemeModeChange: (com.example.ui.theme.AppThemeMode) -> Unit = {},
   onSaveProfile: (UserProfile) -> Unit,
   onAddPhoto: (String) -> Unit,
   onRemovePhoto: (Int) -> Unit,
@@ -478,6 +480,100 @@ fun ProfileEditScreen(
           subscriptionState = subscriptionState,
           onOpenPaywall = onOpenPaywall
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // App Appearance & Theme Selection Card
+        Card(
+          shape = RoundedCornerShape(20.dp),
+          colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+          ),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text(
+                text = "App Appearance",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = when (themeMode) {
+                  com.example.ui.theme.AppThemeMode.LIGHT -> "Light (Default)"
+                  com.example.ui.theme.AppThemeMode.DARK -> "Dark"
+                  com.example.ui.theme.AppThemeMode.SYSTEM -> "System"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = CoralPrimary,
+                fontWeight = FontWeight.Bold
+              )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+              text = "Choose your preferred color theme. Dark mode features high-contrast readability.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              // Light Theme
+              val isLightSelected = themeMode == com.example.ui.theme.AppThemeMode.LIGHT
+              FilterChip(
+                selected = isLightSelected,
+                onClick = { onThemeModeChange(com.example.ui.theme.AppThemeMode.LIGHT) },
+                label = { Text("☀️ Light") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = CoralPrimary,
+                  selectedLabelColor = Color.White
+                )
+              )
+
+              // Dark Theme
+              val isDarkSelected = themeMode == com.example.ui.theme.AppThemeMode.DARK
+              FilterChip(
+                selected = isDarkSelected,
+                onClick = { onThemeModeChange(com.example.ui.theme.AppThemeMode.DARK) },
+                label = { Text("🌙 Dark") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = CoralPrimary,
+                  selectedLabelColor = Color.White
+                )
+              )
+
+              // System Default
+              val isSystemSelected = themeMode == com.example.ui.theme.AppThemeMode.SYSTEM
+              FilterChip(
+                selected = isSystemSelected,
+                onClick = { onThemeModeChange(com.example.ui.theme.AppThemeMode.SYSTEM) },
+                label = { Text("⚙️ Auto") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = CoralPrimary,
+                  selectedLabelColor = Color.White
+                )
+              )
+            }
+          }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 

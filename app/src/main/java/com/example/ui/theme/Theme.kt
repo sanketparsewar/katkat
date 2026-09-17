@@ -8,7 +8,14 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+
+enum class AppThemeMode {
+  LIGHT,
+  DARK,
+  SYSTEM
+}
 
 private val LightColorScheme = lightColorScheme(
   primary = CoralPrimary,
@@ -31,38 +38,44 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-  primary = CoralLight,
-  onPrimary = TextPrimaryDark,
-  primaryContainer = CoralDark,
-  onPrimaryContainer = SurfaceWhite,
-  secondary = PeachSecondary,
-  onSecondary = TextPrimaryDark,
-  secondaryContainer = DarkSurfaceElevated,
-  onSecondaryContainer = DarkTextPrimary,
+  primary = Color(0xFFFF7A7A),
+  onPrimary = Color.White,
+  primaryContainer = Color(0xFF5E1B24),
+  onPrimaryContainer = Color(0xFFFFD8DC),
+  secondary = Color(0xFFFF9E70),
+  onSecondary = Color.White,
+  secondaryContainer = Color(0xFF522819),
+  onSecondaryContainer = Color(0xFFFFDAC6),
   tertiary = SuperlikeBlue,
-  onTertiary = SurfaceWhite,
+  onTertiary = Color.White,
   background = DarkBackground,
   onBackground = DarkTextPrimary,
   surface = DarkSurface,
   onSurface = DarkTextPrimary,
   surfaceVariant = DarkSurfaceElevated,
   onSurfaceVariant = DarkTextSecondary,
-  outline = DarkSurfaceElevated
+  outline = DarkDivider
 )
 
 @Composable
 fun KatkatTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  themeMode: AppThemeMode = AppThemeMode.LIGHT,
   // For brand consistency, we prefer our custom Warm Playful palette
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit
 ) {
+  val isDark = when (themeMode) {
+    AppThemeMode.LIGHT -> false
+    AppThemeMode.DARK -> true
+    AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+  }
+
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       val context = LocalContext.current
-      if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+      if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
-    darkTheme -> DarkColorScheme
+    isDark -> DarkColorScheme
     else -> LightColorScheme
   }
 

@@ -394,7 +394,16 @@ fun UserProfileEntity.toDomain() = UserProfile(
   photos = Converters.stringToList(photosJoined),
   promptQuestion = promptQuestion,
   promptAnswer = promptAnswer,
-  isOnboardingCompleted = isOnboardingCompleted
+  isOnboardingCompleted = isOnboardingCompleted,
+  phoneNumber = phoneNumber,
+  countryCode = countryCode,
+  email = email,
+  dob = dob,
+  currentLocationCity = currentLocationCity,
+  currentLocationCountry = currentLocationCountry,
+  latitude = latitude,
+  longitude = longitude,
+  isPhoneVerified = isPhoneVerified
 )
 
 fun UserProfile.toEntity() = UserProfileEntity(
@@ -417,7 +426,16 @@ fun UserProfile.toEntity() = UserProfileEntity(
   photosJoined = Converters.listToString(photos),
   promptQuestion = promptQuestion,
   promptAnswer = promptAnswer,
-  isOnboardingCompleted = isOnboardingCompleted
+  isOnboardingCompleted = isOnboardingCompleted,
+  phoneNumber = phoneNumber,
+  countryCode = countryCode,
+  email = email,
+  dob = dob,
+  currentLocationCity = currentLocationCity,
+  currentLocationCountry = currentLocationCountry,
+  latitude = latitude,
+  longitude = longitude,
+  isPhoneVerified = isPhoneVerified
 )
 
 fun ChatMessageEntity.toDomain() = ChatMessage(

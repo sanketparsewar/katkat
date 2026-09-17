@@ -57,7 +57,16 @@ data class UserProfileEntity(
   val photosJoined: String,
   val promptQuestion: String,
   val promptAnswer: String,
-  val isOnboardingCompleted: Boolean = false
+  val isOnboardingCompleted: Boolean = false,
+  val phoneNumber: String = "",
+  val countryCode: String = "+91",
+  val email: String = "",
+  val dob: String = "",
+  val currentLocationCity: String = "",
+  val currentLocationCountry: String = "",
+  val latitude: Double = 0.0,
+  val longitude: Double = 0.0,
+  val isPhoneVerified: Boolean = false
 )
 
 @Entity(tableName = "swipe_records")

@@ -54,6 +54,7 @@ fun MainScreen(
   val inspectedProfile by viewModel.inspectedProfile.collectAsStateWithLifecycle()
   val selectedChatMatch by viewModel.selectedChatMatch.collectAsStateWithLifecycle()
   val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
+  val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
   // Handle ViewModel Toast & Vibration events
   LaunchedEffect(Unit) {
@@ -157,6 +158,8 @@ fun MainScreen(
             ProfileEditScreen(
               userProfile = userProfile,
               subscriptionState = subscriptionState,
+              themeMode = themeMode,
+              onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
               onSaveProfile = { updated -> viewModel.updateProfile(updated) },
               onAddPhoto = { uri -> viewModel.addPhotoToProfile(uri) },
               onRemovePhoto = { idx -> viewModel.removePhotoFromProfile(idx) },

@@ -57,6 +57,15 @@ class FirestoreManager {
         "promptQuestion" to profile.promptQuestion,
         "promptAnswer" to profile.promptAnswer,
         "isOnboardingCompleted" to profile.isOnboardingCompleted,
+        "phoneNumber" to profile.phoneNumber,
+        "countryCode" to profile.countryCode,
+        "email" to profile.email,
+        "dob" to profile.dob,
+        "currentLocationCity" to profile.currentLocationCity,
+        "currentLocationCountry" to profile.currentLocationCountry,
+        "latitude" to profile.latitude,
+        "longitude" to profile.longitude,
+        "isPhoneVerified" to profile.isPhoneVerified,
         "updatedAt" to System.currentTimeMillis()
       )
       db.collection("users")
@@ -109,7 +118,16 @@ class FirestoreManager {
               photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
               promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
               promptAnswer = data["promptAnswer"] as? String ?: "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
-              isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false
+              isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
+              phoneNumber = data["phoneNumber"] as? String ?: "",
+              countryCode = data["countryCode"] as? String ?: "+91",
+              email = data["email"] as? String ?: "",
+              dob = data["dob"] as? String ?: "",
+              currentLocationCity = data["currentLocationCity"] as? String ?: "",
+              currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
+              latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+              longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+              isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false
             )
             trySend(profile)
           }

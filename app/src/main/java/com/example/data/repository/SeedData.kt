@@ -131,6 +131,15 @@ object SeedData {
     )),
     promptQuestion = "My simple pleasures in life...",
     promptAnswer = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
-    isOnboardingCompleted = false
+    isOnboardingCompleted = false,
+    phoneNumber = "",
+    countryCode = "+91",
+    email = "",
+    dob = "2000-05-14",
+    currentLocationCity = "Mumbai",
+    currentLocationCountry = "India",
+    latitude = 19.0760,
+    longitude = 72.8777,
+    isPhoneVerified = false
   )
 }

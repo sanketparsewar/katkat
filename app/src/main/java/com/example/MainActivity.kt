@@ -9,6 +9,9 @@ import com.example.ui.screens.MainScreen
 import com.example.ui.theme.KatkatTheme
 import com.example.viewmodel.KatkatViewModel
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
+
 class MainActivity : ComponentActivity() {
 
   private val viewModel: KatkatViewModel by viewModels()
@@ -17,7 +20,8 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
-      KatkatTheme {
+      val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+      KatkatTheme(themeMode = themeMode) {
         MainScreen(viewModel = viewModel)
       }
     }

@@ -54,7 +54,16 @@ data class UserProfile(
   ),
   val promptQuestion: String = "My simple pleasures in life...",
   val promptAnswer: String = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
-  val isOnboardingCompleted: Boolean = false
+  val isOnboardingCompleted: Boolean = false,
+  val phoneNumber: String = "",
+  val countryCode: String = "+91",
+  val email: String = "",
+  val dob: String = "",
+  val currentLocationCity: String = "",
+  val currentLocationCountry: String = "",
+  val latitude: Double = 0.0,
+  val longitude: Double = 0.0,
+  val isPhoneVerified: Boolean = false
 )
 
 data class ChatMessage(

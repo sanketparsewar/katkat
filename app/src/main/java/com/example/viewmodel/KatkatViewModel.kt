@@ -66,6 +66,14 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _uiEvents = MutableSharedFlow<UiEvent>()
   val uiEvents: SharedFlow<UiEvent> = _uiEvents.asSharedFlow()
 
+  // App Theme Mode (default LIGHT)
+  private val _themeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.LIGHT)
+  val themeMode: StateFlow<com.example.ui.theme.AppThemeMode> = _themeMode.asStateFlow()
+
+  fun setThemeMode(mode: com.example.ui.theme.AppThemeMode) {
+    _themeMode.value = mode
+  }
+
   // Match celebration dialog state
   private val _activeMatchCelebration = MutableStateFlow<DatingProfile?>(null)
   val activeMatchCelebration: StateFlow<DatingProfile?> = _activeMatchCelebration.asStateFlow()
