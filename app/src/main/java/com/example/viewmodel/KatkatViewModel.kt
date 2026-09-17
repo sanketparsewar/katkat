@@ -311,8 +311,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun logout() {
     viewModelScope.launch {
-      phoneAuthManager.signOut()
-      restartOnboarding()
+      repository.logoutActiveSession()
       _uiEvents.emit(UiEvent.ShowToast("Logged out successfully"))
     }
   }
@@ -329,8 +328,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun restartOnboarding() {
     viewModelScope.launch {
-      val current = userProfile.value
-      repository.saveUserProfile(current.copy(isOnboardingCompleted = false))
+      repository.logoutActiveSession()
     }
   }
 

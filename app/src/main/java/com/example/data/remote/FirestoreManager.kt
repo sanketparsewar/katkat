@@ -110,14 +110,71 @@ class FirestoreManager {
     }
   }
 
+  private fun parseUserProfileData(docId: String, data: Map<String, Any?>, fallbackCountryCode: String): UserProfile {
+    @Suppress("UNCHECKED_CAST")
+    return UserProfile(
+      id = docId,
+      name = data["name"] as? String ?: "",
+      age = (data["age"] as? Number)?.toInt() ?: 0,
+      gender = data["gender"] as? String ?: "",
+      pronouns = data["pronouns"] as? String ?: "",
+      bio = data["bio"] as? String ?: "",
+      occupation = data["occupation"] as? String ?: "",
+      education = data["education"] as? String ?: "",
+      hometown = data["hometown"] as? String ?: "",
+      height = data["height"] as? String ?: "",
+      zodiac = data["zodiac"] as? String ?: "",
+      datingIntention = data["datingIntention"] as? String ?: "",
+      drinking = data["drinking"] as? String ?: "",
+      smoking = data["smoking"] as? String ?: "",
+      pets = data["pets"] as? String ?: "",
+      passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+      photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+      promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
+      promptAnswer = data["promptAnswer"] as? String ?: "",
+      isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
+      phoneNumber = data["phoneNumber"] as? String ?: "",
+      countryCode = data["countryCode"] as? String ?: fallbackCountryCode,
+      email = data["email"] as? String ?: "",
+      dob = data["dob"] as? String ?: "",
+      currentLocationCity = data["currentLocationCity"] as? String ?: "",
+      currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
+      latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+      longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+      isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
+      isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false
+    )
+  }
+
   suspend fun fetchUserByPhone(phoneNumber: String, countryCode: String = "+91"): UserProfile? {
     val db = firestore ?: return null
     val cleanDigits = phoneNumber.filter { it.isDigit() }
-    val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "$countryCode$cleanDigits"
+    val cleanCountryCode = countryCode.filter { it.isDigit() }
+    val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "+$cleanCountryCode$cleanDigits"
     val fullWithSpace = "$countryCode $phoneNumber"
 
-    val candidates = listOf(phoneNumber, cleanDigits, fullWithPlus, fullWithSpace).distinct()
+    // 1. Direct document lookup by predictable document IDs
+    val docIdsToTry = listOf("user_$cleanDigits", "user_${phoneNumber.trim()}", "user_$fullWithPlus")
+    for (docId in docIdsToTry) {
+      try {
+        val doc = db.collection("users").document(docId).get().await()
+        if (doc.exists()) {
+          val data = doc.data
+          if (data != null) {
+            val user = parseUserProfileData(doc.id, data, countryCode)
+            if (user.isOnboardingCompleted && user.name.isNotBlank()) {
+              Log.d(tag, "Firestore fetchUserByPhone found by docId '$docId': ${user.name}")
+              return user
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Firestore fetchUserByPhone docId '$docId' notice: ${e.message}")
+      }
+    }
 
+    // 2. Query candidates by field
+    val candidates = listOf(phoneNumber, cleanDigits, fullWithPlus, fullWithSpace).distinct()
     for (candidate in candidates) {
       try {
         val querySnapshot = db.collection("users")
@@ -128,39 +185,11 @@ class FirestoreManager {
         val doc = querySnapshot.documents.firstOrNull()
         if (doc != null) {
           val data = doc.data ?: continue
-          @Suppress("UNCHECKED_CAST")
-          return UserProfile(
-            id = doc.id,
-            name = data["name"] as? String ?: "",
-            age = (data["age"] as? Number)?.toInt() ?: 0,
-            gender = data["gender"] as? String ?: "",
-            pronouns = data["pronouns"] as? String ?: "",
-            bio = data["bio"] as? String ?: "",
-            occupation = data["occupation"] as? String ?: "",
-            education = data["education"] as? String ?: "",
-            hometown = data["hometown"] as? String ?: "",
-            height = data["height"] as? String ?: "",
-            zodiac = data["zodiac"] as? String ?: "",
-            datingIntention = data["datingIntention"] as? String ?: "",
-            drinking = data["drinking"] as? String ?: "",
-            smoking = data["smoking"] as? String ?: "",
-            pets = data["pets"] as? String ?: "",
-            passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-            photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-            promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
-            promptAnswer = data["promptAnswer"] as? String ?: "",
-            isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
-            phoneNumber = data["phoneNumber"] as? String ?: candidate,
-            countryCode = data["countryCode"] as? String ?: countryCode,
-            email = data["email"] as? String ?: "",
-            dob = data["dob"] as? String ?: "",
-            currentLocationCity = data["currentLocationCity"] as? String ?: "",
-            currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
-            latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
-            longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
-            isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
-            isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false
-          )
+          val user = parseUserProfileData(doc.id, data, countryCode)
+          if (user.isOnboardingCompleted && user.name.isNotBlank()) {
+            Log.d(tag, "Firestore fetchUserByPhone found by candidate field '$candidate': ${user.name}")
+            return user
+          }
         }
       } catch (e: Exception) {
         Log.w(tag, "Firestore fetchUserByPhone candidate '$candidate' notice: ${e.message}")

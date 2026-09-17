@@ -303,17 +303,35 @@ class KatkatRepository(
 
   // Profile update with real-time Firestore sync and community discovery publishing
   suspend fun saveUserProfile(profile: UserProfile) {
-    dao.saveUserProfile(profile.toEntity())
+    val cleanPhone = profile.phoneNumber.filter { it.isDigit() }
+    val uniqueId = if (profile.id.startsWith("user_") && profile.id.length > 5) {
+      profile.id
+    } else if (cleanPhone.isNotBlank()) {
+      "user_$cleanPhone"
+    } else {
+      profile.id
+    }
+    val fixedProfile = profile.copy(id = uniqueId)
+
+    dao.saveUserProfile(fixedProfile.toEntity())
     if (firestoreManager.isAvailable) {
       appScope.launch {
-        firestoreManager.syncUserProfile(profile)
+        firestoreManager.syncUserProfile(fixedProfile)
         // If user completed onboarding, publish as a dating profile for other users
-        if (profile.isOnboardingCompleted && profile.name.isNotBlank()) {
-          firestoreManager.publishUserToDiscovery(profile)
-          syncCommunityRegisteredUsers(profile.id)
+        if (fixedProfile.isOnboardingCompleted && fixedProfile.name.isNotBlank()) {
+          firestoreManager.publishUserToDiscovery(fixedProfile)
+          syncCommunityRegisteredUsers(fixedProfile.id)
         }
       }
     }
+  }
+
+  suspend fun logoutActiveSession() {
+    phoneAuthManager.signOut()
+    // Delete active user_profile row in SQLite so memory session resets,
+    // while keeping registered profile intact in Firestore.
+    dao.deleteUserProfile()
+    Log.d("KatkatRepository", "Logged out active session cleanly.")
   }
 
   /**
@@ -322,17 +340,25 @@ class KatkatRepository(
    */
   suspend fun checkExistingUserByPhone(phoneNumber: String, countryCode: String): UserProfile? {
     val cleanPhone = phoneNumber.filter { it.isDigit() }
+    val cleanCountryCode = countryCode.filter { it.isDigit() }
+    val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "+$cleanCountryCode$cleanPhone"
+    val fullWithSpace = "$countryCode $phoneNumber"
+
     val local = dao.getUserByPhone(phoneNumber)
       ?: dao.getUserByPhone(cleanPhone)
-      ?: dao.getUserByPhone("$countryCode$cleanPhone")
+      ?: dao.getUserByPhone(fullWithPlus)
+      ?: dao.getUserByPhone(fullWithSpace)
+      ?: dao.getUserByPhone("$cleanCountryCode$cleanPhone")
 
     if (local != null && local.isOnboardingCompleted && local.name.isNotBlank()) {
+      Log.d("KatkatRepository", "Existing user found in local DB for phone $phoneNumber: ${local.name}")
       return local.toDomain()
     }
 
     if (firestoreManager.isAvailable) {
       val cloudUser = firestoreManager.fetchUserByPhone(phoneNumber, countryCode)
       if (cloudUser != null && cloudUser.isOnboardingCompleted && cloudUser.name.isNotBlank()) {
+        Log.d("KatkatRepository", "Existing user found in Firestore for phone $phoneNumber: ${cloudUser.name}")
         dao.saveUserProfile(cloudUser.toEntity())
         syncCommunityRegisteredUsers(cloudUser.id)
         return cloudUser
