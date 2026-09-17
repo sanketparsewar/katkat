@@ -1,0 +1,88 @@
+package com.example.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface DatingDao {
+  // Profiles
+  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 ORDER BY id ASC")
+  fun getActiveDeckProfiles(): Flow<List<ProfileEntity>>
+
+  @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
+  fun getMutualMatches(): Flow<List<ProfileEntity>>
+
+  @Query("SELECT * FROM dating_profiles WHERE likedMe = 1")
+  fun getProfilesWhoLikedMe(): Flow<List<ProfileEntity>>
+
+  @Query("SELECT * FROM dating_profiles WHERE id = :id")
+  suspend fun getProfileById(id: String): ProfileEntity?
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertProfiles(profiles: List<ProfileEntity>)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertProfile(profile: ProfileEntity)
+
+  @Update
+  suspend fun updateProfile(profile: ProfileEntity)
+
+  @Query("UPDATE dating_profiles SET isLikedByMe = 1, isMutualMatch = :isMutual, matchedTimestamp = :matchedTimestamp WHERE id = :id")
+  suspend fun markLiked(id: String, isMutual: Boolean, matchedTimestamp: Long?)
+
+  @Query("UPDATE dating_profiles SET isPassedByMe = 1 WHERE id = :id")
+  suspend fun markPassed(id: String)
+
+  @Query("UPDATE dating_profiles SET isSuperLikedByMe = 1, isMutualMatch = 1, matchedTimestamp = :matchedTimestamp WHERE id = :id")
+  suspend fun markSuperLiked(id: String, matchedTimestamp: Long)
+
+  @Query("UPDATE dating_profiles SET isLikedByMe = 0, isPassedByMe = 0, isSuperLikedByMe = 0, isMutualMatch = 0, matchedTimestamp = NULL WHERE id = :id")
+  suspend fun rewindSwipe(id: String)
+
+  // Swipes and Tier tracking
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertSwipeRecord(record: SwipeRecordEntity)
+
+  @Query("SELECT COUNT(*) FROM swipe_records WHERE monthKey = :monthKey")
+  fun getMonthlySwipeCountFlow(monthKey: String): Flow<Int>
+
+  @Query("SELECT * FROM swipe_records ORDER BY timestamp DESC LIMIT 1")
+  suspend fun getLastSwipeRecord(): SwipeRecordEntity?
+
+  @Query("DELETE FROM swipe_records WHERE id = :id")
+  suspend fun deleteSwipeRecord(id: Long)
+
+  // User Profile
+  @Query("SELECT * FROM user_profile WHERE id = 'my_profile' LIMIT 1")
+  fun getUserProfileFlow(): Flow<UserProfileEntity?>
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun saveUserProfile(user: UserProfileEntity)
+
+  // Chat Messages
+  @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp ASC")
+  fun getMessagesForMatch(matchId: String): Flow<List<ChatMessageEntity>>
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertMessage(message: ChatMessageEntity)
+
+  @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp DESC LIMIT 1")
+  suspend fun getLatestMessage(matchId: String): ChatMessageEntity?
+
+  @Query("UPDATE chat_messages SET isRead = 1 WHERE matchId = :matchId AND isFromMe = 0")
+  suspend fun markMessagesAsRead(matchId: String)
+
+  // Subscription
+  @Query("SELECT * FROM subscription_info WHERE id = 'current_sub' LIMIT 1")
+  fun getSubscriptionFlow(): Flow<SubscriptionEntity?>
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun saveSubscription(subscription: SubscriptionEntity)
+
+  @Query("SELECT COUNT(*) FROM dating_profiles")
+  suspend fun getProfilesCount(): Int
+}

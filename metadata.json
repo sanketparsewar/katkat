@@ -1,0 +1,6 @@
+{
+  "name": "Katkat",
+  "description": "Warm & Playful Dating App featuring card swipe matching, tiered subscription swipe limits, real-time messaging, and media profile creation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

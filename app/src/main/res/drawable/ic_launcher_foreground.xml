@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Centered within 66dp safe zone (21 to 87 on 108 canvas) -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- Playful Cat Silhouette + Heart Dating Logo -->
+        <!-- Cat Ears -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M34,42 L42,26 L48,36 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M74,42 L66,26 L60,36 Z" />
+        <!-- Inner ear blush -->
+        <path
+            android:fillColor="#FFA07A"
+            android:pathData="M37,40 L42,30 L46,36 Z" />
+        <path
+            android:fillColor="#FFA07A"
+            android:pathData="M71,40 L66,30 L62,36 Z" />
+        <!-- Cat Head + Connected Heart Body -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,34 C44,34 36,40 36,49 C36,58 44,66 54,78 C64,66 72,58 72,49 C72,40 64,34 54,34 Z" />
+        <!-- Heart Cutout / Accent inside Body -->
+        <path
+            android:fillColor="#FF6B6B"
+            android:pathData="M54,48 C51,44 46,44 46,49 C46,55 54,62 54,62 C54,62 62,55 62,49 C62,44 57,44 54,48 Z" />
+        <!-- Cute Cat Eyes -->
+        <path
+            android:fillColor="#2D2327"
+            android:pathData="M46,42 A 2 2 0 1 1 45.99 42" />
+        <path
+            android:fillColor="#2D2327"
+            android:pathData="M62,42 A 2 2 0 1 1 61.99 42" />
+        <!-- Playful Sparkles -->
+        <path
+            android:fillColor="#FFF3E0"
+            android:pathData="M76,28 L78,32 L82,34 L78,36 L76,40 L74,36 L70,34 L74,32 Z" />
+    </group>
+</vector>
