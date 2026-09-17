@@ -28,5 +28,13 @@ class ExampleRobolectricTest {
     assertEquals(200, SubscriptionTier.TIER_1.monthlySwipes)
     assertEquals(500, SubscriptionTier.TIER_2.monthlySwipes)
   }
+
+  @Test
+  fun `verify user profile default state`() {
+    val profile = com.example.data.model.UserProfile()
+    assertTrue(profile.photos.isNotEmpty())
+    assertTrue(profile.passions.isNotEmpty())
+    assertTrue(profile.bio.isNotBlank())
+  }
 }
 

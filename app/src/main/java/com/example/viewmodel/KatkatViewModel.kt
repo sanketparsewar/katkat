@@ -221,6 +221,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.saveUserProfile(profile)
       _uiEvents.emit(UiEvent.ShowToast("Profile saved successfully! ✨"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("save"))
     }
   }
 
@@ -230,6 +231,27 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       if (size < 6) add(photoUri) else set(5, photoUri)
     }
     updateProfile(current.copy(photos = newPhotos))
+  }
+
+  fun replacePhotoAtSlot(index: Int, photoUri: String) {
+    val current = userProfile.value
+    val newPhotos = current.photos.toMutableList()
+    if (index in newPhotos.indices) {
+      newPhotos[index] = photoUri
+    } else if (newPhotos.size < 6) {
+      newPhotos.add(photoUri)
+    }
+    updateProfile(current.copy(photos = newPhotos))
+  }
+
+  fun setPrimaryPhoto(index: Int) {
+    val current = userProfile.value
+    if (index in 1 until current.photos.size) {
+      val newPhotos = current.photos.toMutableList()
+      val selectedPhoto = newPhotos.removeAt(index)
+      newPhotos.add(0, selectedPhoto)
+      updateProfile(current.copy(photos = newPhotos))
+    }
   }
 
   fun removePhotoFromProfile(index: Int) {

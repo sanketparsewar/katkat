@@ -147,6 +147,8 @@ fun MainScreen(
               onSaveProfile = { updated -> viewModel.updateProfile(updated) },
               onAddPhoto = { uri -> viewModel.addPhotoToProfile(uri) },
               onRemovePhoto = { idx -> viewModel.removePhotoFromProfile(idx) },
+              onSetPrimaryPhoto = { idx -> viewModel.setPrimaryPhoto(idx) },
+              onReplacePhoto = { idx, uri -> viewModel.replacePhotoAtSlot(idx, uri) },
               onOpenPaywall = { viewModel.openPaywall() }
             )
           }
