@@ -56,7 +56,8 @@ data class UserProfileEntity(
   val passionsJoined: String,
   val photosJoined: String,
   val promptQuestion: String,
-  val promptAnswer: String
+  val promptAnswer: String,
+  val isOnboardingCompleted: Boolean = false
 )
 
 @Entity(tableName = "swipe_records")

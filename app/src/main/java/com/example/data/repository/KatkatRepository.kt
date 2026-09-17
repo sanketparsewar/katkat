@@ -393,7 +393,8 @@ fun UserProfileEntity.toDomain() = UserProfile(
   passions = Converters.stringToList(passionsJoined),
   photos = Converters.stringToList(photosJoined),
   promptQuestion = promptQuestion,
-  promptAnswer = promptAnswer
+  promptAnswer = promptAnswer,
+  isOnboardingCompleted = isOnboardingCompleted
 )
 
 fun UserProfile.toEntity() = UserProfileEntity(
@@ -415,7 +416,8 @@ fun UserProfile.toEntity() = UserProfileEntity(
   passionsJoined = Converters.listToString(passions),
   photosJoined = Converters.listToString(photos),
   promptQuestion = promptQuestion,
-  promptAnswer = promptAnswer
+  promptAnswer = promptAnswer,
+  isOnboardingCompleted = isOnboardingCompleted
 )
 
 fun ChatMessageEntity.toDomain() = ChatMessage(

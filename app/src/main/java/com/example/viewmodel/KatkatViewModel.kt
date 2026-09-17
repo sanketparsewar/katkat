@@ -232,6 +232,22 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun completeOnboarding(profile: UserProfile) {
+    viewModelScope.launch {
+      val completed = profile.copy(isOnboardingCompleted = true)
+      repository.saveUserProfile(completed)
+      _uiEvents.emit(UiEvent.ShowToast("Welcome to Katkat! Your profile is complete ✨"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("match"))
+    }
+  }
+
+  fun restartOnboarding() {
+    viewModelScope.launch {
+      val current = userProfile.value
+      repository.saveUserProfile(current.copy(isOnboardingCompleted = false))
+    }
+  }
+
   fun addPhotoToProfile(photoUri: String) {
     val current = userProfile.value
     val newPhotos = current.photos.toMutableList().apply {

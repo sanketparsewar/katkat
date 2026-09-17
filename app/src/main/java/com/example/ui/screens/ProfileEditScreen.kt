@@ -136,6 +136,7 @@ fun ProfileEditScreen(
   onSetPrimaryPhoto: (Int) -> Unit = {},
   onReplacePhoto: (Int, String) -> Unit = { _, _ -> },
   onOpenPaywall: () -> Unit,
+  onRestartOnboarding: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val context = LocalContext.current
@@ -446,6 +447,27 @@ fun ProfileEditScreen(
               color = CoralPrimary,
               trackColor = PeachBlush
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+              onClick = onRestartOnboarding,
+              modifier = Modifier.fillMaxWidth(),
+              shape = RoundedCornerShape(14.dp),
+              colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = CoralPrimary
+              ),
+              border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.5f))
+            ) {
+              Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = CoralPrimary
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text("Run Step-by-Step Profile Wizard", fontWeight = FontWeight.SemiBold)
+            }
           }
         }
 

@@ -53,7 +53,8 @@ data class UserProfile(
     "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&q=80"
   ),
   val promptQuestion: String = "My simple pleasures in life...",
-  val promptAnswer: String = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning."
+  val promptAnswer: String = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
+  val isOnboardingCompleted: Boolean = false
 )
 
 data class ChatMessage(

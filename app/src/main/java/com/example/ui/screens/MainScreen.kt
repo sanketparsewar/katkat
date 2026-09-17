@@ -69,6 +69,18 @@ fun MainScreen(
     }
   }
 
+  // 1. First-Time User Profile Onboarding Step-by-Step Flow
+  if (!userProfile.isOnboardingCompleted) {
+    OnboardingProfileSetupScreen(
+      initialProfile = userProfile,
+      onComplete = { completedProfile ->
+        viewModel.completeOnboarding(completedProfile)
+        currentTab = KatkatTab.DISCOVER
+      }
+    )
+    return
+  }
+
   // If a chat is open, show ChatDetailScreen full screen
   val currentChat = selectedChatMatch
   if (currentChat != null) {
@@ -150,7 +162,8 @@ fun MainScreen(
               onRemovePhoto = { idx -> viewModel.removePhotoFromProfile(idx) },
               onSetPrimaryPhoto = { idx -> viewModel.setPrimaryPhoto(idx) },
               onReplacePhoto = { idx, uri -> viewModel.replacePhotoAtSlot(idx, uri) },
-              onOpenPaywall = { viewModel.openPaywall() }
+              onOpenPaywall = { viewModel.openPaywall() },
+              onRestartOnboarding = { viewModel.restartOnboarding() }
             )
           }
         }

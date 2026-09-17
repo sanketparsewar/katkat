@@ -56,6 +56,7 @@ class FirestoreManager {
         "photos" to profile.photos,
         "promptQuestion" to profile.promptQuestion,
         "promptAnswer" to profile.promptAnswer,
+        "isOnboardingCompleted" to profile.isOnboardingCompleted,
         "updatedAt" to System.currentTimeMillis()
       )
       db.collection("users")
@@ -107,7 +108,8 @@ class FirestoreManager {
               passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
               photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
               promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
-              promptAnswer = data["promptAnswer"] as? String ?: "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning."
+              promptAnswer = data["promptAnswer"] as? String ?: "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
+              isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false
             )
             trySend(profile)
           }

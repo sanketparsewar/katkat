@@ -36,6 +36,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.DatingProfile
 import com.example.data.model.SubscriptionState
 import com.example.ui.components.ActionButtonsBar
+import com.example.ui.components.CardSwipeDirection
 import com.example.ui.components.SwipeCard
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.PeachBlush
@@ -73,6 +77,7 @@ fun SwipeScreen(
   modifier: Modifier = Modifier
 ) {
   val refreshState = rememberPullToRefreshState()
+  var programmaticSwipe by remember { mutableStateOf<CardSwipeDirection?>(null) }
 
   PullToRefreshBox(
     isRefreshing = isRefreshing,
@@ -120,24 +125,46 @@ fun SwipeScreen(
             ) {
               SwipeCard(
                 profile = profile,
-                onSwipedLeft = { onSwipeLeft(profile.id) },
-                onSwipedRight = { onSwipeRight(profile.id) },
-                onSuperLiked = { onSuperLike(profile.id) },
+                onSwipedLeft = {
+                  programmaticSwipe = null
+                  onSwipeLeft(profile.id)
+                },
+                onSwipedRight = {
+                  programmaticSwipe = null
+                  onSwipeRight(profile.id)
+                },
+                onSuperLiked = {
+                  programmaticSwipe = null
+                  onSuperLike(profile.id)
+                },
                 onInspectProfile = { onInspectProfile(profile) },
-                isTopCard = isTop
+                isTopCard = isTop,
+                programmaticSwipe = if (isTop) programmaticSwipe else null
               )
             }
           }
         }
 
-        // Action Buttons Bar
+        // Action Buttons Bar connected to spring physics animations
         ActionButtonsBar(
           onRewind = onRewind,
-          onPass = { onSwipeLeft(profiles.first().id) },
-          onSuperLike = { onSuperLike(profiles.first().id) },
-          onLike = { onSwipeRight(profiles.first().id) },
+          onPass = {
+            if (programmaticSwipe == null && profiles.isNotEmpty()) {
+              programmaticSwipe = CardSwipeDirection.LEFT
+            }
+          },
+          onSuperLike = {
+            if (programmaticSwipe == null && profiles.isNotEmpty()) {
+              programmaticSwipe = CardSwipeDirection.UP
+            }
+          },
+          onLike = {
+            if (programmaticSwipe == null && profiles.isNotEmpty()) {
+              programmaticSwipe = CardSwipeDirection.RIGHT
+            }
+          },
           onBoost = onBoost,
-          enabled = true
+          enabled = programmaticSwipe == null
         )
       } else {
         // Empty Deck State with animated radar pulse

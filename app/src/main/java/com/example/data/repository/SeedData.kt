@@ -130,6 +130,7 @@ object SeedData {
       "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80"
     )),
     promptQuestion = "My simple pleasures in life...",
-    promptAnswer = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning."
+    promptAnswer = "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
+    isOnboardingCompleted = false
   )
 }
