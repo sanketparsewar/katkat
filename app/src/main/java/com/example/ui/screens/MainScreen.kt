@@ -48,6 +48,8 @@ fun MainScreen(
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val subscriptionState by viewModel.subscriptionState.collectAsStateWithLifecycle()
   val isRefreshingDeck by viewModel.isRefreshingDeck.collectAsStateWithLifecycle()
+  val isSessionLoaded by viewModel.isSessionLoaded.collectAsStateWithLifecycle()
+  val showGreetingSplash by viewModel.showGreetingSplash.collectAsStateWithLifecycle()
 
   val activeMatchCelebration by viewModel.activeMatchCelebration.collectAsStateWithLifecycle()
   val showPaywall by viewModel.showPaywall.collectAsStateWithLifecycle()
@@ -70,10 +72,26 @@ fun MainScreen(
     }
   }
 
-  // 1. First-Time User Profile Onboarding Step-by-Step Flow
+  // 1. App Opening Greeting Splash with text motion of Katkat as loading page
+  if (showGreetingSplash) {
+    GreetingLoadingScreen(
+      isSessionLoaded = isSessionLoaded,
+      isLoggedIn = userProfile.isOnboardingCompleted,
+      onRedirect = {
+        viewModel.dismissGreeting()
+      }
+    )
+    return
+  }
+
+  // 2. First-Time User Profile Onboarding Step-by-Step Flow (only shown when not logged in)
   if (!userProfile.isOnboardingCompleted) {
     OnboardingProfileSetupScreen(
       initialProfile = userProfile,
+      viewModel = viewModel,
+      onExistingUserFound = { existingProfile ->
+        viewModel.showGreetingAndEnter(existingProfile)
+      },
       onComplete = { completedProfile ->
         viewModel.completeOnboarding(completedProfile)
         currentTab = KatkatTab.DISCOVER

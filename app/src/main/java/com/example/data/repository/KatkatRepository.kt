@@ -15,7 +15,9 @@ import com.example.data.model.MatchConversation
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
+import android.util.Log
 import com.example.data.remote.FirestoreManager
+import com.example.data.remote.PhoneAuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -29,7 +31,8 @@ import java.util.UUID
 class KatkatRepository(
   private val dao: DatingDao,
   private val appScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
-  private val firestoreManager: FirestoreManager = FirestoreManager()
+  val firestoreManager: FirestoreManager = FirestoreManager(),
+  val phoneAuthManager: PhoneAuthManager = PhoneAuthManager()
 ) {
 
   init {
@@ -298,13 +301,91 @@ class KatkatRepository(
     dao.markMessagesAsRead(matchId)
   }
 
-  // Profile update with real-time Firestore sync
+  // Profile update with real-time Firestore sync and community discovery publishing
   suspend fun saveUserProfile(profile: UserProfile) {
     dao.saveUserProfile(profile.toEntity())
     if (firestoreManager.isAvailable) {
       appScope.launch {
         firestoreManager.syncUserProfile(profile)
+        // If user completed onboarding, publish as a dating profile for other users
+        if (profile.isOnboardingCompleted && profile.name.isNotBlank()) {
+          firestoreManager.publishUserToDiscovery(profile)
+          syncCommunityRegisteredUsers(profile.id)
+        }
       }
+    }
+  }
+
+  /**
+   * Checks if this phone number already belongs to a registered user with a completed profile.
+   * Checks both local database and Firestore cloud database.
+   */
+  suspend fun checkExistingUserByPhone(phoneNumber: String, countryCode: String): UserProfile? {
+    val cleanPhone = phoneNumber.filter { it.isDigit() }
+    val local = dao.getUserByPhone(phoneNumber)
+      ?: dao.getUserByPhone(cleanPhone)
+      ?: dao.getUserByPhone("$countryCode$cleanPhone")
+
+    if (local != null && local.isOnboardingCompleted && local.name.isNotBlank()) {
+      return local.toDomain()
+    }
+
+    if (firestoreManager.isAvailable) {
+      val cloudUser = firestoreManager.fetchUserByPhone(phoneNumber, countryCode)
+      if (cloudUser != null && cloudUser.isOnboardingCompleted && cloudUser.name.isNotBlank()) {
+        dao.saveUserProfile(cloudUser.toEntity())
+        syncCommunityRegisteredUsers(cloudUser.id)
+        return cloudUser
+      }
+    }
+    return null
+  }
+
+  /**
+   * Syncs all other registered users from Firestore into the local discovery pool.
+   * Every registered user becomes a dating profile for other users.
+   */
+  suspend fun syncCommunityRegisteredUsers(currentUserId: String) {
+    if (!firestoreManager.isAvailable) return
+    try {
+      val community = firestoreManager.fetchAllCommunityProfiles(currentUserId)
+      if (community.isNotEmpty()) {
+        val entities = community.map { profile ->
+          ProfileEntity(
+            id = profile.id,
+            name = profile.name,
+            age = profile.age,
+            occupation = profile.occupation,
+            company = profile.company,
+            education = profile.education,
+            location = profile.location,
+            bio = profile.bio,
+            photosJoined = profile.photos.joinToString("|||"),
+            promptQuestion = profile.promptQuestion,
+            promptAnswer = profile.promptAnswer,
+            passionsJoined = profile.passions.joinToString("|||"),
+            zodiac = profile.zodiac,
+            height = profile.height,
+            datingIntention = profile.datingIntention,
+            drinking = profile.drinking,
+            smoking = profile.smoking,
+            pets = profile.pets,
+            anthemSong = profile.anthemSong,
+            anthemArtist = profile.anthemArtist,
+            isVerified = profile.isVerified,
+            likedMe = false,
+            isLikedByMe = false,
+            isPassedByMe = false,
+            isSuperLikedByMe = false,
+            isMutualMatch = false,
+            matchedTimestamp = null
+          )
+        }
+        dao.insertProfiles(entities)
+        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles into Discover deck")
+      }
+    } catch (e: Exception) {
+      Log.w("KatkatRepository", "Notice syncing community users: ${e.message}")
     }
   }
 
@@ -317,7 +398,7 @@ class KatkatRepository(
     }
 
     if (firestoreManager.isAvailable) {
-      val existingCloud = firestoreManager.fetchUserByPhone(phoneNumber)
+      val existingCloud = firestoreManager.fetchUserByPhone(phoneNumber, countryCode)
       if (existingCloud != null) {
         dao.saveUserProfile(existingCloud.toEntity())
         return existingCloud

@@ -53,9 +53,29 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   val userProfile: StateFlow<UserProfile> = repository.userProfile.stateIn(
     scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
+    started = SharingStarted.Eagerly,
     initialValue = UserProfile()
   )
+
+  // Session loaded state from SQLite database
+  private val _isSessionLoaded = MutableStateFlow(false)
+  val isSessionLoaded: StateFlow<Boolean> = _isSessionLoaded.asStateFlow()
+
+  // App opening Greeting Splash visibility
+  private val _showGreetingSplash = MutableStateFlow(true)
+  val showGreetingSplash: StateFlow<Boolean> = _showGreetingSplash.asStateFlow()
+
+  init {
+    viewModelScope.launch {
+      repository.userProfile.collect {
+        _isSessionLoaded.value = true
+      }
+    }
+  }
+
+  fun dismissGreeting() {
+    _showGreetingSplash.value = false
+  }
 
   val subscriptionState: StateFlow<SubscriptionState> = repository.subscriptionState.stateIn(
     scope = viewModelScope,
@@ -274,8 +294,24 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  val phoneAuthManager: com.example.data.remote.PhoneAuthManager
+    get() = repository.phoneAuthManager
+
+  suspend fun checkExistingUser(phone: String, countryCode: String): UserProfile? {
+    return repository.checkExistingUserByPhone(phone, countryCode)
+  }
+
+  fun showGreetingAndEnter(profile: UserProfile) {
+    viewModelScope.launch {
+      val activeProfile = profile.copy(isOnboardingCompleted = true)
+      repository.saveUserProfile(activeProfile)
+      _showGreetingSplash.value = true
+    }
+  }
+
   fun logout() {
     viewModelScope.launch {
+      phoneAuthManager.signOut()
       restartOnboarding()
       _uiEvents.emit(UiEvent.ShowToast("Logged out successfully"))
     }
@@ -285,7 +321,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       val completed = profile.copy(isOnboardingCompleted = true)
       repository.saveUserProfile(completed)
-      _uiEvents.emit(UiEvent.ShowToast("Welcome to Katkat! Your profile is complete ✨"))
+      _showGreetingSplash.value = true
+      _uiEvents.emit(UiEvent.ShowToast("Welcome to Katkat, ${completed.name}! Your profile is active ✨"))
       _uiEvents.emit(UiEvent.VibrateFeedback("match"))
     }
   }

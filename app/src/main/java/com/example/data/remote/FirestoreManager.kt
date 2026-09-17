@@ -110,53 +110,63 @@ class FirestoreManager {
     }
   }
 
-  suspend fun fetchUserByPhone(phoneNumber: String): UserProfile? {
+  suspend fun fetchUserByPhone(phoneNumber: String, countryCode: String = "+91"): UserProfile? {
     val db = firestore ?: return null
-    return try {
-      val querySnapshot = db.collection("users")
-        .whereEqualTo("phoneNumber", phoneNumber)
-        .limit(1)
-        .get()
-        .await()
-      val doc = querySnapshot.documents.firstOrNull() ?: return null
-      val data = doc.data ?: return null
-      @Suppress("UNCHECKED_CAST")
-      UserProfile(
-        id = doc.id,
-        name = data["name"] as? String ?: "",
-        age = (data["age"] as? Number)?.toInt() ?: 0,
-        gender = data["gender"] as? String ?: "",
-        pronouns = data["pronouns"] as? String ?: "",
-        bio = data["bio"] as? String ?: "",
-        occupation = data["occupation"] as? String ?: "",
-        education = data["education"] as? String ?: "",
-        hometown = data["hometown"] as? String ?: "",
-        height = data["height"] as? String ?: "",
-        zodiac = data["zodiac"] as? String ?: "",
-        datingIntention = data["datingIntention"] as? String ?: "",
-        drinking = data["drinking"] as? String ?: "",
-        smoking = data["smoking"] as? String ?: "",
-        pets = data["pets"] as? String ?: "",
-        passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-        photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-        promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
-        promptAnswer = data["promptAnswer"] as? String ?: "",
-        isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
-        phoneNumber = data["phoneNumber"] as? String ?: "",
-        countryCode = data["countryCode"] as? String ?: "+91",
-        email = data["email"] as? String ?: "",
-        dob = data["dob"] as? String ?: "",
-        currentLocationCity = data["currentLocationCity"] as? String ?: "",
-        currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
-        latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
-        longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
-        isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
-        isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false
-      )
-    } catch (e: Exception) {
-      Log.w(tag, "Firestore fetchUserByPhone notice: ${e.message}")
-      null
+    val cleanDigits = phoneNumber.filter { it.isDigit() }
+    val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "$countryCode$cleanDigits"
+    val fullWithSpace = "$countryCode $phoneNumber"
+
+    val candidates = listOf(phoneNumber, cleanDigits, fullWithPlus, fullWithSpace).distinct()
+
+    for (candidate in candidates) {
+      try {
+        val querySnapshot = db.collection("users")
+          .whereEqualTo("phoneNumber", candidate)
+          .limit(1)
+          .get()
+          .await()
+        val doc = querySnapshot.documents.firstOrNull()
+        if (doc != null) {
+          val data = doc.data ?: continue
+          @Suppress("UNCHECKED_CAST")
+          return UserProfile(
+            id = doc.id,
+            name = data["name"] as? String ?: "",
+            age = (data["age"] as? Number)?.toInt() ?: 0,
+            gender = data["gender"] as? String ?: "",
+            pronouns = data["pronouns"] as? String ?: "",
+            bio = data["bio"] as? String ?: "",
+            occupation = data["occupation"] as? String ?: "",
+            education = data["education"] as? String ?: "",
+            hometown = data["hometown"] as? String ?: "",
+            height = data["height"] as? String ?: "",
+            zodiac = data["zodiac"] as? String ?: "",
+            datingIntention = data["datingIntention"] as? String ?: "",
+            drinking = data["drinking"] as? String ?: "",
+            smoking = data["smoking"] as? String ?: "",
+            pets = data["pets"] as? String ?: "",
+            passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+            photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+            promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
+            promptAnswer = data["promptAnswer"] as? String ?: "",
+            isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
+            phoneNumber = data["phoneNumber"] as? String ?: candidate,
+            countryCode = data["countryCode"] as? String ?: countryCode,
+            email = data["email"] as? String ?: "",
+            dob = data["dob"] as? String ?: "",
+            currentLocationCity = data["currentLocationCity"] as? String ?: "",
+            currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
+            latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+            longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+            isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
+            isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false
+          )
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Firestore fetchUserByPhone candidate '$candidate' notice: ${e.message}")
+      }
     }
+    return null
   }
 
   fun observeUserProfile(userId: String): Flow<UserProfile?> = callbackFlow {
@@ -372,6 +382,89 @@ class FirestoreManager {
         Log.w(tag, "Firestore discovery sync notice: ${e.message}")
       }
       false
+    }
+  }
+
+  suspend fun publishUserToDiscovery(profile: UserProfile): Boolean {
+    val db = firestore ?: return false
+    return try {
+      val data = mapOf(
+        "id" to profile.id,
+        "name" to profile.name,
+        "age" to profile.age,
+        "occupation" to profile.occupation.ifBlank { "Katkat Member" },
+        "company" to profile.education,
+        "education" to profile.education,
+        "location" to profile.currentLocationCity.ifBlank { profile.hometown.ifBlank { "Nearby" } },
+        "bio" to profile.bio,
+        "photos" to profile.photos,
+        "promptQuestion" to profile.promptQuestion,
+        "promptAnswer" to profile.promptAnswer,
+        "passions" to profile.passions,
+        "zodiac" to profile.zodiac,
+        "height" to profile.height,
+        "datingIntention" to profile.datingIntention,
+        "drinking" to profile.drinking,
+        "smoking" to profile.smoking,
+        "pets" to profile.pets,
+        "anthemSong" to "",
+        "anthemArtist" to "",
+        "isVerified" to profile.isPhoneVerified,
+        "likedMe" to false,
+        "updatedAt" to System.currentTimeMillis()
+      )
+      db.collection("discovery_profiles").document(profile.id)
+        .set(data, SetOptions.merge())
+        .await()
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Failed to publish user to discovery: ${e.message}")
+      false
+    }
+  }
+
+  suspend fun fetchAllCommunityProfiles(excludeUserId: String): List<DatingProfile> {
+    val db = firestore ?: return emptyList()
+    return try {
+      val snapshot = db.collection("users")
+        .whereEqualTo("isOnboardingCompleted", true)
+        .get()
+        .await()
+      snapshot.documents.mapNotNull { doc ->
+        if (doc.id == excludeUserId) return@mapNotNull null
+        val data = doc.data ?: return@mapNotNull null
+        val name = data["name"] as? String ?: return@mapNotNull null
+        if (name.isBlank()) return@mapNotNull null
+        val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        @Suppress("UNCHECKED_CAST")
+        DatingProfile(
+          id = doc.id,
+          name = name,
+          age = (data["age"] as? Number)?.toInt() ?: 24,
+          occupation = data["occupation"] as? String ?: "Katkat Member",
+          company = data["education"] as? String ?: "",
+          education = data["education"] as? String ?: "",
+          location = data["currentLocationCity"] as? String ?: (data["hometown"] as? String ?: "Nearby"),
+          bio = data["bio"] as? String ?: "",
+          photos = if (photos.isNotEmpty()) photos else listOf("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80"),
+          promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
+          promptAnswer = data["promptAnswer"] as? String ?: "",
+          passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: listOf("Music", "Travel", "Coffee"),
+          zodiac = data["zodiac"] as? String ?: "",
+          height = data["height"] as? String ?: "",
+          datingIntention = data["datingIntention"] as? String ?: "Long-term relationship",
+          drinking = data["drinking"] as? String ?: "Socially",
+          smoking = data["smoking"] as? String ?: "Never",
+          pets = data["pets"] as? String ?: "",
+          anthemSong = "",
+          anthemArtist = "",
+          isVerified = data["isPhoneVerified"] as? Boolean ?: true,
+          likedMe = false
+        )
+      }
+    } catch (e: Exception) {
+      Log.w(tag, "Failed to fetch community profiles: ${e.message}")
+      emptyList()
     }
   }
 }

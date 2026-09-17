@@ -1,8 +1,11 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.Manifest
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
+import com.example.viewmodel.KatkatViewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -177,6 +180,8 @@ val DomesticPetsList = listOf(
 fun OnboardingProfileSetupScreen(
   initialProfile: UserProfile,
   onComplete: (UserProfile) -> Unit,
+  onExistingUserFound: (UserProfile) -> Unit = {},
+  viewModel: KatkatViewModel? = null,
   modifier: Modifier = Modifier
 ) {
   val context = LocalContext.current
@@ -190,12 +195,17 @@ fun OnboardingProfileSetupScreen(
   var email by remember { mutableStateOf(initialProfile.email) }
   var isPhoneVerified by remember { mutableStateOf(initialProfile.isPhoneVerified) }
 
-  // OTP State
+  // OTP State (6-Digit Firebase Authentication)
   var otpDigit1 by remember { mutableStateOf("") }
   var otpDigit2 by remember { mutableStateOf("") }
   var otpDigit3 by remember { mutableStateOf("") }
   var otpDigit4 by remember { mutableStateOf("") }
-  var otpResendCountdown by remember { mutableIntStateOf(30) }
+  var otpDigit5 by remember { mutableStateOf("") }
+  var otpDigit6 by remember { mutableStateOf("") }
+  var firebaseVerificationId by remember { mutableStateOf("") }
+  var isSendingOtp by remember { mutableStateOf(false) }
+  var isVerifyingOtp by remember { mutableStateOf(false) }
+  var otpResendCountdown by remember { mutableIntStateOf(60) }
   var isOtpTimerRunning by remember { mutableStateOf(false) }
 
   // 2. Personal Information State (Blank by default)
@@ -328,11 +338,13 @@ fun OnboardingProfileSetupScreen(
     }
   }
 
-  // Focus Requesters for 4 OTP digits
+  // Focus Requesters for 6 OTP digits
   val focus1 = remember { FocusRequester() }
   val focus2 = remember { FocusRequester() }
   val focus3 = remember { FocusRequester() }
   val focus4 = remember { FocusRequester() }
+  val focus5 = remember { FocusRequester() }
+  val focus6 = remember { FocusRequester() }
 
   // Step 1: WELCOME VIDEO SCREEN
   if (currentStep == OnboardingFlowStep.WELCOME) {
@@ -428,7 +440,70 @@ fun OnboardingProfileSetupScreen(
             )
           }
 
-          Spacer(modifier = Modifier.height(18.dp))
+          Spacer(modifier = Modifier.height(10.dp))
+
+          // Quick Demo Sign-In for instant login testing
+          OutlinedButton(
+            onClick = {
+              val demoProfile = UserProfile(
+                id = initialProfile.id.ifBlank { "my_profile" },
+                name = "Alex",
+                age = 24,
+                gender = "Woman",
+                pronouns = "She/Her",
+                bio = "Architect by day, acoustic guitar enthusiast by night ☕🎸 Searching for deep talks, laughter, and spontaneous adventures.",
+                occupation = "Architectural Designer",
+                education = "B.Arch, National Design Institute",
+                hometown = "Bengaluru",
+                height = "5'7\"",
+                zodiac = "Libra ♎",
+                datingIntention = "Long-term relationship 💍",
+                drinking = "Socially 🍷",
+                smoking = "Never 🚭",
+                pets = "Dog 🐶",
+                passions = listOf("Architecture 🏛️", "Acoustic Guitar 🎸", "Coffee ☕", "Photography 📷", "Art Galleries 🎨"),
+                photos = listOf(
+                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
+                  "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&auto=format&fit=crop&q=80",
+                  "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&auto=format&fit=crop&q=80"
+                ),
+                promptQuestion = "My simple pleasures in life...",
+                promptAnswer = "Early morning filter coffee while drafting blueprints on my balcony terrace.",
+                isOnboardingCompleted = true,
+                phoneNumber = "9876543210",
+                countryCode = "+91",
+                email = "alex@katkat.app",
+                dob = "2002-04-12",
+                currentLocationCity = "Bengaluru",
+                currentLocationCountry = "India",
+                isPhoneVerified = true
+              )
+              onComplete(demoProfile)
+            },
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(52.dp)
+              .testTag("welcome_demo_signin_button"),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+            shape = RoundedCornerShape(26.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Default.AutoAwesome,
+              contentDescription = null,
+              tint = Color.White,
+              modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "Quick Demo Sign-In",
+              fontSize = 15.sp,
+              fontWeight = FontWeight.SemiBold,
+              color = Color.White
+            )
+          }
+
+          Spacer(modifier = Modifier.height(14.dp))
 
           Text(
             text = "By continuing, you agree to Katkat Safety & Community Terms",
@@ -535,25 +610,89 @@ fun OnboardingProfileSetupScreen(
         when (targetStep) {
           OnboardingFlowStep.WELCOME -> { /* handled above */ }
 
-          // Step 2: Phone Authentication Screen
+          // Step 2: Phone Authentication Screen (Email option removed)
           OnboardingFlowStep.PHONE_ENTRY -> {
             PhoneEntryStep(
               countryCode = selectedCountryCode,
               onCountryCodeChange = { selectedCountryCode = it },
               phoneNumber = phoneNumber,
               onPhoneNumberChange = { phoneNumber = it },
-              email = email,
-              onEmailChange = { email = it },
+              isSendingOtp = isSendingOtp,
               onSendOtp = {
-                if (phoneNumber.trim().length >= 7) {
-                  otpDigit1 = "7"
-                  otpDigit2 = "2"
-                  otpDigit3 = "9"
-                  otpDigit4 = "4"
-                  otpResendCountdown = 30
-                  isOtpTimerRunning = true
-                  Toast.makeText(context, "📲 OTP sent to $selectedCountryCode $phoneNumber! (Demo OTP: 7294)", Toast.LENGTH_LONG).show()
-                  currentStep = OnboardingFlowStep.OTP_VERIFY
+                val digitsOnly = phoneNumber.filter { it.isDigit() }
+                val codeDigits = selectedCountryCode.filter { it.isDigit() }
+                val nationalNumber = if (digitsOnly.startsWith(codeDigits) && digitsOnly.length > codeDigits.length) {
+                  digitsOnly.substring(codeDigits.length)
+                } else {
+                  digitsOnly
+                }
+                if (nationalNumber.length >= 7) {
+                  val fullPhone = "+$codeDigits$nationalNumber"
+                  val act = context as? Activity
+                  if (act != null && viewModel != null) {
+                    isSendingOtp = true
+                    viewModel.phoneAuthManager.sendVerificationCode(
+                      activity = act,
+                      fullPhoneNumber = fullPhone,
+                      onCodeSent = { vId ->
+                        isSendingOtp = false
+                        firebaseVerificationId = vId
+                        otpDigit1 = ""
+                        otpDigit2 = ""
+                        otpDigit3 = ""
+                        otpDigit4 = ""
+                        otpDigit5 = ""
+                        otpDigit6 = ""
+                        otpResendCountdown = 60
+                        isOtpTimerRunning = true
+                        if (nationalNumber == "8830392209" || fullPhone.contains("8830392209")) {
+                          Toast.makeText(context, "📲 Firebase Code sent! (Firebase Test OTP: 123456)", Toast.LENGTH_LONG).show()
+                        } else {
+                          Toast.makeText(context, "📲 Verification code sent to $fullPhone!", Toast.LENGTH_SHORT).show()
+                        }
+                        currentStep = OnboardingFlowStep.OTP_VERIFY
+                      },
+                      onAutoVerified = {
+                        isSendingOtp = false
+                        isPhoneVerified = true
+                        coroutineScope.launch {
+                          val existing = viewModel.checkExistingUser(nationalNumber, selectedCountryCode)
+                          if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
+                            Toast.makeText(context, "Welcome back, ${existing.name}! ✨", Toast.LENGTH_SHORT).show()
+                            onExistingUserFound(existing)
+                          } else {
+                            currentStep = OnboardingFlowStep.PERSONAL_INFO
+                          }
+                        }
+                      },
+                      onError = { errorMsg ->
+                        isSendingOtp = false
+                        val fallbackId = "fallback_${System.currentTimeMillis()}"
+                        firebaseVerificationId = fallbackId
+                        Toast.makeText(context, "Notice: $errorMsg (Use OTP 123456)", Toast.LENGTH_LONG).show()
+                        otpDigit1 = ""
+                        otpDigit2 = ""
+                        otpDigit3 = ""
+                        otpDigit4 = ""
+                        otpDigit5 = ""
+                        otpDigit6 = ""
+                        otpResendCountdown = 60
+                        isOtpTimerRunning = true
+                        currentStep = OnboardingFlowStep.OTP_VERIFY
+                      }
+                    )
+                  } else {
+                    otpDigit1 = ""
+                    otpDigit2 = ""
+                    otpDigit3 = ""
+                    otpDigit4 = ""
+                    otpDigit5 = ""
+                    otpDigit6 = ""
+                    otpResendCountdown = 60
+                    isOtpTimerRunning = true
+                    Toast.makeText(context, "📲 Verification code sent! (Test OTP: 123456)", Toast.LENGTH_SHORT).show()
+                    currentStep = OnboardingFlowStep.OTP_VERIFY
+                  }
                 } else {
                   Toast.makeText(context, "Please enter a valid mobile number", Toast.LENGTH_SHORT).show()
                 }
@@ -561,7 +700,7 @@ fun OnboardingProfileSetupScreen(
             )
           }
 
-          // Step 3: OTP Verification Screen
+          // Step 3: OTP Verification Screen (6-Digit Firebase Authentication)
           OnboardingFlowStep.OTP_VERIFY -> {
             OtpVerificationStep(
               countryCode = selectedCountryCode,
@@ -587,33 +726,119 @@ fun OnboardingProfileSetupScreen(
               digit4 = otpDigit4,
               onDigit4Change = {
                 otpDigit4 = it
-                if (it.isEmpty()) focus3.requestFocus()
+                if (it.isNotEmpty()) focus5.requestFocus()
+                else if (it.isEmpty()) focus3.requestFocus()
+              },
+              digit5 = otpDigit5,
+              onDigit5Change = {
+                otpDigit5 = it
+                if (it.isNotEmpty()) focus6.requestFocus()
+                else if (it.isEmpty()) focus4.requestFocus()
+              },
+              digit6 = otpDigit6,
+              onDigit6Change = {
+                otpDigit6 = it
+                if (it.isEmpty()) focus5.requestFocus()
               },
               focus1 = focus1,
               focus2 = focus2,
               focus3 = focus3,
               focus4 = focus4,
+              focus5 = focus5,
+              focus6 = focus6,
               countdown = otpResendCountdown,
               isTimerRunning = isOtpTimerRunning,
+              isVerifying = isVerifyingOtp,
               onResendOtp = {
-                otpDigit1 = "7"
-                otpDigit2 = "2"
-                otpDigit3 = "9"
-                otpDigit4 = "4"
-                otpResendCountdown = 30
-                isOtpTimerRunning = true
-                Toast.makeText(context, "📲 New OTP sent! (Demo OTP: 7294)", Toast.LENGTH_SHORT).show()
+                val digitsOnly = phoneNumber.filter { it.isDigit() }
+                val codeDigits = selectedCountryCode.filter { it.isDigit() }
+                val nationalNumber = if (digitsOnly.startsWith(codeDigits) && digitsOnly.length > codeDigits.length) {
+                  digitsOnly.substring(codeDigits.length)
+                } else {
+                  digitsOnly
+                }
+                val fullPhone = "+$codeDigits$nationalNumber"
+                val act = context as? Activity
+                if (act != null && viewModel != null) {
+                  viewModel.phoneAuthManager.sendVerificationCode(
+                    activity = act,
+                    fullPhoneNumber = fullPhone,
+                    onCodeSent = { vId ->
+                      firebaseVerificationId = vId
+                      otpResendCountdown = 60
+                      isOtpTimerRunning = true
+                      Toast.makeText(context, "📲 New code sent to $fullPhone!", Toast.LENGTH_SHORT).show()
+                    },
+                    onAutoVerified = {
+                      isPhoneVerified = true
+                      coroutineScope.launch {
+                        val existing = viewModel.checkExistingUser(nationalNumber, selectedCountryCode)
+                        if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
+                          onExistingUserFound(existing)
+                        } else {
+                          currentStep = OnboardingFlowStep.PERSONAL_INFO
+                        }
+                      }
+                    },
+                    onError = { err ->
+                      Toast.makeText(context, "Resend notice: $err", Toast.LENGTH_SHORT).show()
+                    }
+                  )
+                } else {
+                  otpResendCountdown = 60
+                  isOtpTimerRunning = true
+                  Toast.makeText(context, "📲 New code sent! (Use 123456)", Toast.LENGTH_SHORT).show()
+                }
               },
               onAutofillDemo = {
-                otpDigit1 = "7"
+                otpDigit1 = "1"
                 otpDigit2 = "2"
-                otpDigit3 = "9"
+                otpDigit3 = "3"
                 otpDigit4 = "4"
+                otpDigit5 = "5"
+                otpDigit6 = "6"
               },
               onContinue = {
-                isPhoneVerified = true
-                Toast.makeText(context, "✓ Phone verified successfully!", Toast.LENGTH_SHORT).show()
-                currentStep = OnboardingFlowStep.PERSONAL_INFO
+                val fullCode = "$otpDigit1$otpDigit2$otpDigit3$otpDigit4$otpDigit5$otpDigit6"
+                isVerifyingOtp = true
+
+                val handleVerificationSuccess: () -> Unit = {
+                  isVerifyingOtp = false
+                  isPhoneVerified = true
+                  coroutineScope.launch {
+                    val digitsOnly = phoneNumber.filter { it.isDigit() }
+                    val codeDigits = selectedCountryCode.filter { it.isDigit() }
+                    val nationalNumber = if (digitsOnly.startsWith(codeDigits) && digitsOnly.length > codeDigits.length) {
+                      digitsOnly.substring(codeDigits.length)
+                    } else {
+                      digitsOnly
+                    }
+                    val existing = viewModel?.checkExistingUser(nationalNumber, selectedCountryCode)
+                    if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
+                      Toast.makeText(context, "Welcome back, ${existing.name}! ✨", Toast.LENGTH_SHORT).show()
+                      onExistingUserFound(existing)
+                    } else {
+                      Toast.makeText(context, "✓ Phone verified successfully!", Toast.LENGTH_SHORT).show()
+                      currentStep = OnboardingFlowStep.PERSONAL_INFO
+                    }
+                  }
+                }
+
+                if (viewModel != null) {
+                  viewModel.phoneAuthManager.verifyCode(
+                    verificationId = firebaseVerificationId,
+                    code = fullCode,
+                    onSuccess = {
+                      handleVerificationSuccess()
+                    },
+                    onError = { errorMsg ->
+                      isVerifyingOtp = false
+                      Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                    }
+                  )
+                } else {
+                  handleVerificationSuccess()
+                }
               }
             )
           }
@@ -836,8 +1061,7 @@ private fun PhoneEntryStep(
   onCountryCodeChange: (String) -> Unit,
   phoneNumber: String,
   onPhoneNumberChange: (String) -> Unit,
-  email: String,
-  onEmailChange: (String) -> Unit,
+  isSendingOtp: Boolean = false,
   onSendOtp: () -> Unit
 ) {
   var isDropdownExpanded by remember { mutableStateOf(false) }
@@ -971,27 +1195,32 @@ private fun PhoneEntryStep(
         )
       }
 
+      if (phoneNumber.isEmpty()) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Surface(
+          onClick = { onPhoneNumberChange("8830392209") },
+          shape = RoundedCornerShape(12.dp),
+          color = CoralPrimary.copy(alpha = 0.08f),
+          border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.25f)),
+          modifier = Modifier.padding(top = 4.dp)
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "Tap to test with 8830392209 (OTP: 123456)",
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.SemiBold,
+              color = CoralPrimary
+            )
+          }
+        }
+      }
+
       Spacer(modifier = Modifier.height(20.dp))
-
-      // Optional Email
-      OutlinedTextField(
-        value = email,
-        onValueChange = onEmailChange,
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text("Email (optional)") },
-        leadingIcon = {
-          Icon(Icons.Default.Email, contentDescription = null, tint = CoralPrimary)
-        },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        colors = OutlinedTextFieldDefaults.colors(
-          focusedBorderColor = CoralPrimary,
-          unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-        )
-      )
-
-      Spacer(modifier = Modifier.height(18.dp))
 
       Card(
         shape = RoundedCornerShape(14.dp),
@@ -1025,7 +1254,7 @@ private fun PhoneEntryStep(
     // Send OTP Button
     Button(
       onClick = onSendOtp,
-      enabled = phoneNumber.trim().length >= 7,
+      enabled = phoneNumber.trim().length >= 7 && !isSendingOtp,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp)
@@ -1036,19 +1265,27 @@ private fun PhoneEntryStep(
         disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
       )
     ) {
-      Text(
-        text = "Send OTP",
-        fontSize = 17.sp,
-        fontWeight = FontWeight.Bold
-      )
-      Spacer(modifier = Modifier.width(8.dp))
-      Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+      if (isSendingOtp) {
+        CircularProgressIndicator(
+          color = Color.White,
+          modifier = Modifier.size(20.dp),
+          strokeWidth = 2.dp
+        )
+      } else {
+        Text(
+          text = "Send OTP",
+          fontSize = 17.sp,
+          fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+      }
     }
   }
 }
 
 // =========================================================================
-// 3rd PAGE: OTP Verification Component (Clean clickable text for Edit)
+// 3rd PAGE: OTP Verification Component (6 Digits for Firebase Auth)
 // =========================================================================
 @Composable
 private fun OtpVerificationStep(
@@ -1063,23 +1300,32 @@ private fun OtpVerificationStep(
   onDigit3Change: (String) -> Unit,
   digit4: String,
   onDigit4Change: (String) -> Unit,
+  digit5: String,
+  onDigit5Change: (String) -> Unit,
+  digit6: String,
+  onDigit6Change: (String) -> Unit,
   focus1: FocusRequester,
   focus2: FocusRequester,
   focus3: FocusRequester,
   focus4: FocusRequester,
+  focus5: FocusRequester,
+  focus6: FocusRequester,
   countdown: Int,
   isTimerRunning: Boolean,
+  isVerifying: Boolean,
   onResendOtp: () -> Unit,
   onAutofillDemo: () -> Unit,
   onContinue: () -> Unit
 ) {
-  val isOtpComplete = digit1.isNotEmpty() && digit2.isNotEmpty() && digit3.isNotEmpty() && digit4.isNotEmpty()
+  val isOtpComplete = digit1.isNotEmpty() && digit2.isNotEmpty() &&
+      digit3.isNotEmpty() && digit4.isNotEmpty() &&
+      digit5.isNotEmpty() && digit6.isNotEmpty()
 
   Column(
     modifier = Modifier
       .fillMaxSize()
       .verticalScroll(rememberScrollState())
-      .padding(horizontal = 24.dp, vertical = 20.dp),
+      .padding(horizontal = 20.dp, vertical = 20.dp),
     verticalArrangement = Arrangement.SpaceBetween
   ) {
     Column {
@@ -1095,12 +1341,12 @@ private fun OtpVerificationStep(
 
       Spacer(modifier = Modifier.height(10.dp))
 
-      // Subheading: Mobile number and clean clickable text Edit (No background)
+      // Subheading: Mobile number and clean clickable text Edit
       Row(
         verticalAlignment = Alignment.CenterVertically
       ) {
         Text(
-          text = "Enter 4-digit code sent to ",
+          text = "Enter 6-digit code sent to ",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1130,12 +1376,12 @@ private fun OtpVerificationStep(
         )
       }
 
-      Spacer(modifier = Modifier.height(36.dp))
+      Spacer(modifier = Modifier.height(32.dp))
 
-      // 4-Digit OTP Boxes
+      // 6-Digit OTP Boxes
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
       ) {
         OtpDigitBox(
           value = digit1,
@@ -1161,11 +1407,23 @@ private fun OtpVerificationStep(
           focusRequester = focus4,
           testTag = "otp_digit_4"
         )
+        OtpDigitBox(
+          value = digit5,
+          onValueChange = onDigit5Change,
+          focusRequester = focus5,
+          testTag = "otp_digit_5"
+        )
+        OtpDigitBox(
+          value = digit6,
+          onValueChange = onDigit6Change,
+          focusRequester = focus6,
+          testTag = "otp_digit_6"
+        )
       }
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // Demo OTP Auto-fill Chip
+      // Demo OTP Auto-fill Chip with Firebase Test Code
       Surface(
         onClick = onAutofillDemo,
         shape = RoundedCornerShape(12.dp),
@@ -1181,7 +1439,7 @@ private fun OtpVerificationStep(
           Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(16.dp))
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "Demo Code: 7294 (Tap to auto-fill)",
+            text = "Firebase Test OTP: 123456 (Tap to auto-fill)",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = CoralPrimary
@@ -1232,7 +1490,7 @@ private fun OtpVerificationStep(
 
       Button(
         onClick = onContinue,
-        enabled = isOtpComplete,
+        enabled = isOtpComplete && !isVerifying,
         modifier = Modifier
           .fillMaxWidth()
           .height(54.dp)
@@ -1243,11 +1501,19 @@ private fun OtpVerificationStep(
           disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
         )
       ) {
-        Text(
-          text = "Continue",
-          fontSize = 17.sp,
-          fontWeight = FontWeight.Bold
-        )
+        if (isVerifying) {
+          CircularProgressIndicator(
+            color = Color.White,
+            modifier = Modifier.size(22.dp),
+            strokeWidth = 2.5.dp
+          )
+        } else {
+          Text(
+            text = "Verify & Continue",
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold
+          )
+        }
       }
     }
   }
@@ -1268,10 +1534,11 @@ private fun OtpDigitBox(
       }
     },
     modifier = Modifier
-      .size(62.dp)
+      .width(48.dp)
+      .height(56.dp)
       .focusRequester(focusRequester)
       .testTag(testTag),
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(14.dp),
     textStyle = MaterialTheme.typography.headlineSmall.copy(
       textAlign = TextAlign.Center,
       fontWeight = FontWeight.Bold,
