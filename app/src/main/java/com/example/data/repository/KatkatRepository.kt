@@ -13,6 +13,7 @@ import com.example.data.model.MatchConversation
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
+import com.example.data.remote.FirestoreManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -25,15 +26,18 @@ import java.util.UUID
 
 class KatkatRepository(
   private val dao: DatingDao,
-  private val appScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+  private val appScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
+  private val firestoreManager: FirestoreManager = FirestoreManager()
 ) {
 
   init {
     appScope.launch {
       // Seed database if empty
       if (dao.getProfilesCount() == 0) {
-        dao.insertProfiles(SeedData.getInitialProfiles())
-        dao.saveUserProfile(SeedData.getInitialUserProfile())
+        val initialProfiles = SeedData.getInitialProfiles()
+        dao.insertProfiles(initialProfiles)
+        val initialUser = SeedData.getInitialUserProfile()
+        dao.saveUserProfile(initialUser)
         dao.saveSubscription(
           SubscriptionEntity(
             id = "current_sub",
@@ -44,6 +48,22 @@ class KatkatRepository(
             subscriptionExpiryDate = "Renews Oct 16, 2026"
           )
         )
+        // Initial cloud sync if Firestore is available
+        if (firestoreManager.isAvailable) {
+          firestoreManager.syncUserProfile(initialUser.toDomain())
+          firestoreManager.syncDiscoveryProfiles(initialProfiles.map { it.toDomain() })
+        }
+      }
+
+      // Start observing real-time cloud profile updates if Firestore is active
+      if (firestoreManager.isAvailable) {
+        launch {
+          firestoreManager.observeUserProfile("my_profile").collect { cloudProfile ->
+            if (cloudProfile != null) {
+              dao.saveUserProfile(cloudProfile.toEntity())
+            }
+          }
+        }
       }
     }
   }
@@ -205,8 +225,19 @@ class KatkatRepository(
   }
 
   // Chat Messages
-  fun getMessages(matchId: String): Flow<List<ChatMessage>> = dao.getMessagesForMatch(matchId).map { list ->
-    list.map { it.toDomain() }
+  fun getMessages(matchId: String): Flow<List<ChatMessage>> {
+    if (firestoreManager.isAvailable) {
+      appScope.launch {
+        firestoreManager.observeChatMessages(matchId).collect { remoteMessages ->
+          remoteMessages.forEach { msg ->
+            dao.insertMessage(msg.toEntity())
+          }
+        }
+      }
+    }
+    return dao.getMessagesForMatch(matchId).map { list ->
+      list.map { it.toDomain() }
+    }
   }
 
   suspend fun sendMessage(matchId: String, text: String, photoUri: String? = null) {
@@ -222,6 +253,13 @@ class KatkatRepository(
       isRead = true
     )
     dao.insertMessage(myMessage)
+
+    // Sync sent message to Cloud Firestore
+    if (firestoreManager.isAvailable) {
+      appScope.launch {
+        firestoreManager.sendChatMessage(matchId, myMessage.toDomain())
+      }
+    }
 
     // Simulate realistic real-time 2-way reply from match
     appScope.launch {
@@ -240,6 +278,11 @@ class KatkatRepository(
         isRead = false
       )
       dao.insertMessage(replyMessage)
+
+      // Sync simulated reply to Cloud Firestore
+      if (firestoreManager.isAvailable) {
+        firestoreManager.sendChatMessage(matchId, replyMessage.toDomain())
+      }
     }
   }
 
@@ -247,9 +290,14 @@ class KatkatRepository(
     dao.markMessagesAsRead(matchId)
   }
 
-  // Profile update
+  // Profile update with real-time Firestore sync
   suspend fun saveUserProfile(profile: UserProfile) {
     dao.saveUserProfile(profile.toEntity())
+    if (firestoreManager.isAvailable) {
+      appScope.launch {
+        firestoreManager.syncUserProfile(profile)
+      }
+    }
   }
 
   suspend fun resetDeckForTesting() {
@@ -371,6 +419,18 @@ fun UserProfile.toEntity() = UserProfileEntity(
 )
 
 fun ChatMessageEntity.toDomain() = ChatMessage(
+  id = id,
+  matchId = matchId,
+  senderId = senderId,
+  senderName = senderName,
+  text = text,
+  photoUri = photoUri,
+  timestamp = timestamp,
+  isFromMe = isFromMe,
+  isRead = isRead
+)
+
+fun ChatMessage.toEntity() = ChatMessageEntity(
   id = id,
   matchId = matchId,
   senderId = senderId,

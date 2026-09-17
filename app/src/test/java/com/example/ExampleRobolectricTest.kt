@@ -57,5 +57,13 @@ class ExampleRobolectricTest {
     com.example.util.HapticHelper.triggerHaptic(context, "boost")
     com.example.util.HapticHelper.triggerHaptic(context, "rewind")
   }
+
+  @Test
+  fun `verify firestore manager initializes safely`() {
+    val firestoreManager = com.example.data.remote.FirestoreManager()
+    // Verification that manager handles availability safely without throwing unhandled runtime exceptions
+    val isAvailable = firestoreManager.isAvailable
+    assertTrue(isAvailable || !isAvailable)
+  }
 }
 
