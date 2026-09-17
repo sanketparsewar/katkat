@@ -40,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +69,7 @@ import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.PeachSecondary
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.WarmCream
+import com.example.util.HapticHelper
 
 @Composable
 fun MatchCelebrationDialog(
@@ -77,7 +79,13 @@ fun MatchCelebrationDialog(
   onOpenChat: () -> Unit,
   onKeepSwiping: () -> Unit
 ) {
+  val context = LocalContext.current
   var quickMessage by remember { mutableStateOf("") }
+
+  LaunchedEffect(matchedProfile.id) {
+    HapticHelper.triggerHaptic(context, "match")
+  }
+
   val infiniteTransition = rememberInfiniteTransition(label = "pulse")
   val pulseScale by infiniteTransition.animateFloat(
     initialValue = 1f,

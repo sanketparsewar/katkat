@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 import com.example.ui.theme.NopeRed
 import com.example.ui.theme.SuperlikeBlue
+import com.example.util.HapticHelper
 
 @Composable
 fun ActionButtonsBar(
@@ -138,6 +140,7 @@ fun ActionButtonItem(
   enabled: Boolean,
   onClick: () -> Unit
 ) {
+  val context = LocalContext.current
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
   val scale by animateFloatAsState(
@@ -157,7 +160,10 @@ fun ActionButtonItem(
         interactionSource = interactionSource,
         indication = null,
         enabled = enabled,
-        onClick = onClick
+        onClick = {
+          HapticHelper.triggerHaptic(context, "threshold")
+          onClick()
+        }
       ),
     color = backgroundColor,
     shape = CircleShape

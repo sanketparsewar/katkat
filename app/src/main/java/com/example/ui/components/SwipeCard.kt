@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -66,6 +67,7 @@ import com.example.ui.theme.LikeGreen
 import com.example.ui.theme.NopeRed
 import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.SuperlikeBlue
+import com.example.util.HapticHelper
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -80,9 +82,11 @@ fun SwipeCard(
   modifier: Modifier = Modifier,
   isTopCard: Boolean = true
 ) {
+  val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
   val offset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
   var currentPhotoIndex by remember { mutableIntStateOf(0) }
+  var lastThresholdZone by remember { mutableStateOf<String?>(null) }
   val photos = profile.photos.ifEmpty {
     listOf("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80")
   }
@@ -112,6 +116,7 @@ fun SwipeCard(
           Modifier.pointerInput(Unit) {
             detectDragGestures(
               onDragEnd = {
+                lastThresholdZone = null
                 coroutineScope.launch {
                   when {
                     offset.value.x > swipeThresholdPx -> {
@@ -144,10 +149,26 @@ fun SwipeCard(
                   }
                 }
               },
+              onDragCancel = {
+                lastThresholdZone = null
+              },
               onDrag = { change, dragAmount ->
                 change.consume()
+                val targetOffset = offset.value + dragAmount
+                val currentZone = when {
+                  targetOffset.x > swipeThresholdPx -> "like"
+                  targetOffset.x < -swipeThresholdPx -> "pass"
+                  targetOffset.y < -superlikeThresholdPx -> "superlike"
+                  else -> null
+                }
+                // Subtle tactile tick when crossing into a commit zone
+                if (currentZone != null && currentZone != lastThresholdZone) {
+                  HapticHelper.triggerHaptic(context, "threshold")
+                }
+                lastThresholdZone = currentZone
+
                 coroutineScope.launch {
-                  offset.snapTo(offset.value + dragAmount)
+                  offset.snapTo(targetOffset)
                 }
               }
             )
@@ -176,9 +197,15 @@ fun SwipeCard(
           .pointerInput(photos.size) {
             detectTapGestures { tapOffset ->
               if (tapOffset.x < size.width * 0.35f) {
-                if (currentPhotoIndex > 0) currentPhotoIndex--
+                if (currentPhotoIndex > 0) {
+                  currentPhotoIndex--
+                  HapticHelper.triggerHaptic(context, "threshold")
+                }
               } else {
-                if (currentPhotoIndex < photos.size - 1) currentPhotoIndex++
+                if (currentPhotoIndex < photos.size - 1) {
+                  currentPhotoIndex++
+                  HapticHelper.triggerHaptic(context, "threshold")
+                }
               }
             }
           }

@@ -114,7 +114,12 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
           _uiEvents.emit(UiEvent.ShowToast("Monthly swipe limit reached (${result.tier.monthlySwipes} swipes). Upgrade to continue!"))
         }
         is SwipeResult.Success -> {
-          _uiEvents.emit(UiEvent.VibrateFeedback("swipe"))
+          val feedbackType = when (action) {
+            SwipeAction.LIKE -> "swipe_like"
+            SwipeAction.PASS -> "swipe_pass"
+            SwipeAction.SUPERLIKE -> "swipe_superlike"
+          }
+          _uiEvents.emit(UiEvent.VibrateFeedback(feedbackType))
         }
         is SwipeResult.Error -> {
           _uiEvents.emit(UiEvent.ShowToast(result.message))
@@ -139,6 +144,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
       val success = repository.rewindLastSwipe()
       if (success) {
+        _uiEvents.emit(UiEvent.VibrateFeedback("rewind"))
         _uiEvents.emit(UiEvent.ShowToast("Last swipe undone! ↺"))
       } else {
         _uiEvents.emit(UiEvent.ShowToast("No previous swipes to rewind"))
@@ -153,6 +159,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _showPaywall.value = true
         _uiEvents.emit(UiEvent.ShowToast("Profile Boost is a Katkat VIP feature! ⚡"))
       } else {
+        _uiEvents.emit(UiEvent.VibrateFeedback("boost"))
         _uiEvents.emit(UiEvent.ShowToast("⚡ Profile Boosted! You are 10x more visible for 30 minutes!"))
       }
     }

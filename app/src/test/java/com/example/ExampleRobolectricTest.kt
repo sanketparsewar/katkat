@@ -36,5 +36,17 @@ class ExampleRobolectricTest {
     assertTrue(profile.passions.isNotEmpty())
     assertTrue(profile.bio.isNotBlank())
   }
+
+  @Test
+  fun `verify haptic feedback helper triggers without crashing`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    com.example.util.HapticHelper.triggerHaptic(context, "match")
+    com.example.util.HapticHelper.triggerHaptic(context, "swipe_like")
+    com.example.util.HapticHelper.triggerHaptic(context, "swipe_pass")
+    com.example.util.HapticHelper.triggerHaptic(context, "swipe_superlike")
+    com.example.util.HapticHelper.triggerHaptic(context, "threshold")
+    com.example.util.HapticHelper.triggerHaptic(context, "boost")
+    com.example.util.HapticHelper.triggerHaptic(context, "rewind")
+  }
 }
 

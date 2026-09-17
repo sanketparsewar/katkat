@@ -29,6 +29,7 @@ import com.example.ui.components.KatkatTopBar
 import com.example.ui.components.MatchCelebrationDialog
 import com.example.ui.components.PaywallBottomSheet
 import com.example.ui.components.ProfileDetailBottomSheet
+import com.example.util.HapticHelper
 import com.example.viewmodel.KatkatViewModel
 import com.example.viewmodel.UiEvent
 
@@ -62,7 +63,7 @@ fun MainScreen(
           Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
         }
         is UiEvent.VibrateFeedback -> {
-          triggerHapticFeedback(context, event.type)
+          HapticHelper.triggerHaptic(context, event.type)
         }
       }
     }
@@ -220,25 +221,3 @@ fun MainScreen(
   }
 }
 
-private fun triggerHapticFeedback(context: Context, type: String) {
-  try {
-    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-      vibratorManager?.defaultVibrator
-    } else {
-      @Suppress("DEPRECATION")
-      context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-    }
-
-    vibrator?.let {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val effect = when (type) {
-          "match" -> VibrationEffect.createWaveform(longArrayOf(0, 100, 80, 200), -1)
-          "upgrade" -> VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
-          else -> VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE)
-        }
-        it.vibrate(effect)
-      }
-    }
-  } catch (_: Exception) {}
-}
