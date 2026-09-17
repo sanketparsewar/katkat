@@ -70,6 +70,10 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _activeMatchCelebration = MutableStateFlow<DatingProfile?>(null)
   val activeMatchCelebration: StateFlow<DatingProfile?> = _activeMatchCelebration.asStateFlow()
 
+  // Pull-to-refresh state for discover deck
+  private val _isRefreshingDeck = MutableStateFlow(false)
+  val isRefreshingDeck: StateFlow<Boolean> = _isRefreshingDeck.asStateFlow()
+
   // Paywall bottom sheet state
   private val _showPaywall = MutableStateFlow(false)
   val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
@@ -238,9 +242,17 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun resetDeck() {
     viewModelScope.launch {
+      _isRefreshingDeck.value = true
+      kotlinx.coroutines.delay(650)
       repository.resetDeckForTesting()
-      _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed!"))
+      _isRefreshingDeck.value = false
+      _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed! ✨"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))
     }
+  }
+
+  fun refreshDeck() {
+    resetDeck()
   }
 }
 

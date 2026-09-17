@@ -18,16 +18,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -49,10 +55,13 @@ import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwipeScreen(
   profiles: List<DatingProfile>,
+  isRefreshing: Boolean,
   subscriptionState: SubscriptionState,
+  onRefresh: () -> Unit,
   onSwipeLeft: (String) -> Unit,
   onSwipeRight: (String) -> Unit,
   onSuperLike: (String) -> Unit,
@@ -63,65 +72,83 @@ fun SwipeScreen(
   onOpenPaywall: () -> Unit,
   modifier: Modifier = Modifier
 ) {
-  Column(
+  val refreshState = rememberPullToRefreshState()
+
+  PullToRefreshBox(
+    isRefreshing = isRefreshing,
+    onRefresh = onRefresh,
+    state = refreshState,
+    indicator = {
+      PullToRefreshDefaults.Indicator(
+        state = refreshState,
+        isRefreshing = isRefreshing,
+        modifier = Modifier.align(Alignment.TopCenter),
+        containerColor = CoralPrimary,
+        color = Color.White
+      )
+    },
     modifier = modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
-      .testTag("swipe_screen"),
-    horizontalAlignment = Alignment.CenterHorizontally
+      .testTag("swipe_screen")
   ) {
-    if (profiles.isNotEmpty()) {
-      // Swipe Deck Box
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f)
-          .padding(horizontal = 16.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-      ) {
-        // Render up to 2 cards for optimal performance & stack depth
-        val visibleCards = profiles.take(2).reversed()
-        visibleCards.forEachIndexed { index, profile ->
-          val isTop = profile == profiles.first()
-          val scale = if (isTop) 1f else 0.94f
-          val yOffset = if (isTop) 0.dp else 12.dp
+    Column(
+      modifier = Modifier.fillMaxSize(),
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      if (profiles.isNotEmpty()) {
+        // Swipe Deck Box
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+          contentAlignment = Alignment.Center
+        ) {
+          // Render up to 2 cards for optimal performance & stack depth
+          val visibleCards = profiles.take(2).reversed()
+          visibleCards.forEachIndexed { index, profile ->
+            val isTop = profile == profiles.first()
+            val scale = if (isTop) 1f else 0.94f
+            val yOffset = if (isTop) 0.dp else 12.dp
 
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .scale(scale)
-              .padding(top = yOffset)
-          ) {
-            SwipeCard(
-              profile = profile,
-              onSwipedLeft = { onSwipeLeft(profile.id) },
-              onSwipedRight = { onSwipeRight(profile.id) },
-              onSuperLiked = { onSuperLike(profile.id) },
-              onInspectProfile = { onInspectProfile(profile) },
-              isTopCard = isTop
-            )
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .scale(scale)
+                .padding(top = yOffset)
+            ) {
+              SwipeCard(
+                profile = profile,
+                onSwipedLeft = { onSwipeLeft(profile.id) },
+                onSwipedRight = { onSwipeRight(profile.id) },
+                onSuperLiked = { onSuperLike(profile.id) },
+                onInspectProfile = { onInspectProfile(profile) },
+                isTopCard = isTop
+              )
+            }
           }
         }
-      }
 
-      // Action Buttons Bar
-      ActionButtonsBar(
-        onRewind = onRewind,
-        onPass = { onSwipeLeft(profiles.first().id) },
-        onSuperLike = { onSuperLike(profiles.first().id) },
-        onLike = { onSwipeRight(profiles.first().id) },
-        onBoost = onBoost,
-        enabled = true
-      )
-    } else {
-      // Empty Deck State with animated radar pulse
-      EmptyDeckView(
-        onResetDeck = onResetDeck,
-        onOpenPaywall = onOpenPaywall,
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f)
-      )
+        // Action Buttons Bar
+        ActionButtonsBar(
+          onRewind = onRewind,
+          onPass = { onSwipeLeft(profiles.first().id) },
+          onSuperLike = { onSuperLike(profiles.first().id) },
+          onLike = { onSwipeRight(profiles.first().id) },
+          onBoost = onBoost,
+          enabled = true
+        )
+      } else {
+        // Empty Deck State with animated radar pulse
+        EmptyDeckView(
+          onResetDeck = onResetDeck,
+          onOpenPaywall = onOpenPaywall,
+          modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+        )
+      }
     }
   }
 }
@@ -153,7 +180,9 @@ fun EmptyDeckView(
   )
 
   Box(
-    modifier = modifier.padding(24.dp),
+    modifier = modifier
+      .verticalScroll(rememberScrollState())
+      .padding(24.dp),
     contentAlignment = Alignment.Center
   ) {
     Column(
@@ -202,7 +231,7 @@ fun EmptyDeckView(
       Spacer(modifier = Modifier.height(8.dp))
 
       Text(
-        text = "Check back soon for new profiles, or refresh the deck to revisit matches.",
+        text = "Check back soon for new profiles, or pull down to refresh the deck.",
         style = MaterialTheme.typography.bodyMedium.copy(
           color = TextSecondaryDark,
           textAlign = TextAlign.Center,

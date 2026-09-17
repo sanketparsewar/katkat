@@ -46,6 +46,7 @@ fun MainScreen(
   val likedMeProfiles by viewModel.likedMeProfiles.collectAsStateWithLifecycle()
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val subscriptionState by viewModel.subscriptionState.collectAsStateWithLifecycle()
+  val isRefreshingDeck by viewModel.isRefreshingDeck.collectAsStateWithLifecycle()
 
   val activeMatchCelebration by viewModel.activeMatchCelebration.collectAsStateWithLifecycle()
   val showPaywall by viewModel.showPaywall.collectAsStateWithLifecycle()
@@ -105,7 +106,9 @@ fun MainScreen(
           KatkatTab.DISCOVER -> {
             SwipeScreen(
               profiles = activeProfiles,
+              isRefreshing = isRefreshingDeck,
               subscriptionState = subscriptionState,
+              onRefresh = { viewModel.refreshDeck() },
               onSwipeLeft = { id -> viewModel.swipeLeft(id) },
               onSwipeRight = { id -> viewModel.swipeRight(id) },
               onSuperLike = { id -> viewModel.superLike(id) },
