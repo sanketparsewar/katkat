@@ -458,15 +458,44 @@ class KatkatRepository(
       }
     }
     // Re-create initial fresh un-onboarded entry
-    val freshInitial = SeedData.getInitialUserProfile()
+    val freshInitial = UserProfileEntity(
+      id = "my_profile",
+      name = "",
+      age = 0,
+      gender = "",
+      pronouns = "",
+      bio = "",
+      occupation = "",
+      education = "",
+      hometown = "",
+      height = "",
+      zodiac = "",
+      datingIntention = "",
+      drinking = "",
+      smoking = "",
+      pets = "",
+      passionsJoined = "",
+      photosJoined = "",
+      promptQuestion = "My simple pleasures in life...",
+      promptAnswer = "",
+      isOnboardingCompleted = false,
+      phoneNumber = "",
+      countryCode = "+91",
+      email = "",
+      dob = "",
+      currentLocationCity = "",
+      currentLocationCountry = "",
+      latitude = 0.0,
+      longitude = 0.0,
+      isPhoneVerified = false,
+      isAccountDisabled = false
+    )
     dao.saveUserProfile(freshInitial)
     return true
   }
 
   suspend fun resetDeckForTesting() {
     dao.deleteAllProfiles()
-    val initial = SeedData.getInitialProfiles()
-    dao.insertProfiles(initial)
   }
 
   private fun getGreetingForProfile(name: String): String {

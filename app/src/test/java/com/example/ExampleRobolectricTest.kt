@@ -32,18 +32,9 @@ class ExampleRobolectricTest {
   @Test
   fun `verify user profile default state`() {
     val profile = com.example.data.model.UserProfile()
-    assertTrue(profile.photos.isNotEmpty())
-    assertTrue(profile.passions.isNotEmpty())
-    assertTrue(profile.bio.isNotBlank())
-  }
-
-  @Test
-  fun `verify initial database seed contains 3 profiles`() {
-    val profiles = com.example.data.repository.SeedData.getInitialProfiles()
-    assertEquals(3, profiles.size)
-    assertEquals("profile_1", profiles[0].id)
-    assertEquals("profile_2", profiles[1].id)
-    assertEquals("profile_3", profiles[2].id)
+    assertEquals("my_profile", profile.id)
+    assertFalse(profile.isOnboardingCompleted)
+    assertTrue(profile.photos.isEmpty())
   }
 
   @Test

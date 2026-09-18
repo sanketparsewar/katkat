@@ -471,70 +471,7 @@ fun OnboardingProfileSetupScreen(
             )
           }
 
-          Spacer(modifier = Modifier.height(10.dp))
-
-          // Quick Demo Sign-In for instant login testing
-          OutlinedButton(
-            onClick = {
-              val demoProfile = UserProfile(
-                id = initialProfile.id.ifBlank { "my_profile" },
-                name = "Alex",
-                age = 24,
-                gender = "Woman",
-                pronouns = "She/Her",
-                bio = "Architect by day, acoustic guitar enthusiast by night ☕🎸 Searching for deep talks, laughter, and spontaneous adventures.",
-                occupation = "Architectural Designer",
-                education = "B.Arch, National Design Institute",
-                hometown = "Bengaluru",
-                height = "5'7\"",
-                zodiac = "Libra ♎",
-                datingIntention = "Long-term relationship 💍",
-                drinking = "Socially 🍷",
-                smoking = "Never 🚭",
-                pets = "Dog 🐶",
-                passions = listOf("Architecture 🏛️", "Acoustic Guitar 🎸", "Coffee ☕", "Photography 📷", "Art Galleries 🎨"),
-                photos = listOf(
-                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
-                  "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&auto=format&fit=crop&q=80",
-                  "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&auto=format&fit=crop&q=80"
-                ),
-                promptQuestion = "My simple pleasures in life...",
-                promptAnswer = "Early morning filter coffee while drafting blueprints on my balcony terrace.",
-                isOnboardingCompleted = true,
-                phoneNumber = "9876543210",
-                countryCode = "+91",
-                email = "alex@katkat.app",
-                dob = "2002-04-12",
-                currentLocationCity = "Bengaluru",
-                currentLocationCountry = "India",
-                isPhoneVerified = true
-              )
-              onComplete(demoProfile)
-            },
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(52.dp)
-              .testTag("welcome_demo_signin_button"),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
-            shape = RoundedCornerShape(26.dp)
-          ) {
-            Icon(
-              imageVector = Icons.Default.AutoAwesome,
-              contentDescription = null,
-              tint = Color.White,
-              modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-              text = "Quick Demo Sign-In",
-              fontSize = 15.sp,
-              fontWeight = FontWeight.SemiBold,
-              color = Color.White
-            )
-          }
-
-          Spacer(modifier = Modifier.height(14.dp))
+          Spacer(modifier = Modifier.height(20.dp))
 
           Text(
             text = "By continuing, you agree to Katkat Safety & Community Terms",

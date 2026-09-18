@@ -23,7 +23,7 @@ class KatkatApplication : Application(), ImageLoaderFactory {
             "User-Agent",
             "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
           )
-          .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+          .header("Accept", "image/jpeg,image/png,image/webp,image/*;q=0.8")
           .build()
         chain.proceed(requestWithHeaders)
       }
@@ -31,6 +31,7 @@ class KatkatApplication : Application(), ImageLoaderFactory {
 
     return ImageLoader.Builder(this)
       .okHttpClient(okHttpClient)
+      .allowHardware(false)
       .memoryCache {
         MemoryCache.Builder(this)
           .maxSizePercent(0.25)
