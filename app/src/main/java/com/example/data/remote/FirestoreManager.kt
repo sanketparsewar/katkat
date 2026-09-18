@@ -153,8 +153,14 @@ class FirestoreManager {
     val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "+$cleanCountryCode$cleanDigits"
     val fullWithSpace = "$countryCode $phoneNumber"
 
-    // 1. Direct document lookup by predictable document IDs
-    val docIdsToTry = listOf("user_$cleanDigits", "user_${phoneNumber.trim()}", "user_$fullWithPlus")
+    // 1. Direct document lookup by predictable document IDs in users collection
+    val docIdsToTry = listOf(
+      "user_$cleanDigits",
+      "user_$cleanCountryCode$cleanDigits",
+      "user_${phoneNumber.trim()}",
+      "user_$fullWithPlus"
+    ).distinct()
+
     for (docId in docIdsToTry) {
       try {
         val doc = db.collection("users").document(docId).get().await()
@@ -173,8 +179,16 @@ class FirestoreManager {
       }
     }
 
-    // 2. Query candidates by field
-    val candidates = listOf(phoneNumber, cleanDigits, fullWithPlus, fullWithSpace).distinct()
+    // 2. Query candidates by phoneNumber field in users collection
+    val candidates = listOf(
+      phoneNumber.trim(),
+      cleanDigits,
+      fullWithPlus,
+      fullWithSpace,
+      "$cleanCountryCode$cleanDigits",
+      "+$cleanCountryCode$cleanDigits"
+    ).distinct()
+
     for (candidate in candidates) {
       try {
         val querySnapshot = db.collection("users")
@@ -195,6 +209,26 @@ class FirestoreManager {
         Log.w(tag, "Firestore fetchUserByPhone candidate '$candidate' notice: ${e.message}")
       }
     }
+
+    // 3. Fallback check: Look up dating_pool in case registered as public discovery profile
+    for (docId in docIdsToTry) {
+      try {
+        val doc = db.collection("dating_pool").document(docId).get().await()
+        if (doc.exists()) {
+          val data = doc.data
+          if (data != null) {
+            val user = parseUserProfileData(doc.id, data, countryCode)
+            if (user.name.isNotBlank()) {
+              Log.d(tag, "Firestore fetchUserByPhone found in dating_pool '$docId': ${user.name}")
+              return user.copy(isOnboardingCompleted = true)
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Firestore dating_pool check notice: ${e.message}")
+      }
+    }
+
     return null
   }
 

@@ -166,16 +166,16 @@ val SupportedCountryCodes = listOf(
   CountryCodeItem("Japan", "+81", "🇯🇵")
 )
 
-enum class OnboardingFlowStep(val stepNumber: Int) {
-  WELCOME(1),
-  PHONE_ENTRY(2),
-  OTP_VERIFY(3),
-  PERSONAL_INFO(4),
-  PHOTOS(5),
-  CAREER_EDUCATION(6),
-  INTENTIONS_PASSIONS(7),
-  LIFESTYLE_PROMPTS(8),
-  REVIEW_LAUNCH(9)
+enum class OnboardingFlowStep {
+  WELCOME,
+  PHONE_ENTRY,
+  OTP_VERIFY,
+  PERSONAL_INFO,
+  PHOTOS,
+  CAREER_EDUCATION,
+  INTENTIONS_PASSIONS,
+  LIFESTYLE_PROMPTS,
+  REVIEW_LAUNCH
 }
 
 val AllZodiacSigns = listOf(
@@ -234,10 +234,9 @@ fun OnboardingProfileSetupScreen(
   var gender by remember { mutableStateOf("") }
   var pronouns by remember { mutableStateOf("") }
 
-  // 3. Photos State & Cropping
+  // 3. Photos State (Direct Firebase Storage Upload)
   var photos by remember { mutableStateOf(initialProfile.photos.toMutableList()) }
-  var photoToCrop by remember { mutableStateOf<String?>(null) }
-  var cropTargetIndex by remember { mutableStateOf<Int?>(null) }
+  var isUploadingPhoto by remember { mutableStateOf(false) }
 
   // 4. Work & Education
   var occupation by remember { mutableStateOf("") }
@@ -329,13 +328,40 @@ fun OnboardingProfileSetupScreen(
     }
   }
 
-  // Photo Picker (Opens Photo Crop Dialog immediately upon selecting an image)
+  // Photo Picker (Uploads selected image directly to Firebase Storage)
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
   ) { uri: Uri? ->
     if (uri != null) {
-      photoToCrop = uri.toString()
-      cropTargetIndex = null
+      coroutineScope.launch {
+        isUploadingPhoto = true
+        Toast.makeText(context, "Uploading image to Firebase...", Toast.LENGTH_SHORT).show()
+        try {
+          val cleanPhone = phoneNumber.filter { it.isDigit() }
+          val userId = if (initialProfile.id.startsWith("user_") && initialProfile.id.length > 5) {
+            initialProfile.id
+          } else {
+            "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+          }
+          val uploadedUrl = if (viewModel != null) {
+            viewModel.uploadProfilePhoto(context, userId, uri)
+          } else {
+            uri.toString()
+          }
+          if (photos.size < 6) {
+            photos = (photos + uploadedUrl).toMutableList()
+          } else {
+            photos = photos.toMutableList().apply { set(5, uploadedUrl) }
+          }
+          Toast.makeText(context, "✓ Photo uploaded to Firebase", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+          if (photos.size < 6) {
+            photos = (photos + uri.toString()).toMutableList()
+          }
+        } finally {
+          isUploadingPhoto = false
+        }
+      }
     }
   }
 
@@ -525,6 +551,17 @@ fun OnboardingProfileSetupScreen(
   // Multi-step Scaffold with top padding for all pages
   Scaffold(
     topBar = {
+      val isAuthStep = currentStep == OnboardingFlowStep.PHONE_ENTRY || currentStep == OnboardingFlowStep.OTP_VERIFY
+      val currentStepNumber = when (currentStep) {
+        OnboardingFlowStep.PERSONAL_INFO -> 1
+        OnboardingFlowStep.PHOTOS -> 2
+        OnboardingFlowStep.CAREER_EDUCATION -> 3
+        OnboardingFlowStep.INTENTIONS_PASSIONS -> 4
+        OnboardingFlowStep.LIFESTYLE_PROMPTS -> 5
+        OnboardingFlowStep.REVIEW_LAUNCH -> 6
+        else -> 0
+      }
+
       Column(
         modifier = Modifier
           .fillMaxWidth()
@@ -569,27 +606,40 @@ fun OnboardingProfileSetupScreen(
             )
           }
 
-          Text(
-            text = "Step ${currentStep.stepNumber - 1} of 8",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold
-          )
+          if (isAuthStep) {
+            Text(
+              text = "Phone Verification",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontWeight = FontWeight.SemiBold
+            )
+          } else if (currentStepNumber > 0) {
+            Text(
+              text = "Step $currentStepNumber of 6",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontWeight = FontWeight.SemiBold
+            )
+          } else {
+            Spacer(modifier = Modifier.width(48.dp))
+          }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        if (!isAuthStep && currentStepNumber > 0) {
+          Spacer(modifier = Modifier.height(8.dp))
 
-        val progressVal = (currentStep.stepNumber - 1).toFloat() / 8f
-        LinearProgressIndicator(
-          progress = { progressVal },
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(3.dp)),
-          color = CoralPrimary,
-          trackColor = MaterialTheme.colorScheme.surfaceVariant,
-          strokeCap = StrokeCap.Round
-        )
+          val progressVal = currentStepNumber.toFloat() / 6f
+          LinearProgressIndicator(
+            progress = { progressVal },
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(6.dp)
+              .clip(RoundedCornerShape(3.dp)),
+            color = CoralPrimary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            strokeCap = StrokeCap.Round
+          )
+        }
       }
     }
   ) { paddingValues ->
@@ -602,7 +652,7 @@ fun OnboardingProfileSetupScreen(
       AnimatedContent(
         targetState = currentStep,
         transitionSpec = {
-          if (targetState.stepNumber > initialState.stepNumber) {
+          if (targetState.ordinal > initialState.ordinal) {
             slideInHorizontally { width -> width } + fadeIn() togetherWith
                 slideOutHorizontally { width -> -width } + fadeOut()
           } else {
@@ -657,12 +707,13 @@ fun OnboardingProfileSetupScreen(
                       onAutoVerified = {
                         isSendingOtp = false
                         isPhoneVerified = true
+                        phoneNumber = nationalNumber
                         coroutineScope.launch {
                           val existing = viewModel.checkExistingUser(nationalNumber, selectedCountryCode)
                           if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
-                            Toast.makeText(context, "Welcome back, ${existing.name}! ✨", Toast.LENGTH_SHORT).show()
                             onExistingUserFound(existing)
                           } else {
+                            Toast.makeText(context, "✓ Phone verified! Please complete your profile ✨", Toast.LENGTH_SHORT).show()
                             currentStep = OnboardingFlowStep.PERSONAL_INFO
                           }
                         }
@@ -774,7 +825,6 @@ fun OnboardingProfileSetupScreen(
                 otpErrorMessage = null
 
                 val handleVerificationSuccess: () -> Unit = {
-                  isVerifyingOtp = false
                   isPhoneVerified = true
                   coroutineScope.launch {
                     val digitsOnly = phoneNumber.filter { it.isDigit() }
@@ -784,12 +834,14 @@ fun OnboardingProfileSetupScreen(
                     } else {
                       digitsOnly
                     }
+                    phoneNumber = nationalNumber
+
                     val existing = viewModel?.checkExistingUser(nationalNumber, selectedCountryCode)
                     if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
-                      Toast.makeText(context, "Welcome back, ${existing.name}! ✨", Toast.LENGTH_SHORT).show()
                       onExistingUserFound(existing)
                     } else {
-                      Toast.makeText(context, "✓ Phone verified successfully!", Toast.LENGTH_SHORT).show()
+                      isVerifyingOtp = false
+                      Toast.makeText(context, "✓ Phone verified! Please complete your profile ✨", Toast.LENGTH_SHORT).show()
                       currentStep = OnboardingFlowStep.PERSONAL_INFO
                     }
                   }
@@ -856,18 +908,15 @@ fun OnboardingProfileSetupScreen(
             )
           }
 
-          // Step 5: Photos (with Crop support)
+          // Step 2: Photos (Stored in Firebase Storage)
           OnboardingFlowStep.PHOTOS -> {
             PhotosStep(
               photos = photos,
+              isUploading = isUploadingPhoto,
               onAddPhoto = {
                 photoPickerLauncher.launch(
                   PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
-              },
-              onCropPhoto = { uri, idx ->
-                photoToCrop = uri
-                cropTargetIndex = idx
               },
               onRemovePhoto = { idx ->
                 if (photos.size > 1) {
@@ -1001,32 +1050,6 @@ fun OnboardingProfileSetupScreen(
         }
       }
     }
-  }
-
-  // Profile Photo Cropping Modal Dialog
-  photoToCrop?.let { uriToCrop ->
-    PhotoCropDialog(
-      photoUri = uriToCrop,
-      onDismiss = {
-        photoToCrop = null
-        cropTargetIndex = null
-      },
-      onSaveCrop = { croppedUri ->
-        val targetIdx = cropTargetIndex
-        if (targetIdx != null && targetIdx in photos.indices) {
-          photos = photos.toMutableList().apply { set(targetIdx, croppedUri) }
-        } else {
-          if (photos.size < 6) {
-            photos = (photos + croppedUri).toMutableList()
-          } else {
-            photos = photos.toMutableList().apply { set(photos.lastIndex, croppedUri) }
-          }
-        }
-        photoToCrop = null
-        cropTargetIndex = null
-        Toast.makeText(context, "Photo saved ✨", Toast.LENGTH_SHORT).show()
-      }
-    )
   }
 }
 
@@ -1991,13 +2014,13 @@ private fun PersonalInfoStep(
 }
 
 // =========================================================================
-// 5th PAGE: Photos Component
+// 5th PAGE: Photos Component (Direct Firebase Storage Integration)
 // =========================================================================
 @Composable
 private fun PhotosStep(
   photos: List<String>,
+  isUploading: Boolean = false,
   onAddPhoto: () -> Unit,
-  onCropPhoto: (String, Int) -> Unit,
   onRemovePhoto: (Int) -> Unit,
   onSetPrimary: (Int) -> Unit,
   onNext: () -> Unit
@@ -2020,10 +2043,38 @@ private fun PhotosStep(
       )
 
       Text(
-        text = "Add at least 2 photos. Tap on any photo to adjust or crop.",
+        text = "Add at least 2 photos. Your photos will be stored in Firebase cloud storage.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
+
+      if (isUploading) {
+        Spacer(modifier = Modifier.height(14.dp))
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = CoralPrimary.copy(alpha = 0.12f),
+          border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(18.dp),
+              strokeWidth = 2.dp,
+              color = CoralPrimary
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+              text = "Uploading image to Firebase...",
+              style = MaterialTheme.typography.bodyMedium,
+              color = CoralPrimary,
+              fontWeight = FontWeight.SemiBold
+            )
+          }
+        }
+      }
 
       Spacer(modifier = Modifier.height(20.dp))
 
@@ -2057,9 +2108,7 @@ private fun PhotosStep(
                     model = photoUri,
                     contentDescription = "Photo $slotIndex",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                      .fillMaxSize()
-                      .clickable { onCropPhoto(photoUri, slotIndex) }
+                    modifier = Modifier.fillMaxSize()
                   )
 
                   if (slotIndex == 0) {
@@ -2094,22 +2143,6 @@ private fun PhotosStep(
                     }
                   }
 
-                  // Crop Button Overlay at bottom right
-                  IconButton(
-                    onClick = { onCropPhoto(photoUri, slotIndex) },
-                    modifier = Modifier
-                      .align(Alignment.BottomEnd)
-                      .size(30.dp)
-                  ) {
-                    Surface(
-                      shape = CircleShape,
-                      color = Color.Black.copy(alpha = 0.55f),
-                      modifier = Modifier.size(24.dp)
-                    ) {
-                      Icon(Icons.Default.Crop, contentDescription = "Crop photo", tint = Color.White, modifier = Modifier.padding(4.dp))
-                    }
-                  }
-
                   IconButton(
                     onClick = { onRemovePhoto(slotIndex) },
                     modifier = Modifier
@@ -2128,7 +2161,7 @@ private fun PhotosStep(
                   Box(
                     modifier = Modifier
                       .fillMaxSize()
-                      .clickable { onAddPhoto() },
+                      .clickable(enabled = !isUploading) { onAddPhoto() },
                     contentAlignment = Alignment.Center
                   ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2157,17 +2190,25 @@ private fun PhotosStep(
 
     Spacer(modifier = Modifier.height(32.dp))
 
-    // Next Button (Simple "Next")
+    // Next Button
     Button(
       onClick = onNext,
+      enabled = photos.size >= 2 && !isUploading,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp)
         .testTag("photos_next_button"),
       shape = RoundedCornerShape(16.dp),
-      colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+      colors = ButtonDefaults.buttonColors(
+        containerColor = CoralPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+      )
     ) {
-      Text("Next", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+      Text(
+        text = if (photos.size < 2) "Add at least 2 photos (${photos.size}/2)" else "Next",
+        fontSize = 17.sp,
+        fontWeight = FontWeight.Bold
+      )
       Spacer(modifier = Modifier.width(8.dp))
       Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
     }
@@ -2835,160 +2876,6 @@ private fun ReviewAndLaunchStep(
         fontSize = 17.sp,
         fontWeight = FontWeight.Bold
       )
-    }
-  }
-}
-
-// =========================================================================
-// Photo Crop & Adjustment Dialog Component
-// =========================================================================
-@Composable
-private fun PhotoCropDialog(
-  photoUri: String,
-  onDismiss: () -> Unit,
-  onSaveCrop: (String) -> Unit
-) {
-  var zoomScale by remember { mutableFloatStateOf(1f) }
-  var rotationDegrees by remember { mutableFloatStateOf(0f) }
-
-  Dialog(onDismissRequest = onDismiss) {
-    Surface(
-      shape = RoundedCornerShape(24.dp),
-      color = MaterialTheme.colorScheme.surface,
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(8.dp)
-    ) {
-      Column(
-        modifier = Modifier.padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-      ) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = "Adjust & Crop Photo",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          IconButton(onClick = onDismiss) {
-            Icon(Icons.Default.Close, contentDescription = "Close")
-          }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Crop Viewport with rule of thirds grid overlay
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(0.85f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.Black)
-            .border(2.dp, CoralPrimary, RoundedCornerShape(16.dp)),
-          contentAlignment = Alignment.Center
-        ) {
-          AsyncImage(
-            model = photoUri,
-            contentDescription = "Crop preview",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-              .fillMaxSize()
-              .graphicsLayer(
-                scaleX = zoomScale,
-                scaleY = zoomScale,
-                rotationZ = rotationDegrees
-              )
-          )
-
-          // Grid guide lines (rule of thirds)
-          Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokeWidth = 1.dp.toPx()
-            val lineColor = Color.White.copy(alpha = 0.35f)
-            // Vertical lines
-            drawLine(lineColor, androidx.compose.ui.geometry.Offset(size.width / 3f, 0f), androidx.compose.ui.geometry.Offset(size.width / 3f, size.height), strokeWidth)
-            drawLine(lineColor, androidx.compose.ui.geometry.Offset(size.width * 2f / 3f, 0f), androidx.compose.ui.geometry.Offset(size.width * 2f / 3f, size.height), strokeWidth)
-            // Horizontal lines
-            drawLine(lineColor, androidx.compose.ui.geometry.Offset(0f, size.height / 3f), androidx.compose.ui.geometry.Offset(size.width, size.height / 3f), strokeWidth)
-            drawLine(lineColor, androidx.compose.ui.geometry.Offset(0f, size.height * 2f / 3f), androidx.compose.ui.geometry.Offset(size.width, size.height * 2f / 3f), strokeWidth)
-          }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Zoom Slider
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Icon(Icons.Default.ZoomIn, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(20.dp))
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Zoom: ${(zoomScale * 100).toInt()}%",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          Spacer(modifier = Modifier.width(10.dp))
-          Slider(
-            value = zoomScale,
-            onValueChange = { zoomScale = it },
-            valueRange = 1f..3f,
-            modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(
-              thumbColor = CoralPrimary,
-              activeTrackColor = CoralPrimary
-            )
-          )
-        }
-
-        // Rotate & Reset controls
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceEvenly,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          OutlinedButton(
-            onClick = {
-              rotationDegrees = (rotationDegrees + 90f) % 360f
-            },
-            shape = RoundedCornerShape(12.dp)
-          ) {
-            Icon(Icons.Default.RotateRight, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Rotate 90°", fontSize = 13.sp)
-          }
-
-          OutlinedButton(
-            onClick = {
-              zoomScale = 1f
-              rotationDegrees = 0f
-            },
-            shape = RoundedCornerShape(12.dp)
-          ) {
-            Text("Reset", fontSize = 13.sp)
-          }
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Save Button
-        Button(
-          onClick = {
-            onSaveCrop(photoUri)
-          },
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp),
-          shape = RoundedCornerShape(14.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
-        ) {
-          Text("Save Photo", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
-      }
     }
   }
 }

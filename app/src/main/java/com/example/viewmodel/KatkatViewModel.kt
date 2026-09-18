@@ -297,6 +297,13 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   val phoneAuthManager: com.example.data.remote.PhoneAuthManager
     get() = repository.phoneAuthManager
 
+  val firebaseStorageManager: com.example.data.remote.FirebaseStorageManager
+    get() = repository.firebaseStorageManager
+
+  suspend fun uploadProfilePhoto(context: android.content.Context, userId: String, uri: android.net.Uri): String {
+    return repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
+  }
+
   suspend fun checkExistingUser(phone: String, countryCode: String): UserProfile? {
     return repository.checkExistingUserByPhone(phone, countryCode)
   }
@@ -305,7 +312,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       val activeProfile = profile.copy(isOnboardingCompleted = true)
       repository.saveUserProfile(activeProfile)
-      _showGreetingSplash.value = true
+      _showGreetingSplash.value = false
+      _uiEvents.emit(UiEvent.ShowToast("Welcome back, ${activeProfile.name}! ✨"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("match"))
     }
   }
 

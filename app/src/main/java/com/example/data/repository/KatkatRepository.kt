@@ -16,6 +16,7 @@ import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
 import android.util.Log
+import com.example.data.remote.FirebaseStorageManager
 import com.example.data.remote.FirestoreManager
 import com.example.data.remote.PhoneAuthManager
 import kotlinx.coroutines.CoroutineScope
@@ -32,49 +33,30 @@ class KatkatRepository(
   private val dao: DatingDao,
   private val appScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
   val firestoreManager: FirestoreManager = FirestoreManager(),
-  val phoneAuthManager: PhoneAuthManager = PhoneAuthManager()
+  val phoneAuthManager: PhoneAuthManager = PhoneAuthManager(),
+  val firebaseStorageManager: FirebaseStorageManager = FirebaseStorageManager()
 ) {
 
   init {
     appScope.launch {
       try {
-        // Seed database if empty
-        if (dao.getProfilesCount() == 0) {
-          val initialProfiles = SeedData.getInitialProfiles()
-          dao.insertProfiles(initialProfiles)
-          val initialUser = SeedData.getInitialUserProfile()
-          dao.saveUserProfile(initialUser)
-          dao.saveSubscription(
-            SubscriptionEntity(
-              id = "current_sub",
-              tierName = SubscriptionTier.FREE.name,
-              swipesUsedThisMonth = 3,
-              currentMonthKey = "2026-09",
-              isAnnualBilling = false,
-              subscriptionExpiryDate = "Renews Oct 16, 2026"
-            )
+        // Initialize default subscription if missing
+        dao.saveSubscription(
+          SubscriptionEntity(
+            id = "current_sub",
+            tierName = SubscriptionTier.FREE.name,
+            swipesUsedThisMonth = 0,
+            currentMonthKey = "2026-09",
+            isAnnualBilling = false,
+            subscriptionExpiryDate = "Renews Oct 16, 2026"
           )
-          // Initial cloud sync if Firestore is available
-          try {
-            if (firestoreManager.isAvailable) {
-              firestoreManager.syncUserProfile(initialUser.toDomain())
-              firestoreManager.syncDiscoveryProfiles(initialProfiles.map { it.toDomain() })
-            }
-          } catch (_: Exception) {}
-        }
+        )
 
-        // Start observing real-time cloud profile updates if Firestore is active
-        try {
-          if (firestoreManager.isAvailable) {
-            launch {
-              firestoreManager.observeUserProfile("my_profile").collect { cloudProfile ->
-                if (cloudProfile != null) {
-                  dao.saveUserProfile(cloudProfile.toEntity())
-                }
-              }
-            }
-          }
-        } catch (_: Exception) {}
+        // Sync community registered users from Firestore if user session exists
+        val current = dao.getUserProfileFlow().firstOrNull()
+        if (current != null && current.isOnboardingCompleted && firestoreManager.isAvailable) {
+          syncCommunityRegisteredUsers(current.id)
+        }
       } catch (_: Exception) {}
     }
   }
@@ -96,7 +78,7 @@ class KatkatRepository(
 
   // User Profile
   val userProfile: Flow<UserProfile> = dao.getUserProfileFlow().map { entity ->
-    entity?.toDomain() ?: SeedData.getInitialUserProfile().toDomain()
+    entity?.toDomain() ?: UserProfile(isOnboardingCompleted = false)
   }
 
   // Subscription State combined with monthly swipe record counts
@@ -309,10 +291,12 @@ class KatkatRepository(
     } else if (cleanPhone.isNotBlank()) {
       "user_$cleanPhone"
     } else {
-      profile.id
+      profile.id.ifBlank { "user_${System.currentTimeMillis()}" }
     }
     val fixedProfile = profile.copy(id = uniqueId)
 
+    // Clear stale rows and ensure active profile is cleanly saved
+    dao.deleteUserProfile()
     dao.saveUserProfile(fixedProfile.toEntity())
     if (firestoreManager.isAvailable) {
       appScope.launch {
@@ -352,16 +336,21 @@ class KatkatRepository(
 
     if (local != null && local.isOnboardingCompleted && local.name.isNotBlank()) {
       Log.d("KatkatRepository", "Existing user found in local DB for phone $phoneNumber: ${local.name}")
-      return local.toDomain()
+      val domainUser = local.toDomain().copy(isOnboardingCompleted = true)
+      dao.deleteUserProfile()
+      dao.saveUserProfile(domainUser.toEntity())
+      return domainUser
     }
 
     if (firestoreManager.isAvailable) {
       val cloudUser = firestoreManager.fetchUserByPhone(phoneNumber, countryCode)
       if (cloudUser != null && cloudUser.isOnboardingCompleted && cloudUser.name.isNotBlank()) {
         Log.d("KatkatRepository", "Existing user found in Firestore for phone $phoneNumber: ${cloudUser.name}")
-        dao.saveUserProfile(cloudUser.toEntity())
-        syncCommunityRegisteredUsers(cloudUser.id)
-        return cloudUser
+        val completedCloudUser = cloudUser.copy(isOnboardingCompleted = true)
+        dao.deleteUserProfile()
+        dao.saveUserProfile(completedCloudUser.toEntity())
+        syncCommunityRegisteredUsers(completedCloudUser.id)
+        return completedCloudUser
       }
     }
     return null

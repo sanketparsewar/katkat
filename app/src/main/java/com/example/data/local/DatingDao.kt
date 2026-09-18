@@ -60,7 +60,7 @@ interface DatingDao {
   suspend fun deleteSwipeRecord(id: Long)
 
   // User Profile
-  @Query("SELECT * FROM user_profile LIMIT 1")
+  @Query("SELECT * FROM user_profile ORDER BY isOnboardingCompleted DESC, id DESC LIMIT 1")
   fun getUserProfileFlow(): Flow<UserProfileEntity?>
 
   @Query("SELECT * FROM user_profile WHERE phoneNumber = :phone LIMIT 1")
