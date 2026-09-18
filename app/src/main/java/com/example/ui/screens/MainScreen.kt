@@ -188,9 +188,12 @@ fun MainScreen(
                 val parsed = try { android.net.Uri.parse(uriString) } catch (_: Exception) { null }
                 if (parsed != null && (uriString.startsWith("content://") || uriString.startsWith("file://"))) {
                   viewModel.uploadAndAddPhoto(context, parsed)
-                } else {
+                } else if (uriString.startsWith("http://") || uriString.startsWith("https://")) {
                   viewModel.addPhotoToProfile(uriString)
                 }
+              },
+              onAddBitmap = { bitmap ->
+                viewModel.uploadAndAddBitmap(context, bitmap)
               },
               onRemovePhoto = { idx -> viewModel.removePhotoFromProfile(idx) },
               onSetPrimaryPhoto = { idx -> viewModel.setPrimaryPhoto(idx) },

@@ -52,6 +52,8 @@ class FirestoreManager {
   suspend fun syncUserProfile(profile: UserProfile): Boolean {
     val db = firestore ?: return false
     return try {
+      // CRITICAL: Only save remote cloud URLs (HTTP/HTTPS) in Firestore. Never save local device paths.
+      val cloudPhotos = profile.photos.filter { it.startsWith("http://") || it.startsWith("https://") }
       val data = mapOf(
         "id" to profile.id,
         "name" to profile.name,
@@ -69,7 +71,7 @@ class FirestoreManager {
         "smoking" to profile.smoking,
         "pets" to profile.pets,
         "passions" to profile.passions,
-        "photos" to profile.photos,
+        "photos" to cloudPhotos,
         "promptQuestion" to profile.promptQuestion,
         "promptAnswer" to profile.promptAnswer,
         "isOnboardingCompleted" to profile.isOnboardingCompleted,
@@ -129,7 +131,7 @@ class FirestoreManager {
       smoking = data["smoking"] as? String ?: "",
       pets = data["pets"] as? String ?: "",
       passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-      photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+      photos = (data["photos"] as? List<*>)?.filterIsInstance<String>()?.filter { it.startsWith("http://") || it.startsWith("https://") } ?: emptyList(),
       promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
       promptAnswer = data["promptAnswer"] as? String ?: "",
       isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
@@ -451,6 +453,8 @@ class FirestoreManager {
   suspend fun publishUserToDiscovery(profile: UserProfile): Boolean {
     val db = firestore ?: return false
     return try {
+      // CRITICAL: Only publish remote cloud URLs (HTTP/HTTPS) to discovery so all devices can display photos
+      val cloudPhotos = profile.photos.filter { it.startsWith("http://") || it.startsWith("https://") }
       val data = mapOf(
         "id" to profile.id,
         "name" to profile.name,
@@ -460,7 +464,7 @@ class FirestoreManager {
         "education" to profile.education,
         "location" to profile.currentLocationCity.ifBlank { profile.hometown.ifBlank { "Nearby" } },
         "bio" to profile.bio,
-        "photos" to profile.photos,
+        "photos" to cloudPhotos,
         "promptQuestion" to profile.promptQuestion,
         "promptAnswer" to profile.promptAnswer,
         "passions" to profile.passions,
@@ -498,7 +502,7 @@ class FirestoreManager {
         val data = doc.data ?: return@mapNotNull null
         val name = data["name"] as? String ?: return@mapNotNull null
         if (name.isBlank()) return@mapNotNull null
-        val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>()?.filter { it.startsWith("http://") || it.startsWith("https://") } ?: emptyList()
         @Suppress("UNCHECKED_CAST")
         DatingProfile(
           id = doc.id,

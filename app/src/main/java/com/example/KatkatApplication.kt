@@ -8,7 +8,30 @@ import coil.memory.MemoryCache
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
+import android.content.Context
+import android.util.Log
+import com.google.firebase.FirebaseApp
+
 class KatkatApplication : Application(), ImageLoaderFactory {
+
+  companion object {
+    lateinit var instance: KatkatApplication
+      private set
+    val appContext: Context
+      get() = instance.applicationContext
+  }
+
+  override fun onCreate() {
+    super.onCreate()
+    instance = this
+    try {
+      if (FirebaseApp.getApps(this).isEmpty()) {
+        FirebaseApp.initializeApp(this)
+      }
+    } catch (e: Exception) {
+      Log.w("KatkatApplication", "FirebaseApp initialization notice: ${e.message}")
+    }
+  }
 
   override fun newImageLoader(): ImageLoader {
     val okHttpClient = OkHttpClient.Builder()

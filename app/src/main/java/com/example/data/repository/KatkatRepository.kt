@@ -293,7 +293,33 @@ class KatkatRepository(
     } else {
       profile.id.ifBlank { "user_${System.currentTimeMillis()}" }
     }
-    val fixedProfile = profile.copy(id = uniqueId)
+
+    // Convert any remaining local device photo URIs to Cloud Storage download URLs so they load across all devices
+    val hasLocalUris = profile.photos.any { !it.startsWith("http://") && !it.startsWith("https://") }
+    val cloudPhotos = if (hasLocalUris) {
+      val context = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
+      if (context != null) {
+        profile.photos.map { photoUri ->
+          if (photoUri.startsWith("http://") || photoUri.startsWith("https://")) {
+            photoUri
+          } else {
+            try {
+              val uploaded = firebaseStorageManager.uploadProfileImage(context, uniqueId, android.net.Uri.parse(photoUri))
+              if (uploaded.startsWith("http")) uploaded else ""
+            } catch (e: Exception) {
+              Log.w("KatkatRepository", "Could not upload local photo to Cloud Storage: ${e.message}")
+              ""
+            }
+          }
+        }.filter { it.isNotBlank() }
+      } else {
+        profile.photos.filter { it.startsWith("http://") || it.startsWith("https://") }
+      }
+    } else {
+      profile.photos
+    }
+
+    val fixedProfile = profile.copy(id = uniqueId, photos = cloudPhotos)
 
     // Clear stale rows and ensure active profile is cleanly saved
     dao.deleteUserProfile()

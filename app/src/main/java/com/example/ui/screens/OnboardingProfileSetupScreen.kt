@@ -328,14 +328,14 @@ fun OnboardingProfileSetupScreen(
     }
   }
 
-  // Photo Picker (Uploads selected image directly to Firebase Storage)
+  // Photo Picker (Uploads selected image directly to Firebase Cloud Storage)
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
   ) { uri: Uri? ->
     if (uri != null) {
       coroutineScope.launch {
         isUploadingPhoto = true
-        Toast.makeText(context, "Uploading image to Firebase...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Uploading image to Firebase Cloud Storage...", Toast.LENGTH_SHORT).show()
         try {
           val cleanPhone = phoneNumber.filter { it.isDigit() }
           val userId = if (initialProfile.id.startsWith("user_") && initialProfile.id.length > 5) {
@@ -346,18 +346,20 @@ fun OnboardingProfileSetupScreen(
           val uploadedUrl = if (viewModel != null) {
             viewModel.uploadProfilePhoto(context, userId, uri)
           } else {
-            uri.toString()
+            ""
           }
-          if (photos.size < 6) {
-            photos = (photos + uploadedUrl).toMutableList()
+          if (uploadedUrl.isNotBlank() && (uploadedUrl.startsWith("http://") || uploadedUrl.startsWith("https://"))) {
+            if (photos.size < 6) {
+              photos = (photos + uploadedUrl).toMutableList()
+            } else {
+              photos = photos.toMutableList().apply { set(5, uploadedUrl) }
+            }
+            Toast.makeText(context, "✓ Photo uploaded to Firebase Cloud Storage", Toast.LENGTH_SHORT).show()
           } else {
-            photos = photos.toMutableList().apply { set(5, uploadedUrl) }
+            Toast.makeText(context, "Could not upload to cloud storage. Please check internet connection.", Toast.LENGTH_LONG).show()
           }
-          Toast.makeText(context, "✓ Photo uploaded to Firebase", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-          if (photos.size < 6) {
-            photos = (photos + uri.toString()).toMutableList()
-          }
+          Toast.makeText(context, "Upload error: ${e.message}", Toast.LENGTH_SHORT).show()
         } finally {
           isUploadingPhoto = false
         }

@@ -342,11 +342,13 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun addPhotoToProfile(photoUri: String) {
-    val current = userProfile.value
-    val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
-      if (size < 6) add(photoUri) else set(5, photoUri)
+    if (photoUri.startsWith("http://") || photoUri.startsWith("https://")) {
+      val current = userProfile.value
+      val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
+        if (size < 6) add(photoUri) else set(5, photoUri)
+      }
+      updateProfile(current.copy(photos = newPhotos))
     }
-    updateProfile(current.copy(photos = newPhotos))
   }
 
   fun uploadAndAddPhoto(context: android.content.Context, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
@@ -358,15 +360,18 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       } else {
         "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
       }
+      _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
-      if (storedUrl.isNotBlank()) {
+      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
           if (size < 6) add(storedUrl) else set(5, storedUrl)
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("Photo saved to database ✨"))
+        _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
         onComplete?.invoke(storedUrl)
+      } else {
+        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
       }
     }
   }
@@ -380,15 +385,18 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       } else {
         "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
       }
+      _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
-      if (storedUrl.isNotBlank()) {
+      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
           if (size < 6) add(storedUrl) else set(5, storedUrl)
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("Photo captured and stored ✨"))
+        _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
         onComplete?.invoke(storedUrl)
+      } else {
+        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
       }
     }
   }
@@ -402,8 +410,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       } else {
         "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
       }
+      _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
-      if (storedUrl.isNotBlank()) {
+      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
         if (index in newPhotos.indices) {
           newPhotos[index] = storedUrl
@@ -412,8 +421,10 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("Photo updated and stored ✨"))
+        _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
         onComplete?.invoke(storedUrl)
+      } else {
+        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
       }
     }
   }
@@ -427,8 +438,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       } else {
         "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
       }
+      _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
-      if (storedUrl.isNotBlank()) {
+      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
         if (index in newPhotos.indices) {
           newPhotos[index] = storedUrl
@@ -437,21 +449,25 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("Photo replaced and stored ✨"))
+        _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
         onComplete?.invoke(storedUrl)
+      } else {
+        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
       }
     }
   }
 
   fun replacePhotoAtSlot(index: Int, photoUri: String) {
-    val current = userProfile.value
-    val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
-    if (index in newPhotos.indices) {
-      newPhotos[index] = photoUri
-    } else if (newPhotos.size < 6) {
-      newPhotos.add(photoUri)
+    if (photoUri.startsWith("http://") || photoUri.startsWith("https://")) {
+      val current = userProfile.value
+      val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
+      if (index in newPhotos.indices) {
+        newPhotos[index] = photoUri
+      } else if (newPhotos.size < 6) {
+        newPhotos.add(photoUri)
+      }
+      updateProfile(current.copy(photos = newPhotos))
     }
-    updateProfile(current.copy(photos = newPhotos))
   }
 
   fun setPrimaryPhoto(index: Int) {
