@@ -201,21 +201,40 @@ fun LikedProfileGridCard(
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
   ) {
     val cardPhoto = profile.photos.firstOrNull { it.isNotBlank() }
-      ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80"
 
     Box(modifier = Modifier.fillMaxSize()) {
-      // Photo (Blurred if locked)
-      AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
-          .data(cardPhoto)
-          .crossfade(true)
-          .build(),
-        contentDescription = profile.name,
-        modifier = Modifier
-          .fillMaxSize()
-          .then(if (isLocked) Modifier.blur(18.dp) else Modifier),
-        contentScale = ContentScale.Crop
-      )
+      // Photo (Blurred if locked) or Clean Monogram
+      if (!cardPhoto.isNullOrBlank()) {
+        AsyncImage(
+          model = ImageRequest.Builder(LocalContext.current)
+            .data(cardPhoto)
+            .crossfade(true)
+            .build(),
+          contentDescription = profile.name,
+          modifier = Modifier
+            .fillMaxSize()
+            .then(if (isLocked) Modifier.blur(18.dp) else Modifier),
+          contentScale = ContentScale.Crop
+        )
+      } else {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .background(
+              Brush.verticalGradient(
+                listOf(Color(0xFF2E1A36), Color(0xFF16091D))
+              )
+            ),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(
+            text = profile.name.take(1).uppercase().ifBlank { "?" },
+            style = MaterialTheme.typography.headlineMedium,
+            color = CoralPrimary,
+            fontWeight = FontWeight.Bold
+          )
+        }
+      }
 
       // Gradient overlay
       Box(

@@ -203,17 +203,16 @@ fun ProfileEditScreen(
     InterestItem("Yoga", "🧘", Color(0xFFF1F8E9), Color(0xFF558B2F))
   )
 
-  // Primary avatar image URL or fallback
+  // Primary avatar image URL
   val avatarUrl = userProfile.photos.firstOrNull { it.isNotBlank() }
-    ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80"
 
-  val displayName = userProfile.name.ifBlank { "Aanya Sharma" }
-  val displayAge = if (userProfile.age > 0) userProfile.age else 24
+  val displayName = userProfile.name.ifBlank { "User" }
+  val displayAge = if (userProfile.age > 0) userProfile.age else null
   val displayLocation = userProfile.hometown.ifBlank {
-    userProfile.currentLocationCity.ifBlank { "Bangalore, India" }
+    userProfile.currentLocationCity.ifBlank { "" }
   }
   val displayBio = userProfile.bio.ifBlank {
-    "Good conversations, spontaneous plans and kind people make life better ✨ Here for meaningful connections (and maybe a little adventure)."
+    ""
   }
 
   // Effective user interests
@@ -329,16 +328,31 @@ fun ProfileEditScreen(
             .clip(CircleShape)
             .border(2.dp, Color.White, CircleShape)
             .shadow(2.dp, CircleShape)
+            .background(
+              Brush.verticalGradient(
+                listOf(Color(0xFF2E1A36), Color(0xFF16091D))
+              )
+            ),
+          contentAlignment = Alignment.Center
         ) {
-          AsyncImage(
-            model = coil.request.ImageRequest.Builder(LocalContext.current)
-              .data(avatarUrl)
-              .crossfade(true)
-              .build(),
-            contentDescription = "User Avatar",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-          )
+          if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+              model = coil.request.ImageRequest.Builder(LocalContext.current)
+                .data(avatarUrl)
+                .crossfade(true)
+                .build(),
+              contentDescription = "User Avatar",
+              contentScale = ContentScale.Crop,
+              modifier = Modifier.fillMaxSize()
+            )
+          } else {
+            Text(
+              text = displayName.take(1).uppercase().ifBlank { "?" },
+              style = MaterialTheme.typography.headlineLarge,
+              color = CoralPrimary,
+              fontWeight = FontWeight.Bold
+            )
+          }
         }
 
         // Camera Action Button
@@ -372,8 +386,9 @@ fun ProfileEditScreen(
           verticalAlignment = Alignment.CenterVertically,
           modifier = Modifier.fillMaxWidth()
         ) {
+          val ageStr = if (displayAge != null && displayAge > 0) ", $displayAge" else ""
           Text(
-            text = "$displayName  $displayAge",
+            text = "$displayName$ageStr",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF1E1E1E)
@@ -402,7 +417,7 @@ fun ProfileEditScreen(
           )
           Spacer(modifier = Modifier.width(3.dp))
           Text(
-            text = displayLocation,
+            text = displayLocation.ifBlank { "Add location" },
             fontSize = 12.5.sp,
             color = Color(0xFF555555),
             fontWeight = FontWeight.Medium
@@ -418,10 +433,10 @@ fun ProfileEditScreen(
         ) {
           Column {
             Text(
-              text = displayBio,
+              text = displayBio.ifBlank { "Tap to write your bio..." },
               fontSize = 12.sp,
               lineHeight = 16.5.sp,
-              color = Color(0xFF333333)
+              color = if (displayBio.isNotBlank()) Color(0xFF333333) else Color(0xFF888888)
             )
             Row(
               modifier = Modifier.fillMaxWidth(),
@@ -617,34 +632,6 @@ fun ProfileEditScreen(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
               )
-            }
-          }
-
-          // If photos are fewer than fallback thumbnails or empty, show sample thumbnails
-          if (validUserPhotos.isEmpty()) {
-            val samplePhotos = listOf(
-              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
-              "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80",
-              "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&auto=format&fit=crop&q=80",
-              "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&auto=format&fit=crop&q=80"
-            )
-            itemsIndexed(samplePhotos) { _, url ->
-              Box(
-                modifier = Modifier
-                  .size(width = 84.dp, height = 96.dp)
-                  .clip(RoundedCornerShape(12.dp))
-                  .clickable { showPhotoManagementSheet = true }
-              ) {
-                AsyncImage(
-                  model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(url)
-                    .crossfade(true)
-                    .build(),
-                  contentDescription = "Sample Photo",
-                  contentScale = ContentScale.Crop,
-                  modifier = Modifier.fillMaxSize()
-                )
-              }
             }
           }
 
@@ -1539,9 +1526,11 @@ fun ProfileEditScreen(
       },
       text = {
         Column(modifier = Modifier.fillMaxWidth()) {
-          NotificationRowItem("✨ You matched with Sarah!", "2 mins ago")
-          NotificationRowItem("❤️ Someone liked your photo", "1 hour ago")
-          NotificationRowItem("🔥 Your profile got 38 new views today!", "Today")
+          Text(
+            text = "No new notifications right now. Real-time updates and matches will appear here.",
+            fontSize = 14.sp,
+            color = Color(0xFF666666)
+          )
         }
       },
       confirmButton = {

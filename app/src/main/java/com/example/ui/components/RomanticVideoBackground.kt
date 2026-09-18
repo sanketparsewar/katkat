@@ -18,8 +18,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
 import kotlin.random.Random
 
 /**
@@ -56,26 +54,17 @@ fun RomanticVideoBackground(
   }
 
   Box(modifier = modifier.fillMaxSize()) {
-    // High-definition romantic golden sunset couple visual with subtle animated motion
-    AsyncImage(
-      model = "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=1600&fm=jpg&fit=crop&q=85",
-      contentDescription = "Romantic Couple in Golden Hour",
-      contentScale = ContentScale.Crop,
-      modifier = Modifier
-        .fillMaxSize()
-        .scale(scaleAnim.value)
-    )
-
-    // Romantic Sunset & Midnight Aura Overlay
+    // Rich romantic twilight and velvet rose ambient gradient
     Box(
       modifier = Modifier
         .fillMaxSize()
         .background(
           Brush.verticalGradient(
             colors = listOf(
-              Color(0xD9120624), // Deep romantic violet-night top
-              Color(0x73E84A5F), // Radiant coral-rose heart glow
-              Color(0xEA0D031A)  // Luxurious deep velvet bottom
+              Color(0xFF160824), // Deep romantic violet-night top
+              Color(0xFF8E1B3D), // Radiant coral-rose heart glow
+              Color(0xFF260517), // Rich burgundy middle
+              Color(0xFF0D031A)  // Luxurious deep velvet bottom
             )
           )
         )

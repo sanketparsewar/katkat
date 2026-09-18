@@ -174,7 +174,6 @@ fun NewMatchAvatarItem(
       .testTag("match_avatar_${profile.id}")
   ) {
     val photoUrl = profile.photos.firstOrNull { it.isNotBlank() }
-      ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
 
     Box(
       modifier = Modifier
@@ -186,17 +185,34 @@ fun NewMatchAvatarItem(
         .padding(2.5.dp),
       contentAlignment = Alignment.Center
     ) {
-      AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
-          .data(photoUrl)
-          .crossfade(true)
-          .build(),
-        contentDescription = profile.name,
-        modifier = Modifier
-          .size(63.dp)
-          .clip(CircleShape),
-        contentScale = ContentScale.Crop
-      )
+      if (!photoUrl.isNullOrBlank()) {
+        AsyncImage(
+          model = ImageRequest.Builder(LocalContext.current)
+            .data(photoUrl)
+            .crossfade(true)
+            .build(),
+          contentDescription = profile.name,
+          modifier = Modifier
+            .size(63.dp)
+            .clip(CircleShape),
+          contentScale = ContentScale.Crop
+        )
+      } else {
+        Box(
+          modifier = Modifier
+            .size(63.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF2E1A36)),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(
+            text = profile.name.take(1).uppercase().ifBlank { "?" },
+            style = MaterialTheme.typography.titleMedium,
+            color = CoralPrimary,
+            fontWeight = FontWeight.Bold
+          )
+        }
+      }
     }
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -233,20 +249,36 @@ fun ConversationRowItem(
     ) {
       // Avatar with Online dot
       val conversationAvatar = profile.photos.firstOrNull { it.isNotBlank() }
-        ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
 
       Box(modifier = Modifier.size(56.dp)) {
-        AsyncImage(
-          model = ImageRequest.Builder(LocalContext.current)
-            .data(conversationAvatar)
-            .crossfade(true)
-            .build(),
-          contentDescription = profile.name,
-          modifier = Modifier
-            .size(56.dp)
-            .clip(CircleShape),
-          contentScale = ContentScale.Crop
-        )
+        if (!conversationAvatar.isNullOrBlank()) {
+          AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+              .data(conversationAvatar)
+              .crossfade(true)
+              .build(),
+            contentDescription = profile.name,
+            modifier = Modifier
+              .size(56.dp)
+              .clip(CircleShape),
+            contentScale = ContentScale.Crop
+          )
+        } else {
+          Box(
+            modifier = Modifier
+              .size(56.dp)
+              .clip(CircleShape)
+              .background(Color(0xFF2E1A36)),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = profile.name.take(1).uppercase().ifBlank { "?" },
+              style = MaterialTheme.typography.titleMedium,
+              color = CoralPrimary,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
         // Green active dot
         Box(
           modifier = Modifier

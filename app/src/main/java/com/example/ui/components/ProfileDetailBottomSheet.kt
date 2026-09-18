@@ -83,9 +83,7 @@ fun ProfileDetailBottomSheet(
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var currentPhotoIndex by remember { mutableIntStateOf(0) }
-  val photos = profile.photos.filter { it.isNotBlank() }.ifEmpty {
-    listOf("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80")
-  }
+  val photos = profile.photos.filter { it.isNotBlank() }
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -106,15 +104,43 @@ fun ProfileDetailBottomSheet(
           .fillMaxWidth()
           .height(380.dp)
       ) {
-        AsyncImage(
-          model = ImageRequest.Builder(LocalContext.current)
-            .data(photos.getOrElse(currentPhotoIndex) { photos.first() })
-            .crossfade(true)
-            .build(),
-          contentDescription = "${profile.name} photo",
-          modifier = Modifier.fillMaxSize(),
-          contentScale = ContentScale.Crop
-        )
+        if (photos.isNotEmpty()) {
+          AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+              .data(photos.getOrElse(currentPhotoIndex) { photos.first() })
+              .crossfade(true)
+              .build(),
+            contentDescription = "${profile.name} photo",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+          )
+        } else {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(
+                Brush.verticalGradient(
+                  listOf(Color(0xFF2E1A36), Color(0xFF16091D))
+                )
+              ),
+            contentAlignment = Alignment.Center
+          ) {
+            Box(
+              modifier = Modifier
+                .size(96.dp)
+                .clip(CircleShape)
+                .background(CoralPrimary.copy(alpha = 0.2f)),
+              contentAlignment = Alignment.Center
+            ) {
+              Text(
+                text = profile.name.take(1).uppercase().ifBlank { "?" },
+                style = MaterialTheme.typography.displaySmall,
+                color = CoralPrimary,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
 
         // Dismiss button
         IconButton(

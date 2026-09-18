@@ -356,7 +356,8 @@ fun OnboardingProfileSetupScreen(
             }
             Toast.makeText(context, "✓ Photo uploaded to Firebase Cloud Storage", Toast.LENGTH_SHORT).show()
           } else {
-            Toast.makeText(context, "Could not upload to cloud storage. Please check internet connection.", Toast.LENGTH_LONG).show()
+            val err = viewModel?.firebaseStorageManager?.lastErrorMessage ?: "Could not upload to cloud storage. Please check internet connection."
+            Toast.makeText(context, err, Toast.LENGTH_LONG).show()
           }
         } catch (e: Exception) {
           Toast.makeText(context, "Upload error: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -2674,12 +2675,33 @@ private fun ReviewAndLaunchStep(
               .fillMaxWidth()
               .aspectRatio(1f)
           ) {
-            AsyncImage(
-              model = profile.photos.firstOrNull() ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&q=80",
-              contentDescription = profile.name,
-              contentScale = ContentScale.Crop,
-              modifier = Modifier.fillMaxSize()
-            )
+            val previewPhoto = profile.photos.firstOrNull { it.isNotBlank() }
+            if (previewPhoto != null) {
+              AsyncImage(
+                model = previewPhoto,
+                contentDescription = profile.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+              )
+            } else {
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(
+                    Brush.verticalGradient(
+                      listOf(Color(0xFF2E1A36), Color(0xFF16091D))
+                    )
+                  ),
+                contentAlignment = Alignment.Center
+              ) {
+                Text(
+                  text = profile.name.take(1).uppercase().ifBlank { "?" },
+                  style = MaterialTheme.typography.displaySmall,
+                  color = CoralPrimary,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+            }
 
             // Gradient bottom overlay on photo
             Box(

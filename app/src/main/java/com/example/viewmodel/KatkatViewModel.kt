@@ -371,7 +371,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
         onComplete?.invoke(storedUrl)
       } else {
-        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
+        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
+        _uiEvents.emit(UiEvent.ShowToast(err))
       }
     }
   }
@@ -396,7 +397,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
         onComplete?.invoke(storedUrl)
       } else {
-        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
+        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
+        _uiEvents.emit(UiEvent.ShowToast(err))
       }
     }
   }
@@ -424,7 +426,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
         onComplete?.invoke(storedUrl)
       } else {
-        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
+        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
+        _uiEvents.emit(UiEvent.ShowToast(err))
       }
     }
   }
@@ -452,7 +455,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
         onComplete?.invoke(storedUrl)
       } else {
-        _uiEvents.emit(UiEvent.ShowToast("Could not upload to cloud storage. Please check connection."))
+        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
+        _uiEvents.emit(UiEvent.ShowToast(err))
       }
     }
   }

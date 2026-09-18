@@ -127,23 +127,39 @@ fun ChatDetailScreen(
           }
 
           val chatAvatar = match.photos.firstOrNull { it.isNotBlank() }
-            ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
 
           Box(
             modifier = Modifier
               .size(44.dp)
               .clip(CircleShape)
-              .clickable(onClick = onInspectProfile)
+              .clickable(onClick = onInspectProfile),
+            contentAlignment = Alignment.Center
           ) {
-            AsyncImage(
-              model = ImageRequest.Builder(LocalContext.current)
-                .data(chatAvatar)
-                .crossfade(true)
-                .build(),
-              contentDescription = match.name,
-              modifier = Modifier.fillMaxSize(),
-              contentScale = ContentScale.Crop
-            )
+            if (!chatAvatar.isNullOrBlank()) {
+              AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                  .data(chatAvatar)
+                  .crossfade(true)
+                  .build(),
+                contentDescription = match.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+              )
+            } else {
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(Color(0xFF2E1A36)),
+                contentAlignment = Alignment.Center
+              ) {
+                Text(
+                  text = match.name.take(1).uppercase().ifBlank { "?" },
+                  style = MaterialTheme.typography.titleMedium,
+                  color = CoralPrimary,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+            }
           }
 
           Spacer(modifier = Modifier.width(10.dp))
