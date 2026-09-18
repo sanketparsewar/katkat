@@ -184,10 +184,24 @@ fun MainScreen(
               chatsCount = mutualMatches.size,
               onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
               onSaveProfile = { updated -> viewModel.autoSaveProfile(updated) },
-              onAddPhoto = { uri -> viewModel.addPhotoToProfile(uri) },
+              onAddPhoto = { uriString ->
+                val parsed = try { android.net.Uri.parse(uriString) } catch (_: Exception) { null }
+                if (parsed != null && (uriString.startsWith("content://") || uriString.startsWith("file://"))) {
+                  viewModel.uploadAndAddPhoto(context, parsed)
+                } else {
+                  viewModel.addPhotoToProfile(uriString)
+                }
+              },
               onRemovePhoto = { idx -> viewModel.removePhotoFromProfile(idx) },
               onSetPrimaryPhoto = { idx -> viewModel.setPrimaryPhoto(idx) },
-              onReplacePhoto = { idx, uri -> viewModel.replacePhotoAtSlot(idx, uri) },
+              onReplacePhoto = { idx, uriString ->
+                val parsed = try { android.net.Uri.parse(uriString) } catch (_: Exception) { null }
+                if (parsed != null && (uriString.startsWith("content://") || uriString.startsWith("file://"))) {
+                  viewModel.uploadAndReplacePhoto(context, idx, parsed)
+                } else {
+                  viewModel.replacePhotoAtSlot(idx, uriString)
+                }
+              },
               onOpenPaywall = { viewModel.openPaywall() },
               onRestartOnboarding = { viewModel.restartOnboarding() },
               onDisableAccount = { disabled -> viewModel.disableAccount(disabled) },

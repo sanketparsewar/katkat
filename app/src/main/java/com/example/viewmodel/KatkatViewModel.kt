@@ -343,15 +343,109 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun addPhotoToProfile(photoUri: String) {
     val current = userProfile.value
-    val newPhotos = current.photos.toMutableList().apply {
+    val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
       if (size < 6) add(photoUri) else set(5, photoUri)
     }
     updateProfile(current.copy(photos = newPhotos))
   }
 
+  fun uploadAndAddPhoto(context: android.content.Context, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
+    viewModelScope.launch {
+      val current = userProfile.value
+      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
+      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
+        current.id
+      } else {
+        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+      }
+      val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
+      if (storedUrl.isNotBlank()) {
+        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
+          if (size < 6) add(storedUrl) else set(5, storedUrl)
+        }
+        val updated = current.copy(photos = newPhotos)
+        repository.saveUserProfile(updated)
+        _uiEvents.emit(UiEvent.ShowToast("Photo saved to database ✨"))
+        onComplete?.invoke(storedUrl)
+      }
+    }
+  }
+
+  fun uploadAndAddBitmap(context: android.content.Context, bitmap: android.graphics.Bitmap, onComplete: ((String) -> Unit)? = null) {
+    viewModelScope.launch {
+      val current = userProfile.value
+      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
+      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
+        current.id
+      } else {
+        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+      }
+      val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
+      if (storedUrl.isNotBlank()) {
+        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
+          if (size < 6) add(storedUrl) else set(5, storedUrl)
+        }
+        val updated = current.copy(photos = newPhotos)
+        repository.saveUserProfile(updated)
+        _uiEvents.emit(UiEvent.ShowToast("Photo captured and stored ✨"))
+        onComplete?.invoke(storedUrl)
+      }
+    }
+  }
+
+  fun uploadAndReplacePhoto(context: android.content.Context, index: Int, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
+    viewModelScope.launch {
+      val current = userProfile.value
+      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
+      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
+        current.id
+      } else {
+        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+      }
+      val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
+      if (storedUrl.isNotBlank()) {
+        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
+        if (index in newPhotos.indices) {
+          newPhotos[index] = storedUrl
+        } else if (newPhotos.size < 6) {
+          newPhotos.add(storedUrl)
+        }
+        val updated = current.copy(photos = newPhotos)
+        repository.saveUserProfile(updated)
+        _uiEvents.emit(UiEvent.ShowToast("Photo updated and stored ✨"))
+        onComplete?.invoke(storedUrl)
+      }
+    }
+  }
+
+  fun uploadAndReplaceBitmap(context: android.content.Context, index: Int, bitmap: android.graphics.Bitmap, onComplete: ((String) -> Unit)? = null) {
+    viewModelScope.launch {
+      val current = userProfile.value
+      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
+      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
+        current.id
+      } else {
+        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+      }
+      val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
+      if (storedUrl.isNotBlank()) {
+        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
+        if (index in newPhotos.indices) {
+          newPhotos[index] = storedUrl
+        } else if (newPhotos.size < 6) {
+          newPhotos.add(storedUrl)
+        }
+        val updated = current.copy(photos = newPhotos)
+        repository.saveUserProfile(updated)
+        _uiEvents.emit(UiEvent.ShowToast("Photo replaced and stored ✨"))
+        onComplete?.invoke(storedUrl)
+      }
+    }
+  }
+
   fun replacePhotoAtSlot(index: Int, photoUri: String) {
     val current = userProfile.value
-    val newPhotos = current.photos.toMutableList()
+    val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
     if (index in newPhotos.indices) {
       newPhotos[index] = photoUri
     } else if (newPhotos.size < 6) {
@@ -362,8 +456,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun setPrimaryPhoto(index: Int) {
     val current = userProfile.value
-    if (index in 1 until current.photos.size) {
-      val newPhotos = current.photos.toMutableList()
+    val nonBlankPhotos = current.photos.filter { it.isNotBlank() }
+    if (index in 1 until nonBlankPhotos.size) {
+      val newPhotos = nonBlankPhotos.toMutableList()
       val selectedPhoto = newPhotos.removeAt(index)
       newPhotos.add(0, selectedPhoto)
       updateProfile(current.copy(photos = newPhotos))
@@ -372,8 +467,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun removePhotoFromProfile(index: Int) {
     val current = userProfile.value
-    if (index in current.photos.indices && current.photos.size > 1) {
-      val newPhotos = current.photos.toMutableList().apply { removeAt(index) }
+    val nonBlankPhotos = current.photos.filter { it.isNotBlank() }
+    if (index in nonBlankPhotos.indices && nonBlankPhotos.size > 1) {
+      val newPhotos = nonBlankPhotos.toMutableList().apply { removeAt(index) }
       updateProfile(current.copy(photos = newPhotos))
     }
   }

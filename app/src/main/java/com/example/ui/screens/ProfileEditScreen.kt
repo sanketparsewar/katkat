@@ -164,8 +164,9 @@ fun ProfileEditScreen(
     contract = ActivityResultContracts.PickVisualMedia()
   ) { uri: Uri? ->
     uri?.let {
-      onAddPhoto(it.toString())
-      Toast.makeText(context, "Photo added ✨", Toast.LENGTH_SHORT).show()
+      val persistentUri = saveUriToInternalStorage(context, it) ?: it
+      onAddPhoto(persistentUri.toString())
+      Toast.makeText(context, "Photo uploaded & stored ✨", Toast.LENGTH_SHORT).show()
     }
   }
 
@@ -176,7 +177,7 @@ fun ProfileEditScreen(
       val savedUri = saveBitmapToInternalStorage(context, it)
       if (savedUri != null) {
         onAddPhoto(savedUri.toString())
-        Toast.makeText(context, "Photo captured ✨", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Photo captured & stored ✨", Toast.LENGTH_SHORT).show()
       }
     }
   }
@@ -1649,12 +1650,29 @@ private fun NotificationRowItem(
 
 private fun saveBitmapToInternalStorage(context: Context, bitmap: Bitmap): Uri? {
   return try {
+    val photosDir = File(context.filesDir, "profile_photos").apply { if (!exists()) mkdirs() }
     val filename = "profile_img_${System.currentTimeMillis()}.jpg"
-    val file = File(context.filesDir, filename)
+    val file = File(photosDir, filename)
     val outputStream = FileOutputStream(file)
     bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
     outputStream.flush()
     outputStream.close()
+    Uri.fromFile(file)
+  } catch (e: Exception) {
+    null
+  }
+}
+
+private fun saveUriToInternalStorage(context: Context, uri: Uri): Uri? {
+  return try {
+    val photosDir = File(context.filesDir, "profile_photos").apply { if (!exists()) mkdirs() }
+    val filename = "profile_img_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}.jpg"
+    val file = File(photosDir, filename)
+    context.contentResolver.openInputStream(uri)?.use { input ->
+      FileOutputStream(file).use { output ->
+        input.copyTo(output)
+      }
+    }
     Uri.fromFile(file)
   } catch (e: Exception) {
     null
