@@ -114,10 +114,12 @@ fun MainScreen(
     Scaffold(
       modifier = modifier.fillMaxSize(),
       topBar = {
-        KatkatTopBar(
-          subscriptionState = subscriptionState,
-          onOpenPaywall = { viewModel.openPaywall() }
-        )
+        if (currentTab != KatkatTab.PROFILE && currentTab != KatkatTab.ACCOUNT) {
+          KatkatTopBar(
+            subscriptionState = subscriptionState,
+            onOpenPaywall = { viewModel.openPaywall() }
+          )
+        }
       },
       bottomBar = {
         KatkatBottomNav(
@@ -177,6 +179,9 @@ fun MainScreen(
               userProfile = userProfile,
               subscriptionState = subscriptionState,
               themeMode = themeMode,
+              likesCount = likedMeProfiles.size,
+              matchesCount = mutualMatches.size,
+              chatsCount = mutualMatches.size,
               onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
               onSaveProfile = { updated -> viewModel.autoSaveProfile(updated) },
               onAddPhoto = { uri -> viewModel.addPhotoToProfile(uri) },
@@ -184,7 +189,10 @@ fun MainScreen(
               onSetPrimaryPhoto = { idx -> viewModel.setPrimaryPhoto(idx) },
               onReplacePhoto = { idx, uri -> viewModel.replacePhotoAtSlot(idx, uri) },
               onOpenPaywall = { viewModel.openPaywall() },
-              onRestartOnboarding = { viewModel.restartOnboarding() }
+              onRestartOnboarding = { viewModel.restartOnboarding() },
+              onDisableAccount = { disabled -> viewModel.disableAccount(disabled) },
+              onDeleteAccount = { viewModel.deleteAccount() },
+              onLogout = { viewModel.logout() }
             )
           }
 

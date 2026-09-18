@@ -200,11 +200,14 @@ fun LikedProfileGridCard(
     shape = RoundedCornerShape(20.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
   ) {
+    val cardPhoto = profile.photos.firstOrNull { it.isNotBlank() }
+      ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80"
+
     Box(modifier = Modifier.fillMaxSize()) {
       // Photo (Blurred if locked)
       AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
-          .data(profile.photos.firstOrNull() ?: "")
+          .data(cardPhoto)
           .crossfade(true)
           .build(),
         contentDescription = profile.name,

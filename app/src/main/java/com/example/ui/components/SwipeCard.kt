@@ -97,7 +97,7 @@ fun SwipeCard(
   var currentPhotoIndex by remember { mutableIntStateOf(0) }
   var lastThresholdZone by remember { mutableStateOf<String?>(null) }
   var isDragging by remember { mutableStateOf(false) }
-  val photos = profile.photos.ifEmpty {
+  val photos = profile.photos.filter { it.isNotBlank() }.ifEmpty {
     listOf("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80")
   }
 

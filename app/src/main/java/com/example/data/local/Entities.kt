@@ -237,7 +237,7 @@ data class SubscriptionEntity(
 
 class Converters {
   companion object {
-    fun listToString(list: List<String>): String = list.joinToString("|||")
-    fun stringToList(data: String): List<String> = if (data.isBlank()) emptyList() else data.split("|||")
+    fun listToString(list: List<String>): String = list.filter { it.isNotBlank() }.joinToString("|||")
+    fun stringToList(data: String): List<String> = if (data.isBlank()) emptyList() else data.split("|||").map { it.trim() }.filter { it.isNotBlank() }
   }
 }

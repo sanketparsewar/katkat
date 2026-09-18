@@ -48,8 +48,8 @@ enum class KatkatTab(
   val testTag: String
 ) {
   DISCOVER("Discover", Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment, "tab_discover"),
-  LIKES_YOU("Likes You", Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder, "tab_likes_you"),
-  MATCHES("Matches", Icons.Filled.ChatBubble, Icons.Outlined.ChatBubbleOutline, "tab_matches"),
+  LIKES_YOU("Likes", Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder, "tab_likes_you"),
+  MATCHES("Chats", Icons.Filled.ChatBubble, Icons.Outlined.ChatBubbleOutline, "tab_matches"),
   PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.PersonOutline, "tab_profile"),
   ACCOUNT("Account", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle, "tab_account")
 }
@@ -62,6 +62,8 @@ fun KatkatBottomNav(
   unreadMatchesCount: Int = 0,
   modifier: Modifier = Modifier
 ) {
+  val primaryTabs = listOf(KatkatTab.DISCOVER, KatkatTab.LIKES_YOU, KatkatTab.MATCHES, KatkatTab.PROFILE)
+
   NavigationBar(
     modifier = modifier
       .fillMaxWidth()
@@ -69,7 +71,7 @@ fun KatkatBottomNav(
     containerColor = MaterialTheme.colorScheme.surface,
     tonalElevation = 8.dp
   ) {
-    KatkatTab.values().forEach { tab ->
+    primaryTabs.forEach { tab ->
       val isSelected = currentTab == tab
       NavigationBarItem(
         selected = isSelected,

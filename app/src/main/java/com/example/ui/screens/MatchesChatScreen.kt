@@ -173,6 +173,9 @@ fun NewMatchAvatarItem(
       .clickable(onClick = onClick)
       .testTag("match_avatar_${profile.id}")
   ) {
+    val photoUrl = profile.photos.firstOrNull { it.isNotBlank() }
+      ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
+
     Box(
       modifier = Modifier
         .size(68.dp)
@@ -185,7 +188,7 @@ fun NewMatchAvatarItem(
     ) {
       AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
-          .data(profile.photos.firstOrNull() ?: "")
+          .data(photoUrl)
           .crossfade(true)
           .build(),
         contentDescription = profile.name,
@@ -229,10 +232,13 @@ fun ConversationRowItem(
       verticalAlignment = Alignment.CenterVertically
     ) {
       // Avatar with Online dot
+      val conversationAvatar = profile.photos.firstOrNull { it.isNotBlank() }
+        ?: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
+
       Box(modifier = Modifier.size(56.dp)) {
         AsyncImage(
           model = ImageRequest.Builder(LocalContext.current)
-            .data(profile.photos.firstOrNull() ?: "")
+            .data(conversationAvatar)
             .crossfade(true)
             .build(),
           contentDescription = profile.name,
