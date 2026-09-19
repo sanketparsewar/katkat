@@ -286,12 +286,15 @@ class KatkatRepository(
   // Profile update with real-time Firestore sync and community discovery publishing
   suspend fun saveUserProfile(profile: UserProfile) {
     val cleanPhone = profile.phoneNumber.filter { it.isDigit() }
-    val uniqueId = if (profile.id.startsWith("user_") && profile.id.length > 5) {
+    val authUid = phoneAuthManager.currentUserId
+    val uniqueId = if (!authUid.isNullOrBlank()) {
+      authUid
+    } else if (profile.id.isNotBlank() && profile.id != "my_profile") {
       profile.id
     } else if (cleanPhone.isNotBlank()) {
       "user_$cleanPhone"
     } else {
-      profile.id.ifBlank { "user_${System.currentTimeMillis()}" }
+      "user_${System.currentTimeMillis()}"
     }
 
     // Convert any remaining local device photo URIs to Cloud Storage download URLs so they load across all devices

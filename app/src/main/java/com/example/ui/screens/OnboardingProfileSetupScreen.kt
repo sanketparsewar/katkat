@@ -337,8 +337,11 @@ fun OnboardingProfileSetupScreen(
         isUploadingPhoto = true
         Toast.makeText(context, "Uploading image to Firebase Cloud Storage...", Toast.LENGTH_SHORT).show()
         try {
+          val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
           val cleanPhone = phoneNumber.filter { it.isDigit() }
-          val userId = if (initialProfile.id.startsWith("user_") && initialProfile.id.length > 5) {
+          val userId = if (!currentAuthUid.isNullOrBlank()) {
+            currentAuthUid
+          } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
             initialProfile.id
           } else {
             "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
@@ -788,6 +791,14 @@ fun OnboardingProfileSetupScreen(
                 }
 
                 if (viewModel != null) {
+                  val digitsOnly = phoneNumber.filter { it.isDigit() }
+                  val codeDigits = selectedCountryCode.filter { it.isDigit() }
+                  val nationalNumber = if (digitsOnly.startsWith(codeDigits) && digitsOnly.length > codeDigits.length) {
+                    digitsOnly.substring(codeDigits.length)
+                  } else {
+                    digitsOnly
+                  }
+                  viewModel.phoneAuthManager.lastRequestedPhoneNumber = "+$codeDigits$nationalNumber"
                   viewModel.phoneAuthManager.verifyCode(
                     verificationId = firebaseVerificationId,
                     code = fullCode,
@@ -943,7 +954,10 @@ fun OnboardingProfileSetupScreen(
           OnboardingFlowStep.REVIEW_LAUNCH -> {
             val petsString = selectedPets.joinToString(", ")
             val cleanPhoneDigits = phoneNumber.filter { it.isDigit() }
-            val userId = if (initialProfile.id.startsWith("user_") && initialProfile.id.length > 5) {
+            val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
+            val userId = if (!currentAuthUid.isNullOrBlank()) {
+              currentAuthUid
+            } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
               initialProfile.id
             } else {
               "user_${cleanPhoneDigits.ifBlank { System.currentTimeMillis().toString() }}"
