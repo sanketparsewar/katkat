@@ -31,6 +31,12 @@ class FirebaseStorageManager {
   var lastErrorMessage: String? = null
     private set
 
+  var lastUploadWasFallback: Boolean = false
+    private set
+
+  var hasStoragePermissionError: Boolean = false
+    private set
+
   private fun getStorage(context: Context? = null): FirebaseStorage? {
     return try {
       val ctx = context ?: try { KatkatApplication.appContext } catch (_: Throwable) { null }
@@ -93,6 +99,7 @@ class FirebaseStorageManager {
    */
   suspend fun uploadProfileImage(context: Context, userId: String, imageUri: Uri): String = withContext(Dispatchers.IO) {
     lastErrorMessage = null
+    lastUploadWasFallback = false
     val uriString = imageUri.toString()
     // Already a remote cloud URL (e.g., https://...)
     if (uriString.startsWith("http://") || uriString.startsWith("https://")) {
@@ -101,13 +108,6 @@ class FirebaseStorageManager {
 
     ensureAuth()
     val storageInstance = getStorage(context)
-    if (storageInstance == null) {
-      val msg = "Cloud Storage unavailable. Please verify Firebase setup."
-      lastErrorMessage = msg
-      Log.e(tag, msg)
-      return@withContext ""
-    }
-
     val bytes = compressImageUriToBytes(context, imageUri)
     if (bytes == null || bytes.isEmpty()) {
       val msg = "Unable to process selected photo. Please try a different image."
@@ -119,43 +119,58 @@ class FirebaseStorageManager {
     val cleanUserId = userId.filter { it.isLetterOrDigit() || it == '_' }.ifBlank { "user_${System.currentTimeMillis()}" }
     val fileName = "photo_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.jpg"
 
-    // Primary path: users/{userId}/photos/{fileName}
-    // Fallback path: photos/{fileName} (in case security rules target root photos folder)
-    val pathsToTry = listOf(
-      storageInstance.reference.child("users").child(cleanUserId).child("photos").child(fileName),
-      storageInstance.reference.child("photos").child(fileName)
-    )
+    if (storageInstance != null) {
+      // Primary path: users/{userId}/photos/{fileName}
+      // Fallback path: photos/{fileName} (in case security rules target root photos folder)
+      val pathsToTry = listOf(
+        storageInstance.reference.child("users").child(cleanUserId).child("photos").child(fileName),
+        storageInstance.reference.child("photos").child(fileName)
+      )
 
-    val metadata = StorageMetadata.Builder()
-      .setContentType("image/jpeg")
-      .build()
+      val metadata = StorageMetadata.Builder()
+        .setContentType("image/jpeg")
+        .build()
 
-    for (photoRef in pathsToTry) {
-      try {
-        photoRef.putBytes(bytes, metadata).await()
-        val downloadUrl = photoRef.downloadUrl.await().toString()
-        Log.d(tag, "✓ Uploaded image to Firebase Cloud Storage at ${photoRef.path}: $downloadUrl")
-        lastErrorMessage = null
-        return@withContext downloadUrl
-      } catch (e: StorageException) {
-        val userFriendlyMsg = when (e.errorCode) {
-          StorageException.ERROR_NOT_AUTHORIZED ->
-            "Permission denied by Firebase Storage. Ensure Storage rules allow write or enable Anonymous Auth in Firebase Console."
-          StorageException.ERROR_RETRY_LIMIT_EXCEEDED ->
-            "Upload timed out. Please check your internet connection."
-          StorageException.ERROR_QUOTA_EXCEEDED ->
-            "Firebase Storage quota exceeded."
-          StorageException.ERROR_BUCKET_NOT_FOUND ->
-            "Firebase Storage bucket '$defaultBucket' not found."
-          else ->
-            e.localizedMessage ?: "Upload error (code ${e.errorCode})"
+      for (photoRef in pathsToTry) {
+        try {
+          photoRef.putBytes(bytes, metadata).await()
+          val downloadUrl = photoRef.downloadUrl.await().toString()
+          Log.d(tag, "✓ Uploaded image to Firebase Cloud Storage at ${photoRef.path}: $downloadUrl")
+          lastErrorMessage = null
+          return@withContext downloadUrl
+        } catch (e: StorageException) {
+          if (e.errorCode == StorageException.ERROR_NOT_AUTHORIZED) {
+            hasStoragePermissionError = true
+          }
+          val userFriendlyMsg = when (e.errorCode) {
+            StorageException.ERROR_NOT_AUTHORIZED ->
+              "Permission denied by Firebase Storage. Ensure Storage rules allow write or enable Anonymous Auth in Firebase Console."
+            StorageException.ERROR_RETRY_LIMIT_EXCEEDED ->
+              "Upload timed out. Please check your internet connection."
+            StorageException.ERROR_QUOTA_EXCEEDED ->
+              "Firebase Storage quota exceeded."
+            StorageException.ERROR_BUCKET_NOT_FOUND ->
+              "Firebase Storage bucket '$defaultBucket' not found."
+            else ->
+              e.localizedMessage ?: "Upload error (code ${e.errorCode})"
+          }
+          lastErrorMessage = userFriendlyMsg
+          Log.w(tag, "Upload attempt failed at ${photoRef.path}: $userFriendlyMsg", e)
+        } catch (e: Throwable) {
+          lastErrorMessage = e.localizedMessage ?: "Failed to upload to cloud storage"
+          Log.e(tag, "Unexpected upload error at ${photoRef.path}: ${e.message}", e)
         }
-        lastErrorMessage = userFriendlyMsg
-        Log.w(tag, "Upload attempt failed at ${photoRef.path}: $userFriendlyMsg", e)
-      } catch (e: Throwable) {
-        lastErrorMessage = e.localizedMessage ?: "Failed to upload to cloud storage"
-        Log.e(tag, "Unexpected upload error at ${photoRef.path}: ${e.message}", e)
       }
+    } else {
+      lastErrorMessage = "Firebase Storage instance unavailable."
+    }
+
+    // Resilient fallback: Save image locally so the user is never blocked by Storage rules
+    val fallbackUri = saveBytesToLocalFile(context, bytes, fileName)
+    if (fallbackUri.isNotBlank()) {
+      lastUploadWasFallback = true
+      Log.i(tag, "Saved photo to local app storage fallback: $fallbackUri")
+      return@withContext fallbackUri
     }
 
     ""
@@ -167,15 +182,8 @@ class FirebaseStorageManager {
    */
   suspend fun uploadBitmap(context: Context, userId: String, bitmap: Bitmap): String = withContext(Dispatchers.IO) {
     lastErrorMessage = null
+    lastUploadWasFallback = false
     ensureAuth()
-    val storageInstance = getStorage(context)
-    if (storageInstance == null) {
-      val msg = "Cloud Storage unavailable. Please verify Firebase setup."
-      lastErrorMessage = msg
-      Log.e(tag, msg)
-      return@withContext ""
-    }
-
     val bytes = compressBitmapToBytes(bitmap)
     if (bytes.isEmpty()) {
       val msg = "Unable to process camera image."
@@ -186,45 +194,76 @@ class FirebaseStorageManager {
 
     val cleanUserId = userId.filter { it.isLetterOrDigit() || it == '_' }.ifBlank { "user_${System.currentTimeMillis()}" }
     val fileName = "photo_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.jpg"
+    val storageInstance = getStorage(context)
 
-    val pathsToTry = listOf(
-      storageInstance.reference.child("users").child(cleanUserId).child("photos").child(fileName),
-      storageInstance.reference.child("photos").child(fileName)
-    )
+    if (storageInstance != null) {
+      val pathsToTry = listOf(
+        storageInstance.reference.child("users").child(cleanUserId).child("photos").child(fileName),
+        storageInstance.reference.child("photos").child(fileName)
+      )
 
-    val metadata = StorageMetadata.Builder()
-      .setContentType("image/jpeg")
-      .build()
+      val metadata = StorageMetadata.Builder()
+        .setContentType("image/jpeg")
+        .build()
 
-    for (photoRef in pathsToTry) {
-      try {
-        photoRef.putBytes(bytes, metadata).await()
-        val downloadUrl = photoRef.downloadUrl.await().toString()
-        Log.d(tag, "✓ Uploaded bitmap to Firebase Cloud Storage at ${photoRef.path}: $downloadUrl")
-        lastErrorMessage = null
-        return@withContext downloadUrl
-      } catch (e: StorageException) {
-        val userFriendlyMsg = when (e.errorCode) {
-          StorageException.ERROR_NOT_AUTHORIZED ->
-            "Permission denied by Firebase Storage. Ensure Storage rules allow write or enable Anonymous Auth in Firebase Console."
-          StorageException.ERROR_RETRY_LIMIT_EXCEEDED ->
-            "Upload timed out. Please check your internet connection."
-          StorageException.ERROR_QUOTA_EXCEEDED ->
-            "Firebase Storage quota exceeded."
-          StorageException.ERROR_BUCKET_NOT_FOUND ->
-            "Firebase Storage bucket '$defaultBucket' not found."
-          else ->
-            e.localizedMessage ?: "Upload error (code ${e.errorCode})"
+      for (photoRef in pathsToTry) {
+        try {
+          photoRef.putBytes(bytes, metadata).await()
+          val downloadUrl = photoRef.downloadUrl.await().toString()
+          Log.d(tag, "✓ Uploaded bitmap to Firebase Cloud Storage at ${photoRef.path}: $downloadUrl")
+          lastErrorMessage = null
+          return@withContext downloadUrl
+        } catch (e: StorageException) {
+          if (e.errorCode == StorageException.ERROR_NOT_AUTHORIZED) {
+            hasStoragePermissionError = true
+          }
+          val userFriendlyMsg = when (e.errorCode) {
+            StorageException.ERROR_NOT_AUTHORIZED ->
+              "Permission denied by Firebase Storage. Ensure Storage rules allow write or enable Anonymous Auth in Firebase Console."
+            StorageException.ERROR_RETRY_LIMIT_EXCEEDED ->
+              "Upload timed out. Please check your internet connection."
+            StorageException.ERROR_QUOTA_EXCEEDED ->
+              "Firebase Storage quota exceeded."
+            StorageException.ERROR_BUCKET_NOT_FOUND ->
+              "Firebase Storage bucket '$defaultBucket' not found."
+            else ->
+              e.localizedMessage ?: "Upload error (code ${e.errorCode})"
+          }
+          lastErrorMessage = userFriendlyMsg
+          Log.w(tag, "Upload attempt failed at ${photoRef.path}: $userFriendlyMsg", e)
+        } catch (e: Throwable) {
+          lastErrorMessage = e.localizedMessage ?: "Failed to upload to cloud storage"
+          Log.e(tag, "Unexpected upload error at ${photoRef.path}: ${e.message}", e)
         }
-        lastErrorMessage = userFriendlyMsg
-        Log.w(tag, "Upload attempt failed at ${photoRef.path}: $userFriendlyMsg", e)
-      } catch (e: Throwable) {
-        lastErrorMessage = e.localizedMessage ?: "Failed to upload to cloud storage"
-        Log.e(tag, "Unexpected upload error at ${photoRef.path}: ${e.message}", e)
       }
+    } else {
+      lastErrorMessage = "Firebase Storage instance unavailable."
+    }
+
+    // Resilient fallback: Save image locally so the user is never blocked by Storage rules
+    val fallbackUri = saveBytesToLocalFile(context, bytes, fileName)
+    if (fallbackUri.isNotBlank()) {
+      lastUploadWasFallback = true
+      Log.i(tag, "Saved bitmap to local app storage fallback: $fallbackUri")
+      return@withContext fallbackUri
     }
 
     ""
+  }
+
+  private fun saveBytesToLocalFile(context: Context, bytes: ByteArray, fileName: String): String {
+    return try {
+      val photosDir = java.io.File(context.filesDir, "profile_photos")
+      if (!photosDir.exists()) {
+        photosDir.mkdirs()
+      }
+      val destFile = java.io.File(photosDir, fileName)
+      destFile.outputStream().use { it.write(bytes) }
+      Uri.fromFile(destFile).toString()
+    } catch (e: Exception) {
+      Log.e(tag, "Failed to save local photo fallback: ${e.message}", e)
+      ""
+    }
   }
 
   /**

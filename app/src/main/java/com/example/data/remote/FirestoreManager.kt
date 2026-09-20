@@ -52,8 +52,7 @@ class FirestoreManager {
   suspend fun syncUserProfile(profile: UserProfile): Boolean {
     val db = firestore ?: return false
     return try {
-      // CRITICAL: Only save remote cloud URLs (HTTP/HTTPS) in Firestore. Never save local device paths.
-      val cloudPhotos = profile.photos.filter { it.startsWith("http://") || it.startsWith("https://") }
+      val cloudPhotos = profile.photos.filter { it.isNotBlank() }
       val data = mapOf(
         "id" to profile.id,
         "name" to profile.name,

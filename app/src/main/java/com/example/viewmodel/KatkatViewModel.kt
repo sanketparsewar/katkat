@@ -304,6 +304,10 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     return repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
   }
 
+  suspend fun uploadProfileBitmap(context: android.content.Context, userId: String, bitmap: android.graphics.Bitmap): String {
+    return repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
+  }
+
   suspend fun checkExistingUser(phone: String, countryCode: String): UserProfile? {
     return repository.checkExistingUserByPhone(phone, countryCode)
   }
@@ -362,13 +366,17 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       }
       _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
-      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
+      if (storedUrl.isNotBlank()) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
           if (size < 6) add(storedUrl) else set(5, storedUrl)
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
+        if (storedUrl.startsWith("http")) {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
+        } else {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo saved! (Update Storage rules in console to enable cloud sync)"))
+        }
         onComplete?.invoke(storedUrl)
       } else {
         val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
@@ -388,13 +396,17 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       }
       _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
-      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
+      if (storedUrl.isNotBlank()) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
           if (size < 6) add(storedUrl) else set(5, storedUrl)
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
+        if (storedUrl.startsWith("http")) {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
+        } else {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo saved! (Update Storage rules in console to enable cloud sync)"))
+        }
         onComplete?.invoke(storedUrl)
       } else {
         val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
@@ -414,7 +426,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       }
       _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
-      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
+      if (storedUrl.isNotBlank()) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
         if (index in newPhotos.indices) {
           newPhotos[index] = storedUrl
@@ -423,7 +435,11 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
+        if (storedUrl.startsWith("http")) {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
+        } else {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated! (Update Storage rules to enable cloud sync)"))
+        }
         onComplete?.invoke(storedUrl)
       } else {
         val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
@@ -443,7 +459,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       }
       _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
-      if (storedUrl.isNotBlank() && (storedUrl.startsWith("http://") || storedUrl.startsWith("https://"))) {
+      if (storedUrl.isNotBlank()) {
         val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
         if (index in newPhotos.indices) {
           newPhotos[index] = storedUrl
@@ -452,7 +468,11 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         }
         val updated = current.copy(photos = newPhotos)
         repository.saveUserProfile(updated)
-        _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
+        if (storedUrl.startsWith("http")) {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
+        } else {
+          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated! (Update Storage rules to enable cloud sync)"))
+        }
         onComplete?.invoke(storedUrl)
       } else {
         val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."

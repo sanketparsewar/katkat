@@ -308,10 +308,10 @@ class KatkatRepository(
           } else {
             try {
               val uploaded = firebaseStorageManager.uploadProfileImage(context, uniqueId, android.net.Uri.parse(photoUri))
-              if (uploaded.startsWith("http")) uploaded else ""
+              if (uploaded.isNotBlank()) uploaded else photoUri
             } catch (e: Exception) {
               Log.w("KatkatRepository", "Could not upload local photo to Cloud Storage: ${e.message}")
-              ""
+              photoUri
             }
           }
         }.filter { it.isNotBlank() }

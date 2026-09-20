@@ -48,6 +48,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -328,46 +336,122 @@ fun OnboardingProfileSetupScreen(
     }
   }
 
-  // Photo Picker (Uploads selected image directly to Firebase Cloud Storage)
+  var showPhotoSourceDialog by remember { mutableStateOf(false) }
+  var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+  // Unified photo processor (handles both Firebase Cloud Storage and resilient local fallback)
+  val processAndAddPhotoUri: (Uri) -> Unit = { uri ->
+    coroutineScope.launch {
+      isUploadingPhoto = true
+      Toast.makeText(context, "Processing photo...", Toast.LENGTH_SHORT).show()
+      try {
+        val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
+        val cleanPhone = phoneNumber.filter { it.isDigit() }
+        val userId = if (!currentAuthUid.isNullOrBlank()) {
+          currentAuthUid
+        } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
+          initialProfile.id
+        } else {
+          "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+        }
+        val uploadedUrl = if (viewModel != null) {
+          viewModel.uploadProfilePhoto(context, userId, uri)
+        } else {
+          ""
+        }
+        if (uploadedUrl.isNotBlank()) {
+          if (photos.size < 6) {
+            photos = (photos + uploadedUrl).toMutableList()
+          } else {
+            photos = photos.toMutableList().apply { set(5, uploadedUrl) }
+          }
+          if (uploadedUrl.startsWith("http")) {
+            Toast.makeText(context, "✓ Photo uploaded to Firebase Cloud Storage ✨", Toast.LENGTH_SHORT).show()
+          } else {
+            Toast.makeText(context, "✓ Photo added! (Update Storage rules in console to enable cloud sync)", Toast.LENGTH_LONG).show()
+          }
+        } else {
+          val err = viewModel?.firebaseStorageManager?.lastErrorMessage ?: "Could not process photo. Please try another image."
+          Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+        }
+      } catch (e: Exception) {
+        Toast.makeText(context, "Upload error: ${e.message}", Toast.LENGTH_SHORT).show()
+      } finally {
+        isUploadingPhoto = false
+      }
+    }
+  }
+
+  // Camera Launcher (TakePicture contract with FileProvider Uri)
+  val takeCameraLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.TakePicture()
+  ) { success: Boolean ->
+    if (success && tempCameraUri != null) {
+      processAndAddPhotoUri(tempCameraUri!!)
+    }
+  }
+
+  // Camera Permission Launcher
+  val cameraPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted: Boolean ->
+    if (isGranted) {
+      try {
+        val photoFile = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(
+          context,
+          "${context.packageName}.fileprovider",
+          photoFile
+        )
+        tempCameraUri = uri
+        takeCameraLauncher.launch(uri)
+      } catch (e: Exception) {
+        Toast.makeText(context, "Could not open camera: ${e.message}", Toast.LENGTH_SHORT).show()
+      }
+    } else {
+      Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
+    }
+  }
+
+  val launchCamera: () -> Unit = {
+    val hasCamPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.CAMERA
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    if (hasCamPermission) {
+      try {
+        val photoFile = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(
+          context,
+          "${context.packageName}.fileprovider",
+          photoFile
+        )
+        tempCameraUri = uri
+        takeCameraLauncher.launch(uri)
+      } catch (e: Exception) {
+        Toast.makeText(context, "Could not open camera: ${e.message}", Toast.LENGTH_SHORT).show()
+      }
+    } else {
+      cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+  }
+
+  // Gallery Picker (Photo picker)
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
   ) { uri: Uri? ->
     if (uri != null) {
-      coroutineScope.launch {
-        isUploadingPhoto = true
-        Toast.makeText(context, "Uploading image to Firebase Cloud Storage...", Toast.LENGTH_SHORT).show()
-        try {
-          val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
-          val cleanPhone = phoneNumber.filter { it.isDigit() }
-          val userId = if (!currentAuthUid.isNullOrBlank()) {
-            currentAuthUid
-          } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
-            initialProfile.id
-          } else {
-            "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
-          }
-          val uploadedUrl = if (viewModel != null) {
-            viewModel.uploadProfilePhoto(context, userId, uri)
-          } else {
-            ""
-          }
-          if (uploadedUrl.isNotBlank() && (uploadedUrl.startsWith("http://") || uploadedUrl.startsWith("https://"))) {
-            if (photos.size < 6) {
-              photos = (photos + uploadedUrl).toMutableList()
-            } else {
-              photos = photos.toMutableList().apply { set(5, uploadedUrl) }
-            }
-            Toast.makeText(context, "✓ Photo uploaded to Firebase Cloud Storage", Toast.LENGTH_SHORT).show()
-          } else {
-            val err = viewModel?.firebaseStorageManager?.lastErrorMessage ?: "Could not upload to cloud storage. Please check internet connection."
-            Toast.makeText(context, err, Toast.LENGTH_LONG).show()
-          }
-        } catch (e: Exception) {
-          Toast.makeText(context, "Upload error: ${e.message}", Toast.LENGTH_SHORT).show()
-        } finally {
-          isUploadingPhoto = false
-        }
-      }
+      processAndAddPhotoUri(uri)
+    }
+  }
+
+  // File Picker (GetContent for storage/documents/files)
+  val filePickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetContent()
+  ) { uri: Uri? ->
+    if (uri != null) {
+      processAndAddPhotoUri(uri)
     }
   }
 
@@ -859,15 +943,14 @@ fun OnboardingProfileSetupScreen(
             )
           }
 
-          // Step 2: Photos (Stored in Firebase Storage)
+          // Step 2: Photos (Stored in Firebase Storage with Camera & File options)
           OnboardingFlowStep.PHOTOS -> {
             PhotosStep(
               photos = photos,
               isUploading = isUploadingPhoto,
+              hasStoragePermissionError = viewModel?.firebaseStorageManager?.hasStoragePermissionError == true,
               onAddPhoto = {
-                photoPickerLauncher.launch(
-                  PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
+                showPhotoSourceDialog = true
               },
               onRemovePhoto = { idx ->
                 if (photos.size > 1) {
@@ -1003,6 +1086,185 @@ fun OnboardingProfileSetupScreen(
           }
         }
       }
+    }
+
+    if (showPhotoSourceDialog) {
+      AlertDialog(
+        onDismissRequest = { showPhotoSourceDialog = false },
+        title = {
+          Text(
+            text = "Select Photo",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+          )
+        },
+        text = {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Text(
+              text = "Choose a source to add your profile photo:",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Option 1: Camera
+            Surface(
+              onClick = {
+                showPhotoSourceDialog = false
+                launchCamera()
+              },
+              shape = RoundedCornerShape(14.dp),
+              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+              border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("photo_source_camera")
+            ) {
+              Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Surface(
+                  shape = CircleShape,
+                  color = CoralPrimary.copy(alpha = 0.15f),
+                  modifier = Modifier.size(42.dp)
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                      Icons.Default.PhotoCamera,
+                      contentDescription = "Camera",
+                      tint = CoralPrimary,
+                      modifier = Modifier.size(22.dp)
+                    )
+                  }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column {
+                  Text(
+                    "Camera",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Text(
+                    "Take a photo with your camera",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+              }
+            }
+
+            // Option 2: File / Storage
+            Surface(
+              onClick = {
+                showPhotoSourceDialog = false
+                filePickerLauncher.launch("image/*")
+              },
+              shape = RoundedCornerShape(14.dp),
+              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+              border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("photo_source_file")
+            ) {
+              Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Surface(
+                  shape = CircleShape,
+                  color = CoralPrimary.copy(alpha = 0.15f),
+                  modifier = Modifier.size(42.dp)
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                      Icons.Default.FolderOpen,
+                      contentDescription = "Files",
+                      tint = CoralPrimary,
+                      modifier = Modifier.size(22.dp)
+                    )
+                  }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column {
+                  Text(
+                    "File / Storage",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Text(
+                    "Browse files from internal storage or downloads",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+              }
+            }
+
+            // Option 3: Photo Gallery
+            Surface(
+              onClick = {
+                showPhotoSourceDialog = false
+                photoPickerLauncher.launch(
+                  PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+              },
+              shape = RoundedCornerShape(14.dp),
+              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+              border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("photo_source_gallery")
+            ) {
+              Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Surface(
+                  shape = CircleShape,
+                  color = CoralPrimary.copy(alpha = 0.15f),
+                  modifier = Modifier.size(42.dp)
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                      Icons.Default.PhotoLibrary,
+                      contentDescription = "Gallery",
+                      tint = CoralPrimary,
+                      modifier = Modifier.size(22.dp)
+                    )
+                  }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column {
+                  Text(
+                    "Photo Gallery",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Text(
+                    "Choose an image from your photo album",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+              }
+            }
+          }
+        },
+        confirmButton = {},
+        dismissButton = {
+          TextButton(onClick = { showPhotoSourceDialog = false }) {
+            Text("Cancel", color = CoralPrimary)
+          }
+        }
+      )
     }
   }
 }
@@ -1974,6 +2236,7 @@ private fun PersonalInfoStep(
 private fun PhotosStep(
   photos: List<String>,
   isUploading: Boolean = false,
+  hasStoragePermissionError: Boolean = false,
   onAddPhoto: () -> Unit,
   onRemovePhoto: (Int) -> Unit,
   onSetPrimary: (Int) -> Unit,
@@ -1997,10 +2260,48 @@ private fun PhotosStep(
       )
 
       Text(
-        text = "Add at least 2 photos. Your photos will be stored in Firebase cloud storage.",
+        text = "Add at least 2 photos from camera or files. Your photos will be stored safely.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
+
+      if (hasStoragePermissionError) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.Top
+          ) {
+            Icon(
+              Icons.Default.Info,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.error,
+              modifier = Modifier.size(20.dp).padding(top = 1.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+              Text(
+                text = "Firebase Storage Rules Notice",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.error
+              )
+              Spacer(modifier = Modifier.height(3.dp))
+              Text(
+                text = "Firebase Storage rules currently deny write ('allow read, write: if false;'). Your photos are saved locally so you can continue onboarding!\n\nTo enable cloud storage sync, update rules in Firebase Console -> Storage -> Rules to:\nallow read, write: if request.auth != null;",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 16.sp
+              )
+            }
+          }
+        }
+      }
 
       if (isUploading) {
         Spacer(modifier = Modifier.height(14.dp))
