@@ -450,8 +450,14 @@ class KatkatRepository(
     }
 
     // Initialize new account based on mobile number
+    val authUid = phoneAuthManager.currentUserId
+    val newId = if (!authUid.isNullOrBlank()) {
+      authUid
+    } else {
+      "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+    }
     val newProfile = UserProfile(
-      id = "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}",
+      id = newId,
       phoneNumber = phoneNumber,
       countryCode = countryCode,
       isPhoneVerified = true,

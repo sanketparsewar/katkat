@@ -169,6 +169,14 @@ fun ProfileEditScreen(
     }
   }
 
+  val filePickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetContent()
+  ) { uri: Uri? ->
+    uri?.let {
+      onAddPhoto(it.toString())
+    }
+  }
+
   val cameraLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.TakePicturePreview()
   ) { bitmap: Bitmap? ->
@@ -873,35 +881,183 @@ fun ProfileEditScreen(
   // BOTTOM SHEETS & MODALS FOR EDITING
   // ─────────────────────────────────────────────────────────────────────────
 
-  // 1. Photo Choice (Camera vs Gallery)
+  // 1. Photo Choice (Camera, File / Storage, Gallery)
   if (showPhotoChoiceDialog) {
     AlertDialog(
       onDismissRequest = { showPhotoChoiceDialog = false },
-      title = { Text("Update Photo", fontWeight = FontWeight.Bold) },
-      text = { Text("Choose a photo from your gallery or take a new one with your camera.") },
-      confirmButton = {
-        Button(
-          onClick = {
-            showPhotoChoiceDialog = false
-            galleryLauncher.launch(
-              androidx.activity.result.PickVisualMediaRequest(
-                ActivityResultContracts.PickVisualMedia.ImageOnly
-              )
-            )
-          },
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53950))
+      title = {
+        Text(
+          "Update Photo",
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold
+        )
+      },
+      text = {
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          Text("Choose from Gallery")
+          Text(
+            "Choose a source to update your profile photo:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+
+          Spacer(modifier = Modifier.height(4.dp))
+
+          // Option 1: Camera
+          Surface(
+            onClick = {
+              showPhotoChoiceDialog = false
+              cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+            },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, Color(0xFFE53950).copy(alpha = 0.3f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("profile_photo_camera")
+          ) {
+            Row(
+              modifier = Modifier.padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Surface(
+                shape = CircleShape,
+                color = Color(0xFFE53950).copy(alpha = 0.15f),
+                modifier = Modifier.size(40.dp)
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Icon(
+                    Icons.Default.CameraAlt,
+                    contentDescription = "Camera",
+                    tint = Color(0xFFE53950),
+                    modifier = Modifier.size(22.dp)
+                  )
+                }
+              }
+              Spacer(modifier = Modifier.width(14.dp))
+              Column {
+                Text(
+                  "Camera",
+                  fontWeight = FontWeight.Bold,
+                  style = MaterialTheme.typography.titleMedium,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                  "Take a new photo with camera",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+            }
+          }
+
+          // Option 2: File / Storage
+          Surface(
+            onClick = {
+              showPhotoChoiceDialog = false
+              filePickerLauncher.launch("image/*")
+            },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, Color(0xFFE53950).copy(alpha = 0.3f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("profile_photo_file")
+          ) {
+            Row(
+              modifier = Modifier.padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Surface(
+                shape = CircleShape,
+                color = Color(0xFFE53950).copy(alpha = 0.15f),
+                modifier = Modifier.size(40.dp)
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Icon(
+                    Icons.Outlined.WorkOutline,
+                    contentDescription = "Files",
+                    tint = Color(0xFFE53950),
+                    modifier = Modifier.size(22.dp)
+                  )
+                }
+              }
+              Spacer(modifier = Modifier.width(14.dp))
+              Column {
+                Text(
+                  "File / Storage",
+                  fontWeight = FontWeight.Bold,
+                  style = MaterialTheme.typography.titleMedium,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                  "Browse files from internal storage or downloads",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+            }
+          }
+
+          // Option 3: Photo Gallery
+          Surface(
+            onClick = {
+              showPhotoChoiceDialog = false
+              galleryLauncher.launch(
+                androidx.activity.result.PickVisualMediaRequest(
+                  ActivityResultContracts.PickVisualMedia.ImageOnly
+                )
+              )
+            },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, Color(0xFFE53950).copy(alpha = 0.3f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("profile_photo_gallery")
+          ) {
+            Row(
+              modifier = Modifier.padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Surface(
+                shape = CircleShape,
+                color = Color(0xFFE53950).copy(alpha = 0.15f),
+                modifier = Modifier.size(40.dp)
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Icon(
+                    Icons.Outlined.PhotoLibrary,
+                    contentDescription = "Gallery",
+                    tint = Color(0xFFE53950),
+                    modifier = Modifier.size(22.dp)
+                  )
+                }
+              }
+              Spacer(modifier = Modifier.width(14.dp))
+              Column {
+                Text(
+                  "Photo Gallery",
+                  fontWeight = FontWeight.Bold,
+                  style = MaterialTheme.typography.titleMedium,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                  "Choose an image from photo albums",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+            }
+          }
         }
       },
+      confirmButton = {},
       dismissButton = {
-        OutlinedButton(
-          onClick = {
-            showPhotoChoiceDialog = false
-            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-          }
-        ) {
-          Text("Take Photo")
+        TextButton(onClick = { showPhotoChoiceDialog = false }) {
+          Text("Cancel", color = Color(0xFFE53950))
         }
       }
     )

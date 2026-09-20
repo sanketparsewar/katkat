@@ -355,15 +355,28 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  /**
+   * Resolves the canonical user ID for Storage and database records.
+   * Prioritizes Firebase Auth UID, then the existing profile ID, before falling back to phone/timestamp.
+   * This guarantees photos are always stored in the exact same user folder in Firebase Storage.
+   */
+  fun getEffectiveUserId(): String {
+    val current = userProfile.value
+    val authUid = phoneAuthManager.currentUserId
+    return when {
+      !authUid.isNullOrBlank() -> authUid
+      current.id.isNotBlank() && current.id != "my_profile" -> current.id
+      else -> {
+        val cleanPhone = current.phoneNumber.filter { it.isDigit() }
+        if (cleanPhone.isNotBlank()) "user_$cleanPhone" else "user_${System.currentTimeMillis()}"
+      }
+    }
+  }
+
   fun uploadAndAddPhoto(context: android.content.Context, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
       val current = userProfile.value
-      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
-      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
-        current.id
-      } else {
-        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
-      }
+      val userId = getEffectiveUserId()
       _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
       if (storedUrl.isNotBlank()) {
@@ -388,12 +401,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun uploadAndAddBitmap(context: android.content.Context, bitmap: android.graphics.Bitmap, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
       val current = userProfile.value
-      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
-      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
-        current.id
-      } else {
-        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
-      }
+      val userId = getEffectiveUserId()
       _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
       if (storedUrl.isNotBlank()) {
@@ -418,12 +426,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun uploadAndReplacePhoto(context: android.content.Context, index: Int, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
       val current = userProfile.value
-      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
-      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
-        current.id
-      } else {
-        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
-      }
+      val userId = getEffectiveUserId()
       _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
       if (storedUrl.isNotBlank()) {
@@ -451,12 +454,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun uploadAndReplaceBitmap(context: android.content.Context, index: Int, bitmap: android.graphics.Bitmap, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
       val current = userProfile.value
-      val cleanPhone = current.phoneNumber.filter { it.isDigit() }
-      val userId = if (current.id.startsWith("user_") && current.id.length > 5) {
-        current.id
-      } else {
-        "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
-      }
+      val userId = getEffectiveUserId()
       _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
       val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
       if (storedUrl.isNotBlank()) {

@@ -345,14 +345,16 @@ fun OnboardingProfileSetupScreen(
       isUploadingPhoto = true
       Toast.makeText(context, "Processing photo...", Toast.LENGTH_SHORT).show()
       try {
-        val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
-        val cleanPhone = phoneNumber.filter { it.isDigit() }
-        val userId = if (!currentAuthUid.isNullOrBlank()) {
-          currentAuthUid
-        } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
-          initialProfile.id
-        } else {
-          "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+        val userId = viewModel?.getEffectiveUserId() ?: run {
+          val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
+          val cleanPhone = phoneNumber.filter { it.isDigit() }
+          if (!currentAuthUid.isNullOrBlank()) {
+            currentAuthUid
+          } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
+            initialProfile.id
+          } else {
+            "user_${cleanPhone.ifBlank { System.currentTimeMillis().toString() }}"
+          }
         }
         val uploadedUrl = if (viewModel != null) {
           viewModel.uploadProfilePhoto(context, userId, uri)
@@ -1037,13 +1039,15 @@ fun OnboardingProfileSetupScreen(
           OnboardingFlowStep.REVIEW_LAUNCH -> {
             val petsString = selectedPets.joinToString(", ")
             val cleanPhoneDigits = phoneNumber.filter { it.isDigit() }
-            val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
-            val userId = if (!currentAuthUid.isNullOrBlank()) {
-              currentAuthUid
-            } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
-              initialProfile.id
-            } else {
-              "user_${cleanPhoneDigits.ifBlank { System.currentTimeMillis().toString() }}"
+            val userId = viewModel?.getEffectiveUserId() ?: run {
+              val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
+              if (!currentAuthUid.isNullOrBlank()) {
+                currentAuthUid
+              } else if (initialProfile.id.isNotBlank() && initialProfile.id != "my_profile") {
+                initialProfile.id
+              } else {
+                "user_${cleanPhoneDigits.ifBlank { System.currentTimeMillis().toString() }}"
+              }
             }
             val finalProfile = UserProfile(
               id = userId,
