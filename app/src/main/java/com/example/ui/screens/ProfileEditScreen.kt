@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.app.DatePickerDialog
 import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
@@ -34,10 +35,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.Cake
@@ -71,6 +75,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -94,10 +99,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,6 +127,9 @@ import com.example.data.model.SubscriptionState
 import com.example.data.model.UserProfile
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.CoralPrimary
+import com.example.util.LocationHelper
+import java.util.Calendar
+import kotlinx.coroutines.launch
 
 // Preset interest category item
 data class InterestItem(
@@ -150,13 +160,21 @@ val AllPresetInterests = listOf(
 )
 
 val AllDatingIntentionsList = listOf(
-  "Long-term relationship",
-  "Long-term, open to short",
-  "Short-term relationship",
-  "Casual dating & coffee",
-  "Marriage & Matrimony",
-  "New friends & connections",
-  "Still figuring it out"
+  "Long-term ❤️",
+  "Casual dating ☕",
+  "Marriage 💍",
+  "New friends 🤝",
+  "Short-term ✨",
+  "Figuring it out 🧭"
+)
+
+val HeightOptionsList = listOf(
+  "4'10\" (147 cm)", "4'11\" (150 cm)",
+  "5'0\" (152 cm)", "5'1\" (155 cm)", "5'2\" (157 cm)", "5'3\" (160 cm)",
+  "5'4\" (163 cm)", "5'5\" (165 cm)", "5'6\" (168 cm)", "5'7\" (170 cm)",
+  "5'8\" (173 cm)", "5'9\" (175 cm)", "5'10\" (178 cm)", "5'11\" (180 cm)",
+  "6'0\" (183 cm)", "6'1\" (185 cm)", "6'2\" (188 cm)", "6'3\" (190 cm)",
+  "6'4\" (193 cm)", "6'5\" (196 cm)", "6'6\" (198 cm)"
 )
 
 val AllZodiacList = listOf(
@@ -199,6 +217,94 @@ val PromptQuestionList = listOf(
   "Two truths and a lie...",
   "Best travel memory..."
 )
+
+val GenderOptionsList = listOf("Woman", "Man", "Non-binary", "Other")
+val PronounsOptionsList = listOf("she/her", "he/him", "they/them", "she/they", "he/they", "other")
+
+fun parseDobToCalendar(dobStr: String): Calendar {
+  val cal = Calendar.getInstance()
+  cal.add(Calendar.YEAR, -24)
+  if (dobStr.isBlank()) return cal
+
+  try {
+    if (dobStr.contains("/")) {
+      val parts = dobStr.split("/")
+      if (parts.size == 3) {
+        val d = parts[0].trim().toInt()
+        val m = parts[1].trim().toInt() - 1
+        val y = parts[2].trim().toInt()
+        cal.set(y, m, d)
+        return cal
+      }
+    } else if (dobStr.contains("-")) {
+      val parts = dobStr.split("-")
+      if (parts.size == 3) {
+        if (parts[0].length == 4) { // YYYY-MM-DD
+          val y = parts[0].trim().toInt()
+          val m = parts[1].trim().toInt() - 1
+          val d = parts[2].trim().toInt()
+          cal.set(y, m, d)
+          return cal
+        } else { // DD-MM-YYYY
+          val d = parts[0].trim().toInt()
+          val m = parts[1].trim().toInt() - 1
+          val y = parts[2].trim().toInt()
+          cal.set(y, m, d)
+          return cal
+        }
+      }
+    }
+  } catch (_: Exception) {}
+  return cal
+}
+
+fun calculateAgeFromDobString(dobStr: String): Int {
+  if (dobStr.isBlank()) return 0
+  try {
+    val cal = parseDobToCalendar(dobStr)
+    val today = Calendar.getInstance()
+    var age = today.get(Calendar.YEAR) - cal.get(Calendar.YEAR)
+    if (today.get(Calendar.MONTH) < cal.get(Calendar.MONTH) ||
+      (today.get(Calendar.MONTH) == cal.get(Calendar.MONTH) && today.get(Calendar.DAY_OF_MONTH) < cal.get(Calendar.DAY_OF_MONTH))
+    ) {
+      age--
+    }
+    return age.coerceAtLeast(0)
+  } catch (_: Exception) {
+    return 0
+  }
+}
+
+fun formatToDdMmYyyy(dobStr: String): String {
+  if (dobStr.isBlank()) return ""
+  try {
+    if (dobStr.contains("/")) {
+      val parts = dobStr.split("/")
+      if (parts.size == 3 && parts[2].length == 4) {
+        val d = parts[0].trim().toInt()
+        val m = parts[1].trim().toInt()
+        val y = parts[2].trim().toInt()
+        return "%02d/%02d/%04d".format(d, m, y)
+      }
+    } else if (dobStr.contains("-")) {
+      val parts = dobStr.split("-")
+      if (parts.size == 3) {
+        if (parts[0].length == 4) { // YYYY-MM-DD
+          val y = parts[0].trim().toInt()
+          val m = parts[1].trim().toInt()
+          val d = parts[2].trim().toInt()
+          return "%02d/%02d/%04d".format(d, m, y)
+        } else {
+          val d = parts[0].trim().toInt()
+          val m = parts[1].trim().toInt()
+          val y = parts[2].trim().toInt()
+          return "%02d/%02d/%04d".format(d, m, y)
+        }
+      }
+    }
+  } catch (_: Exception) {}
+  return dobStr
+}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -1185,24 +1291,105 @@ fun ProfileEditScreen(
       onDismissRequest = { showBasicInfoSheet = false },
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
+      val coroutineScope = rememberCoroutineScope()
       var editName by remember { mutableStateOf(userProfile.name) }
-      var editAge by remember { mutableStateOf(if (userProfile.age > 0) userProfile.age.toString() else "") }
-      var editDob by remember { mutableStateOf(userProfile.dob) }
+      var editDob by remember { mutableStateOf(formatToDdMmYyyy(userProfile.dob)) }
       var editGender by remember { mutableStateOf(userProfile.gender) }
       var editPronouns by remember { mutableStateOf(userProfile.pronouns) }
       var editCity by remember { mutableStateOf(userProfile.currentLocationCity) }
       var editHometown by remember { mutableStateOf(userProfile.hometown) }
       var editBio by remember { mutableStateOf(userProfile.bio) }
 
+      var showGenderDialog by remember { mutableStateOf(false) }
+      var showPronounsDialog by remember { mutableStateOf(false) }
+      var isDetectingLocation by remember { mutableStateOf(false) }
+
+      // Auto-calculated age from DOB string
+      val calculatedAge by remember(editDob) {
+        derivedStateOf { calculateAgeFromDobString(editDob) }
+      }
+
+      // DatePickerDialog setup
+      val calendar = remember(editDob) { parseDobToCalendar(editDob) }
+      val datePickerDialog = remember(context, calendar) {
+        DatePickerDialog(
+          context,
+          { _, year, month, dayOfMonth ->
+            editDob = "%02d/%02d/%04d".format(dayOfMonth, month + 1, year)
+          },
+          calendar.get(Calendar.YEAR),
+          calendar.get(Calendar.MONTH),
+          calendar.get(Calendar.DAY_OF_MONTH)
+        ).apply {
+          val maxCal = Calendar.getInstance().apply { add(Calendar.YEAR, -18) }
+          datePicker.maxDate = maxCal.timeInMillis
+        }
+      }
+
+      // Location permission launcher
+      val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+      ) { permissions ->
+        val fineGranted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        coroutineScope.launch {
+          isDetectingLocation = true
+          try {
+            val res = LocationHelper.getCurrentLocation(context)
+            if (res.city.isNotBlank()) {
+              val locStr = if (res.country.isNotBlank()) "${res.city}, ${res.country}" else res.city
+              editCity = locStr
+              Toast.makeText(context, "📍 GPS Location set: $locStr", Toast.LENGTH_SHORT).show()
+            } else {
+              Toast.makeText(context, "Location detection timed out. Please try again.", Toast.LENGTH_SHORT).show()
+            }
+          } catch (e: Exception) {
+            Toast.makeText(context, "Could not detect location: ${e.message}", Toast.LENGTH_SHORT).show()
+          } finally {
+            isDetectingLocation = false
+          }
+        }
+      }
+
+      val triggerLocationDetection = {
+        if (LocationHelper.hasLocationPermission(context)) {
+          coroutineScope.launch {
+            isDetectingLocation = true
+            try {
+              val res = LocationHelper.getCurrentLocation(context)
+              if (res.city.isNotBlank()) {
+                val locStr = if (res.country.isNotBlank()) "${res.city}, ${res.country}" else res.city
+                editCity = locStr
+                Toast.makeText(context, "📍 GPS Location set: $locStr", Toast.LENGTH_SHORT).show()
+              } else {
+                Toast.makeText(context, "Location detection timed out. Please try again.", Toast.LENGTH_SHORT).show()
+              }
+            } catch (e: Exception) {
+              Toast.makeText(context, "Could not detect location: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+              isDetectingLocation = false
+            }
+          }
+        } else {
+          locationPermissionLauncher.launch(
+            arrayOf(
+              android.Manifest.permission.ACCESS_FINE_LOCATION,
+              android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+          )
+        }
+      }
+
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(20.dp)
+          .padding(horizontal = 16.dp, vertical = 12.dp)
           .verticalScroll(rememberScrollState())
       ) {
         Text("Edit Basic Info", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
+        // Full Name Field
         OutlinedTextField(
           value = editName,
           onValueChange = { editName = it },
@@ -1211,65 +1398,190 @@ fun ProfileEditScreen(
           colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // DOB & Age Row
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(10.dp)
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically
         ) {
+          // DOB Selection Field (dd/mm/yyyy)
+          Box(
+            modifier = Modifier
+              .weight(1.4f)
+              .clickable { datePickerDialog.show() }
+          ) {
+            OutlinedTextField(
+              value = editDob,
+              onValueChange = {},
+              readOnly = true,
+              enabled = false,
+              label = { Text("Date of Birth") },
+              placeholder = { Text("DD/MM/YYYY") },
+              trailingIcon = {
+                Icon(
+                  imageVector = Icons.Filled.CalendarToday,
+                  contentDescription = "Select Date",
+                  tint = CoralPrimary,
+                  modifier = Modifier.size(18.dp)
+                )
+              },
+              modifier = Modifier.fillMaxWidth(),
+              colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                disabledTrailingIconColor = CoralPrimary
+              )
+            )
+          }
+
+          // Age Field (Auto-fetched from DOB, Disabled)
+          val displayedAgeValue = when {
+            calculatedAge > 0 -> "$calculatedAge"
+            userProfile.age > 0 -> "${userProfile.age}"
+            else -> ""
+          }
+
           OutlinedTextField(
-            value = editAge,
-            onValueChange = { editAge = it.filter { ch -> ch.isDigit() }.take(3) },
+            value = displayedAgeValue,
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
             label = { Text("Age") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.weight(1f),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
-          )
-
-          OutlinedTextField(
-            value = editDob,
-            onValueChange = { editDob = it },
-            label = { Text("DOB (DD/MM/YYYY)") },
-            modifier = Modifier.weight(1.5f),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+            placeholder = { Text("Auto") },
+            modifier = Modifier.weight(0.8f),
+            colors = OutlinedTextFieldDefaults.colors(
+              disabledTextColor = MaterialTheme.colorScheme.onSurface,
+              disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+              disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
           )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // Gender & Pronouns Row (Clickable selection dialogs)
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(10.dp)
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          // Gender Field
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .clickable { showGenderDialog = true }
+          ) {
+            OutlinedTextField(
+              value = editGender,
+              onValueChange = {},
+              readOnly = true,
+              enabled = false,
+              label = { Text("Gender") },
+              placeholder = { Text("Select") },
+              trailingIcon = {
+                Icon(
+                  imageVector = Icons.Filled.ArrowDropDown,
+                  contentDescription = "Select Gender",
+                  tint = CoralPrimary
+                )
+              },
+              modifier = Modifier.fillMaxWidth(),
+              colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                disabledTrailingIconColor = CoralPrimary
+              )
+            )
+          }
+
+          // Pronouns Field
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .clickable { showPronounsDialog = true }
+          ) {
+            OutlinedTextField(
+              value = editPronouns,
+              onValueChange = {},
+              readOnly = true,
+              enabled = false,
+              label = { Text("Pronouns") },
+              placeholder = { Text("Select") },
+              trailingIcon = {
+                Icon(
+                  imageVector = Icons.Filled.ArrowDropDown,
+                  contentDescription = "Select Pronouns",
+                  tint = CoralPrimary
+                )
+              },
+              modifier = Modifier.fillMaxWidth(),
+              colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                disabledTrailingIconColor = CoralPrimary
+              )
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Current City / Location Field (Clickable GPS auto-detect, disabled for typing)
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+              if (!isDetectingLocation) {
+                triggerLocationDetection()
+              }
+            }
         ) {
           OutlinedTextField(
-            value = editGender,
-            onValueChange = { editGender = it },
-            label = { Text("Gender (e.g. Woman, Man)") },
-            modifier = Modifier.weight(1f),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
-          )
-
-          OutlinedTextField(
-            value = editPronouns,
-            onValueChange = { editPronouns = it },
-            label = { Text("Pronouns (she/her, etc.)") },
-            modifier = Modifier.weight(1f),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+            value = if (isDetectingLocation) "Detecting GPS location..." else editCity,
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            label = { Text("Current City / Location") },
+            placeholder = { Text("Tap to auto-detect GPS location") },
+            trailingIcon = {
+              if (isDetectingLocation) {
+                CircularProgressIndicator(
+                  modifier = Modifier.size(18.dp),
+                  color = CoralPrimary,
+                  strokeWidth = 2.dp
+                )
+              } else {
+                Icon(
+                  imageVector = Icons.Filled.MyLocation,
+                  contentDescription = "Detect Location",
+                  tint = CoralPrimary,
+                  modifier = Modifier.size(20.dp)
+                )
+              }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+              disabledTextColor = MaterialTheme.colorScheme.onSurface,
+              disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+              disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+              disabledTrailingIconColor = CoralPrimary
+            )
           )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-          value = editCity,
-          onValueChange = { editCity = it },
-          label = { Text("Current City / Location") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
+        // Hometown Field
         OutlinedTextField(
           value = editHometown,
           onValueChange = { editHometown = it },
@@ -1278,26 +1590,27 @@ fun ProfileEditScreen(
           colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // Bio Field
         OutlinedTextField(
           value = editBio,
           onValueChange = { editBio = it },
           label = { Text("About Me / Bio") },
           minLines = 3,
-          maxLines = 6,
+          maxLines = 5,
           modifier = Modifier.fillMaxWidth(),
           colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
           onClick = {
-            val parsedAge = editAge.toIntOrNull() ?: userProfile.age
+            val finalAge = if (calculatedAge > 0) calculatedAge else userProfile.age
             val updated = userProfile.copy(
               name = editName.trim(),
-              age = parsedAge,
+              age = finalAge,
               dob = editDob.trim(),
               gender = editGender.trim(),
               pronouns = editPronouns.trim(),
@@ -1310,14 +1623,130 @@ fun ProfileEditScreen(
           },
           modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(46.dp),
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
+      }
+
+      // Gender Selection Dialog
+      if (showGenderDialog) {
+        AlertDialog(
+          onDismissRequest = { showGenderDialog = false },
+          title = {
+            Text("Select Gender", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+          },
+          text = {
+            Column(
+              modifier = Modifier.fillMaxWidth(),
+              verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              GenderOptionsList.forEach { option ->
+                val isSelected = editGender.equals(option, ignoreCase = true)
+                Surface(
+                  shape = RoundedCornerShape(12.dp),
+                  color = if (isSelected) CoralPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                  border = if (isSelected) BorderStroke(1.5.dp, CoralPrimary) else null,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                      editGender = option
+                      showGenderDialog = false
+                    }
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Text(
+                      text = option,
+                      fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                      color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                      fontSize = 14.sp
+                    )
+                    if (isSelected) {
+                      Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = CoralPrimary,
+                        modifier = Modifier.size(18.dp)
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          },
+          confirmButton = {},
+          dismissButton = {
+            TextButton(onClick = { showGenderDialog = false }) {
+              Text("Cancel", color = CoralPrimary)
+            }
+          }
+        )
+      }
+
+      // Pronouns Selection Dialog
+      if (showPronounsDialog) {
+        AlertDialog(
+          onDismissRequest = { showPronounsDialog = false },
+          title = {
+            Text("Select Pronouns", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+          },
+          text = {
+            Column(
+              modifier = Modifier.fillMaxWidth(),
+              verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              PronounsOptionsList.forEach { option ->
+                val isSelected = editPronouns.equals(option, ignoreCase = true)
+                Surface(
+                  shape = RoundedCornerShape(12.dp),
+                  color = if (isSelected) CoralPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                  border = if (isSelected) BorderStroke(1.5.dp, CoralPrimary) else null,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                      editPronouns = option
+                      showPronounsDialog = false
+                    }
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Text(
+                      text = option,
+                      fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                      color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                      fontSize = 14.sp
+                    )
+                    if (isSelected) {
+                      Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = CoralPrimary,
+                        modifier = Modifier.size(18.dp)
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          },
+          confirmButton = {},
+          dismissButton = {
+            TextButton(onClick = { showPronounsDialog = false }) {
+              Text("Cancel", color = CoralPrimary)
+            }
+          }
+        )
       }
     }
   }
@@ -1395,146 +1824,199 @@ fun ProfileEditScreen(
       var editDrinking by remember { mutableStateOf(userProfile.drinking) }
       var editSmoking by remember { mutableStateOf(userProfile.smoking) }
       var editPets by remember { mutableStateOf(userProfile.pets) }
+      var showHeightDialog by remember { mutableStateOf(false) }
 
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(20.dp)
+          .padding(horizontal = 16.dp, vertical = 10.dp)
           .verticalScroll(rememberScrollState())
       ) {
         Text("Edit Dating Goals & Lifestyle", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Relationship Goals Picker
-        Text("Dating Intention", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
+        // Relationship Goals Picker (Multiple pills per row, random/varied, highlighted)
+        Text("Dating Intention", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+        Spacer(modifier = Modifier.height(5.dp))
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)
+          horizontalArrangement = Arrangement.spacedBy(5.dp),
+          verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
           AllDatingIntentionsList.forEach { intention ->
-            val isSelected = editIntention.equals(intention, ignoreCase = true)
-            FilterChip(
-              selected = isSelected,
-              onClick = { editIntention = if (isSelected) "" else intention },
-              label = { Text(intention, fontSize = 12.sp) },
-              colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = CoralPrimary,
-                selectedLabelColor = Color.White
+            val isSelected = editIntention.equals(intention, ignoreCase = true) ||
+              (editIntention.isNotBlank() && (intention.startsWith(editIntention.take(6), ignoreCase = true) || editIntention.startsWith(intention.take(6), ignoreCase = true)))
+            Surface(
+              shape = RoundedCornerShape(16.dp),
+              color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+              border = if (isSelected) BorderStroke(1.dp, CoralPrimary) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+              modifier = Modifier.clickable { editIntention = if (isSelected) "" else intention }
+            ) {
+              Text(
+                text = intention,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
               )
-            )
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Height Field
-        OutlinedTextField(
-          value = editHeight,
-          onValueChange = { editHeight = it },
-          label = { Text("Height (e.g. 5'10\" or 178 cm)") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
-        )
+        // Height Field (Clickable selection dialog)
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showHeightDialog = true }
+        ) {
+          OutlinedTextField(
+            value = editHeight,
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            label = { Text("Height") },
+            placeholder = { Text("Select height") },
+            trailingIcon = {
+              Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = "Select Height",
+                tint = CoralPrimary
+              )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+              disabledTextColor = MaterialTheme.colorScheme.onSurface,
+              disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+              disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+              disabledTrailingIconColor = CoralPrimary
+            )
+          )
+        }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Zodiac Sign Picker
-        Text("Zodiac Sign", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
+        // Zodiac Sign Picker (Reduced gap between pills)
+        Text("Zodiac Sign", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+        Spacer(modifier = Modifier.height(5.dp))
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
           AllZodiacList.forEach { zodiac ->
-            val isSelected = editZodiac.equals(zodiac, ignoreCase = true)
-            FilterChip(
-              selected = isSelected,
-              onClick = { editZodiac = if (isSelected) "" else zodiac },
-              label = { Text(zodiac, fontSize = 12.sp) },
-              colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = CoralPrimary,
-                selectedLabelColor = Color.White
+            val isSelected = editZodiac.equals(zodiac, ignoreCase = true) ||
+              (editZodiac.isNotBlank() && (zodiac.startsWith(editZodiac.take(4), ignoreCase = true) || editZodiac.startsWith(zodiac.take(4), ignoreCase = true)))
+            Surface(
+              shape = RoundedCornerShape(14.dp),
+              color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+              border = if (isSelected) BorderStroke(1.dp, CoralPrimary) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+              modifier = Modifier.clickable { editZodiac = if (isSelected) "" else zodiac }
+            ) {
+              Text(
+                text = zodiac,
+                fontSize = 11.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
               )
-            )
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Drinking Habits
-        Text("Drinking Habit", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
+        // Drinking Habits (Reduced gap between pills, highlighted)
+        Text("Drinking Habit", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+        Spacer(modifier = Modifier.height(5.dp))
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
           DrinkingHabitsList.forEach { drink ->
-            val isSelected = editDrinking.equals(drink, ignoreCase = true)
-            FilterChip(
-              selected = isSelected,
-              onClick = { editDrinking = if (isSelected) "" else drink },
-              label = { Text(drink, fontSize = 12.sp) },
-              colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = CoralPrimary,
-                selectedLabelColor = Color.White
+            val isSelected = editDrinking.equals(drink, ignoreCase = true) ||
+              (editDrinking.isNotBlank() && (drink.startsWith(editDrinking.take(6), ignoreCase = true) || editDrinking.startsWith(drink.take(6), ignoreCase = true)))
+            Surface(
+              shape = RoundedCornerShape(14.dp),
+              color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+              border = if (isSelected) BorderStroke(1.dp, CoralPrimary) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+              modifier = Modifier.clickable { editDrinking = if (isSelected) "" else drink }
+            ) {
+              Text(
+                text = drink,
+                fontSize = 11.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
               )
-            )
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Smoking Habits
-        Text("Smoking Habit", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
+        // Smoking Habits (Reduced gap between pills, highlighted)
+        Text("Smoking Habit", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+        Spacer(modifier = Modifier.height(5.dp))
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
           SmokingHabitsList.forEach { smoke ->
-            val isSelected = editSmoking.equals(smoke, ignoreCase = true)
-            FilterChip(
-              selected = isSelected,
-              onClick = { editSmoking = if (isSelected) "" else smoke },
-              label = { Text(smoke, fontSize = 12.sp) },
-              colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = CoralPrimary,
-                selectedLabelColor = Color.White
+            val isSelected = editSmoking.equals(smoke, ignoreCase = true) ||
+              (editSmoking.isNotBlank() && (smoke.startsWith(editSmoking.take(6), ignoreCase = true) || editSmoking.startsWith(smoke.take(6), ignoreCase = true)))
+            Surface(
+              shape = RoundedCornerShape(14.dp),
+              color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+              border = if (isSelected) BorderStroke(1.dp, CoralPrimary) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+              modifier = Modifier.clickable { editSmoking = if (isSelected) "" else smoke }
+            ) {
+              Text(
+                text = smoke,
+                fontSize = 11.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
               )
-            )
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Pets
-        Text("Pets", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
+        // Pets Section (Reduced gap between pills, highlighted)
+        Text("Pets", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+        Spacer(modifier = Modifier.height(5.dp))
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
           PetsHabitsList.forEach { pet ->
-            val isSelected = editPets.equals(pet, ignoreCase = true)
-            FilterChip(
-              selected = isSelected,
-              onClick = { editPets = if (isSelected) "" else pet },
-              label = { Text(pet, fontSize = 12.sp) },
-              colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = CoralPrimary,
-                selectedLabelColor = Color.White
+            val isSelected = editPets.equals(pet, ignoreCase = true) ||
+              (editPets.isNotBlank() && (pet.startsWith(editPets.take(4), ignoreCase = true) || editPets.startsWith(pet.take(4), ignoreCase = true)))
+            Surface(
+              shape = RoundedCornerShape(14.dp),
+              color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+              border = if (isSelected) BorderStroke(1.dp, CoralPrimary) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+              modifier = Modifier.clickable { editPets = if (isSelected) "" else pet }
+            ) {
+              Text(
+                text = pet,
+                fontSize = 11.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
               )
-            )
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
           onClick = {
@@ -1551,14 +2033,76 @@ fun ProfileEditScreen(
           },
           modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(46.dp),
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
+      }
+
+      // Height Selection Dialog
+      if (showHeightDialog) {
+        AlertDialog(
+          onDismissRequest = { showHeightDialog = false },
+          title = {
+            Text("Select Height", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+          },
+          text = {
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .verticalScroll(rememberScrollState()),
+              verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              HeightOptionsList.forEach { option ->
+                val isSelected = editHeight.equals(option, ignoreCase = true) ||
+                  (editHeight.isNotBlank() && (option.startsWith(editHeight.take(4), ignoreCase = true) || editHeight.startsWith(option.take(4), ignoreCase = true)))
+                Surface(
+                  shape = RoundedCornerShape(12.dp),
+                  color = if (isSelected) CoralPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                  border = if (isSelected) BorderStroke(1.5.dp, CoralPrimary) else null,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                      editHeight = option
+                      showHeightDialog = false
+                    }
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Text(
+                      text = option,
+                      fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                      color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                      fontSize = 14.sp
+                    )
+                    if (isSelected) {
+                      Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = CoralPrimary,
+                        modifier = Modifier.size(18.dp)
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          },
+          confirmButton = {},
+          dismissButton = {
+            TextButton(onClick = { showHeightDialog = false }) {
+              Text("Cancel", color = CoralPrimary)
+            }
+          }
+        )
       }
     }
   }
