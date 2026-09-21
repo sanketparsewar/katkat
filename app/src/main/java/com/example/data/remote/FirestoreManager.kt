@@ -409,6 +409,183 @@ class FirestoreManager {
   }
 
   // ==========================================
+  // Real-Time Likes and Mutual Matches Syncing
+  // ==========================================
+
+  data class CloudLike(
+    val fromUserId: String,
+    val toUserId: String,
+    val isSuperLike: Boolean,
+    val timestamp: Long
+  )
+
+  data class CloudMatch(
+    val user1Id: String,
+    val user2Id: String,
+    val matchedTimestamp: Long
+  )
+
+  /**
+   * Pushes a like or super-like event to Cloud Firestore in real time.
+   * Stored under "likes/{fromUserId}_{toUserId}" for fast deterministic lookup and listening.
+   */
+  suspend fun sendLike(fromUserId: String, toUserId: String, isSuperLike: Boolean = false): Boolean {
+    val db = firestore ?: return false
+    return try {
+      val docId = "${fromUserId}_$toUserId"
+      val data = mapOf(
+        "fromUserId" to fromUserId,
+        "toUserId" to toUserId,
+        "isSuperLike" to isSuperLike,
+        "timestamp" to System.currentTimeMillis()
+      )
+      db.collection("likes").document(docId).set(data, SetOptions.merge()).await()
+      Log.d(tag, "Cloud like recorded: $fromUserId -> $toUserId (superLike=$isSuperLike)")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice recording cloud like: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Checks if the other user already liked this user in Firestore.
+   */
+  suspend fun checkMutualLike(fromUserId: String, targetUserId: String): Boolean {
+    val db = firestore ?: return false
+    return try {
+      val reverseDocId = "${targetUserId}_$fromUserId"
+      val reverseDoc = db.collection("likes").document(reverseDocId).get().await()
+      if (reverseDoc.exists()) {
+        return true
+      }
+      // Also query by from/to fields
+      val q = db.collection("likes")
+        .whereEqualTo("fromUserId", targetUserId)
+        .whereEqualTo("toUserId", fromUserId)
+        .limit(1)
+        .get()
+        .await()
+      !q.isEmpty
+    } catch (e: Exception) {
+      Log.w(tag, "Notice checking mutual like: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Registers a mutual match in Firestore under "matches/{canonicalMatchId}"
+   * and inside the match document.
+   */
+  suspend fun registerMutualMatch(userA: String, userB: String): Boolean {
+    val db = firestore ?: return false
+    return try {
+      val (u1, u2) = if (userA < userB) Pair(userA, userB) else Pair(userB, userA)
+      val matchDocId = "${u1}_$u2"
+      val now = System.currentTimeMillis()
+      val data = mapOf(
+        "id" to matchDocId,
+        "user1Id" to u1,
+        "user2Id" to u2,
+        "users" to listOf(u1, u2),
+        "matchedTimestamp" to now
+      )
+      db.collection("matches").document(matchDocId).set(data, SetOptions.merge()).await()
+      Log.d(tag, "Cloud mutual match registered: $matchDocId")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice registering cloud mutual match: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Listens in real time for any incoming likes sent TO the current user.
+   * Whenever another user (e.g. Phone 2) likes the current user (e.g. Phone 1),
+   * this callback flow emits immediately.
+   */
+  fun observeIncomingLikes(myUserId: String): Flow<List<CloudLike>> = callbackFlow {
+    val db = firestore
+    if (db == null || myUserId.isBlank()) {
+      trySend(emptyList())
+      close()
+      return@callbackFlow
+    }
+
+    val query = db.collection("likes")
+      .whereEqualTo("toUserId", myUserId)
+
+    val listenerRegistration = query.addSnapshotListener { snapshot, error ->
+      if (error != null) {
+        Log.w(tag, "observeIncomingLikes notice: ${error.message}")
+        return@addSnapshotListener
+      }
+      if (snapshot != null) {
+        val likes = snapshot.documents.mapNotNull { doc ->
+          try {
+            val data = doc.data ?: return@mapNotNull null
+            CloudLike(
+              fromUserId = data["fromUserId"] as? String ?: return@mapNotNull null,
+              toUserId = data["toUserId"] as? String ?: myUserId,
+              isSuperLike = data["isSuperLike"] as? Boolean ?: false,
+              timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+            )
+          } catch (_: Exception) {
+            null
+          }
+        }
+        trySend(likes)
+      }
+    }
+
+    awaitClose {
+      listenerRegistration.remove()
+    }
+  }
+
+  /**
+   * Listens in real time for mutual matches involving the current user.
+   * Triggers on both Phone 1 and Phone 2 simultaneously when a match is created in Firestore.
+   */
+  fun observeMutualMatches(myUserId: String): Flow<List<CloudMatch>> = callbackFlow {
+    val db = firestore
+    if (db == null || myUserId.isBlank()) {
+      trySend(emptyList())
+      close()
+      return@callbackFlow
+    }
+
+    val query = db.collection("matches")
+      .whereArrayContains("users", myUserId)
+
+    val listenerRegistration = query.addSnapshotListener { snapshot, error ->
+      if (error != null) {
+        Log.w(tag, "observeMutualMatches notice: ${error.message}")
+        return@addSnapshotListener
+      }
+      if (snapshot != null) {
+        val matches = snapshot.documents.mapNotNull { doc ->
+          try {
+            val data = doc.data ?: return@mapNotNull null
+            CloudMatch(
+              user1Id = data["user1Id"] as? String ?: "",
+              user2Id = data["user2Id"] as? String ?: "",
+              matchedTimestamp = (data["matchedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+            )
+          } catch (_: Exception) {
+            null
+          }
+        }
+        trySend(matches)
+      }
+    }
+
+    awaitClose {
+      listenerRegistration.remove()
+    }
+  }
+
+  // ==========================================
   // Discovery Profiles Real-Time Syncing
   // ==========================================
 

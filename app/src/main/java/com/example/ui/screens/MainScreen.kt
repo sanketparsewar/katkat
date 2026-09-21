@@ -57,6 +57,8 @@ fun MainScreen(
   val inspectedProfile by viewModel.inspectedProfile.collectAsStateWithLifecycle()
   val selectedChatMatch by viewModel.selectedChatMatch.collectAsStateWithLifecycle()
   val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
+  val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+  val typingMatchIds by viewModel.typingMatchIds.collectAsStateWithLifecycle()
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
   // Handle ViewModel Toast & Vibration events
@@ -107,9 +109,12 @@ fun MainScreen(
     ChatDetailScreen(
       match = currentChat,
       messages = activeChatMessages,
-      onSendMessage = { text -> viewModel.sendMessage(text) },
+      onSendMessage = { text, photoUri -> viewModel.sendMessage(text = text, photoUri = photoUri) },
       onBack = { viewModel.closeChat() },
-      onInspectProfile = { viewModel.inspectProfile(currentChat) }
+      onInspectProfile = { viewModel.inspectProfile(currentChat) },
+      isMatchTyping = typingMatchIds.contains(currentChat.id),
+      onClearChat = { viewModel.clearChat(currentChat.id) },
+      onUnmatch = { viewModel.unmatch(currentChat.id) }
     )
   } else {
     Scaffold(
@@ -170,8 +175,10 @@ fun MainScreen(
           KatkatTab.MATCHES -> {
             MatchesChatScreen(
               matches = mutualMatches,
+              conversations = conversations,
               onSelectMatch = { profile -> viewModel.openChat(profile) },
-              onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER }
+              onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER },
+              onCreateTestMatch = { viewModel.createTestMatch() }
             )
           }
 
@@ -241,7 +248,7 @@ fun MainScreen(
       matchedProfile = matchCelebration,
       userProfile = userProfile,
       onSendMessage = { text ->
-        viewModel.sendMessage(text)
+        viewModel.sendMessage(text = text, targetMatchId = matchCelebration.id)
       },
       onOpenChat = {
         viewModel.openChat(matchCelebration)

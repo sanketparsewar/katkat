@@ -21,8 +21,12 @@ import com.example.data.remote.FirestoreManager
 import com.example.data.remote.PhoneAuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -37,6 +41,12 @@ class KatkatRepository(
   val phoneAuthManager: PhoneAuthManager = PhoneAuthManager(),
   val firebaseStorageManager: FirebaseStorageManager = FirebaseStorageManager()
 ) {
+
+  // Event stream for real-time mutual matches (emitted to show celebration dialog on both devices)
+  private val _realtimeMatchEvent = MutableSharedFlow<DatingProfile>(extraBufferCapacity = 5)
+  val realtimeMatchEvent: SharedFlow<DatingProfile> = _realtimeMatchEvent.asSharedFlow()
+
+  private var realTimeSyncJob: Job? = null
 
   init {
     appScope.launch {
@@ -59,12 +69,127 @@ class KatkatRepository(
           seedDefaultProfiles()
         }
 
-        // Sync community registered users from Firestore if user session exists
-        val current = dao.getUserProfileFlow().firstOrNull()
-        if (current != null && current.isOnboardingCompleted && firestoreManager.isAvailable) {
-          syncCommunityRegisteredUsers(current.id)
+        // Start listening to user profile changes to attach real-time likes & match listeners
+        dao.getUserProfileFlow().collect { userEntity ->
+          if (userEntity != null && userEntity.isOnboardingCompleted && userEntity.id.isNotBlank() && firestoreManager.isAvailable) {
+            val currentId = userEntity.id
+            syncCommunityRegisteredUsers(currentId)
+            startRealtimeCloudSync(currentId)
+          }
         }
       } catch (_: Exception) {}
+    }
+  }
+
+  /**
+   * Starts real-time observation for incoming likes and mutual matches from Firestore.
+   * Enables instant cross-device matching between Phone 1 and Phone 2.
+   */
+  fun startRealtimeCloudSync(currentUserId: String) {
+    if (!firestoreManager.isAvailable || currentUserId.isBlank()) return
+    realTimeSyncJob?.cancel()
+    realTimeSyncJob = appScope.launch {
+      // 1. Observe incoming likes from other users in real time
+      launch {
+        firestoreManager.observeIncomingLikes(currentUserId).collect { incomingLikes ->
+          for (like in incomingLikes) {
+            val senderId = like.fromUserId
+            if (senderId.isBlank() || senderId == currentUserId) continue
+
+            // Check if profile exists locally; if not, sync from community
+            var profileEntity = dao.getProfileById(senderId)
+            if (profileEntity == null) {
+              syncCommunityRegisteredUsers(currentUserId)
+              profileEntity = dao.getProfileById(senderId)
+            }
+
+            if (profileEntity != null) {
+              val wasAlreadyLikedByMe = profileEntity.isLikedByMe || profileEntity.isSuperLikedByMe
+              val wasAlreadyMutual = profileEntity.isMutualMatch
+
+              // Update local state: sender liked me
+              dao.markIncomingLike(senderId)
+
+              // If I already liked this profile and we weren't marked mutual yet -> MATCH!
+              if (wasAlreadyLikedByMe && !wasAlreadyMutual) {
+                val matchTime = System.currentTimeMillis()
+                dao.markMutualMatch(senderId, matchTime)
+
+                // Register mutual match in Firestore so both devices share the match record
+                firestoreManager.registerMutualMatch(currentUserId, senderId)
+
+                // Ensure initial conversation greeting exists
+                val latest = dao.getLatestMessage(senderId)
+                if (latest == null) {
+                  val initialGreeting = getGreetingForProfile(profileEntity.name)
+                  dao.insertMessage(
+                    ChatMessageEntity(
+                      id = UUID.randomUUID().toString(),
+                      matchId = senderId,
+                      senderId = senderId,
+                      senderName = profileEntity.name,
+                      text = initialGreeting,
+                      photoUri = null,
+                      timestamp = matchTime + 500,
+                      isFromMe = false,
+                      isRead = false
+                    )
+                  )
+                }
+
+                // Trigger celebratory match popup on this device
+                val updatedProfile = dao.getProfileById(senderId)?.toDomain()
+                if (updatedProfile != null) {
+                  _realtimeMatchEvent.emit(updatedProfile)
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Observe mutual matches in Firestore in real time
+      launch {
+        firestoreManager.observeMutualMatches(currentUserId).collect { cloudMatches ->
+          for (cm in cloudMatches) {
+            val otherUserId = if (cm.user1Id == currentUserId) cm.user2Id else cm.user1Id
+            if (otherUserId.isBlank() || otherUserId == currentUserId) continue
+
+            var profileEntity = dao.getProfileById(otherUserId)
+            if (profileEntity == null) {
+              syncCommunityRegisteredUsers(currentUserId)
+              profileEntity = dao.getProfileById(otherUserId)
+            }
+
+            if (profileEntity != null && !profileEntity.isMutualMatch) {
+              dao.markMutualMatch(otherUserId, cm.matchedTimestamp)
+
+              val latest = dao.getLatestMessage(otherUserId)
+              if (latest == null) {
+                val initialGreeting = getGreetingForProfile(profileEntity.name)
+                dao.insertMessage(
+                  ChatMessageEntity(
+                    id = UUID.randomUUID().toString(),
+                    matchId = otherUserId,
+                    senderId = otherUserId,
+                    senderName = profileEntity.name,
+                    text = initialGreeting,
+                    photoUri = null,
+                    timestamp = cm.matchedTimestamp + 500,
+                    isFromMe = false,
+                    isRead = false
+                  )
+                )
+              }
+
+              val updatedProfile = dao.getProfileById(otherUserId)?.toDomain()
+              if (updatedProfile != null) {
+                _realtimeMatchEvent.emit(updatedProfile)
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -453,6 +578,50 @@ class KatkatRepository(
       }
     }
 
+    // Push like to Cloud Firestore for real-time cross-device match synchronization
+    if ((action == SwipeAction.LIKE || action == SwipeAction.SUPERLIKE) && firestoreManager.isAvailable) {
+      val myUserId = getEffectiveCurrentUserId()
+      if (myUserId.isNotBlank()) {
+        appScope.launch {
+          val isSuper = action == SwipeAction.SUPERLIKE
+          firestoreManager.sendLike(myUserId, profileId, isSuper)
+
+          // Double check if other user already liked me in Cloud Firestore
+          if (!isMutual) {
+            val otherLikedMeCloud = firestoreManager.checkMutualLike(myUserId, profileId)
+            if (otherLikedMeCloud || isSuper) {
+              val matchTime = System.currentTimeMillis()
+              dao.markMutualMatch(profileId, matchTime)
+              firestoreManager.registerMutualMatch(myUserId, profileId)
+
+              // Ensure initial greeting message exists
+              val initialGreeting = getGreetingForProfile(profile.name)
+              dao.insertMessage(
+                ChatMessageEntity(
+                  id = UUID.randomUUID().toString(),
+                  matchId = profileId,
+                  senderId = profileId,
+                  senderName = profile.name,
+                  text = initialGreeting,
+                  photoUri = null,
+                  timestamp = matchTime + 500,
+                  isFromMe = false,
+                  isRead = false
+                )
+              )
+              val updatedProfile = dao.getProfileById(profileId)?.toDomain()
+              if (updatedProfile != null) {
+                _realtimeMatchEvent.emit(updatedProfile)
+              }
+            }
+          } else {
+            // It was mutual locally, register in cloud
+            firestoreManager.registerMutualMatch(myUserId, profileId)
+          }
+        }
+      }
+    }
+
     if (isMutual) {
       // Seed initial welcome greeting message from the matched profile
       val initialGreeting = getGreetingForProfile(profile.name)
@@ -576,6 +745,69 @@ class KatkatRepository(
 
   suspend fun markMessagesRead(matchId: String) {
     dao.markMessagesAsRead(matchId)
+  }
+
+  // Reactive conversations stream combining mutual matches with their message threads
+  val conversations: Flow<List<MatchConversation>> = combine(
+    mutualMatches,
+    dao.getAllMessagesFlow()
+  ) { matches, allMessages ->
+    val messagesByMatch = allMessages.groupBy { it.matchId }
+    matches.map { profile ->
+      val matchMsgs = messagesByMatch[profile.id].orEmpty().sortedBy { it.timestamp }
+      val lastMsg = matchMsgs.lastOrNull()
+      val unreadCount = matchMsgs.count { !it.isFromMe && !it.isRead }
+      val lastText = when {
+        lastMsg?.photoUri != null && !lastMsg.text.isNullOrBlank() -> "📷 ${lastMsg.text}"
+        lastMsg?.photoUri != null -> "📷 Sent a photo"
+        lastMsg != null -> lastMsg.text
+        else -> "New match! Say hello 👋"
+      }
+      val lastTime = lastMsg?.timestamp ?: (profile.matchedTimestamp ?: (System.currentTimeMillis() - 3600_000L))
+
+      MatchConversation(
+        matchProfile = profile,
+        matchTimeMillis = profile.matchedTimestamp ?: lastTime,
+        lastMessage = lastText,
+        lastMessageTimeMillis = lastTime,
+        unreadCount = unreadCount,
+        isOnline = true
+      )
+    }.sortedByDescending { it.lastMessageTimeMillis }
+  }
+
+  suspend fun deleteMessagesForMatch(matchId: String) {
+    dao.deleteMessagesForMatch(matchId)
+  }
+
+  suspend fun unmatch(matchId: String) {
+    dao.unmatchProfile(matchId)
+    dao.deleteMessagesForMatch(matchId)
+  }
+
+  suspend fun createSimulatedTestMatch(): DatingProfile? {
+    val nonMatches = dao.getActiveDeckProfiles().firstOrNull()?.filter { !it.isMutualMatch }
+    val candidate = nonMatches?.firstOrNull()
+    if (candidate != null) {
+      val now = System.currentTimeMillis()
+      dao.markLiked(candidate.id, isMutual = true, matchedTimestamp = now)
+      val initialGreeting = getGreetingForProfile(candidate.name)
+      dao.insertMessage(
+        ChatMessageEntity(
+          id = UUID.randomUUID().toString(),
+          matchId = candidate.id,
+          senderId = candidate.id,
+          senderName = candidate.name,
+          text = initialGreeting,
+          photoUri = null,
+          timestamp = now,
+          isFromMe = false,
+          isRead = false
+        )
+      )
+      return dao.getProfileById(candidate.id)?.toDomain()
+    }
+    return null
   }
 
   // Profile update with real-time Firestore sync and community discovery publishing
@@ -873,6 +1105,18 @@ class KatkatRepository(
       else ->
         "Haha totally agree! That's so refreshing to hear. What's something that made you genuinely laugh today? 😊"
     }
+  }
+
+  suspend fun getEffectiveCurrentUserId(): String {
+    val authUid = phoneAuthManager.currentUserId
+    if (!authUid.isNullOrBlank()) return authUid
+    val localUser = dao.getUserProfileFlow().firstOrNull()
+    if (localUser != null && localUser.id.isNotBlank() && localUser.id != "my_profile") {
+      return localUser.id
+    }
+    val cleanPhone = localUser?.phoneNumber?.filter { it.isDigit() }.orEmpty()
+    if (cleanPhone.isNotBlank()) return "user_$cleanPhone"
+    return localUser?.id ?: "my_profile"
   }
 }
 

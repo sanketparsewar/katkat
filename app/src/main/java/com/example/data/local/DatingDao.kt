@@ -40,6 +40,12 @@ interface DatingDao {
   @Query("UPDATE dating_profiles SET isLikedByMe = 1, isMutualMatch = :isMutual, matchedTimestamp = :matchedTimestamp WHERE id = :id")
   suspend fun markLiked(id: String, isMutual: Boolean, matchedTimestamp: Long?)
 
+  @Query("UPDATE dating_profiles SET likedMe = 1 WHERE id = :id")
+  suspend fun markIncomingLike(id: String)
+
+  @Query("UPDATE dating_profiles SET isMutualMatch = 1, matchedTimestamp = :matchedTimestamp WHERE id = :id")
+  suspend fun markMutualMatch(id: String, matchedTimestamp: Long)
+
   @Query("UPDATE dating_profiles SET isPassedByMe = 1 WHERE id = :id")
   suspend fun markPassed(id: String)
 
@@ -91,6 +97,9 @@ interface DatingDao {
   @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp ASC")
   fun getMessagesForMatch(matchId: String): Flow<List<ChatMessageEntity>>
 
+  @Query("SELECT * FROM chat_messages ORDER BY timestamp DESC")
+  fun getAllMessagesFlow(): Flow<List<ChatMessageEntity>>
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertMessage(message: ChatMessageEntity)
 
@@ -99,6 +108,12 @@ interface DatingDao {
 
   @Query("UPDATE chat_messages SET isRead = 1 WHERE matchId = :matchId AND isFromMe = 0")
   suspend fun markMessagesAsRead(matchId: String)
+
+  @Query("DELETE FROM chat_messages WHERE matchId = :matchId")
+  suspend fun deleteMessagesForMatch(matchId: String)
+
+  @Query("UPDATE dating_profiles SET isMutualMatch = 0, isLikedByMe = 0, isSuperLikedByMe = 0, matchedTimestamp = NULL WHERE id = :matchId")
+  suspend fun unmatchProfile(matchId: String)
 
   // Subscription
   @Query("SELECT * FROM subscription_info WHERE id = 'current_sub' LIMIT 1")

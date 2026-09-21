@@ -6,12 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.KatkatDatabase
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
+import com.example.data.model.MatchConversation
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
 import com.example.data.repository.KatkatRepository
 import com.example.data.repository.SwipeAction
 import com.example.data.repository.SwipeResult
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed class UiEvent {
@@ -73,6 +76,13 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.userProfile.collect {
         _isSessionLoaded.value = true
+      }
+    }
+    // Listen for real-time cross-device matches
+    viewModelScope.launch {
+      repository.realtimeMatchEvent.collect { matchedProfile ->
+        _activeMatchCelebration.value = matchedProfile
+        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
       }
     }
   }
@@ -132,6 +142,17 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       started = SharingStarted.WhileSubscribed(5000),
       initialValue = emptyList()
     )
+
+  // Reactive match conversations with last messages, unread counts, and timestamps
+  val conversations: StateFlow<List<MatchConversation>> = repository.conversations.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = emptyList()
+  )
+
+  // Real-time typing indicators for matches
+  private val _typingMatchIds = MutableStateFlow<Set<String>>(emptySet())
+  val typingMatchIds: StateFlow<Set<String>> = _typingMatchIds.asStateFlow()
 
   fun onSwipe(profileId: String, action: SwipeAction) {
     viewModelScope.launch {
@@ -247,12 +268,48 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     _selectedChatMatch.value = null
   }
 
-  fun sendMessage(text: String, photoUri: String? = null) {
-    val currentMatch = _selectedChatMatch.value ?: return
+  fun sendMessage(text: String, photoUri: String? = null, targetMatchId: String? = null) {
+    val currentMatchId = targetMatchId ?: _selectedChatMatch.value?.id ?: return
     if (text.isBlank() && photoUri == null) return
 
     viewModelScope.launch {
-      repository.sendMessage(currentMatch.id, text.trim(), photoUri)
+      repository.sendMessage(currentMatchId, text.trim(), photoUri)
+      _uiEvents.emit(UiEvent.VibrateFeedback("click"))
+      // Trigger temporary typing indicator for realistic 2-way conversation experience
+      _typingMatchIds.update { it + currentMatchId }
+      delay(2000)
+      _typingMatchIds.update { it - currentMatchId }
+    }
+  }
+
+  fun unmatch(matchId: String) {
+    viewModelScope.launch {
+      repository.unmatch(matchId)
+      if (_selectedChatMatch.value?.id == matchId) {
+        _selectedChatMatch.value = null
+      }
+      _uiEvents.emit(UiEvent.ShowToast("Unmatched profile"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("click"))
+    }
+  }
+
+  fun clearChat(matchId: String) {
+    viewModelScope.launch {
+      repository.deleteMessagesForMatch(matchId)
+      _uiEvents.emit(UiEvent.ShowToast("Chat history cleared"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("click"))
+    }
+  }
+
+  fun createTestMatch() {
+    viewModelScope.launch {
+      val matched = repository.createSimulatedTestMatch()
+      if (matched != null) {
+        _uiEvents.emit(UiEvent.ShowToast("Matched with ${matched.name}! 💕"))
+        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
+      } else {
+        _uiEvents.emit(UiEvent.ShowToast("No more candidate profiles to match!"))
+      }
     }
   }
 
