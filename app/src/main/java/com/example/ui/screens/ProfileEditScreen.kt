@@ -952,26 +952,27 @@ fun ProfileEditScreen(
       } else {
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp)
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
           displayedInterests.forEach { item ->
             Surface(
-              shape = RoundedCornerShape(20.dp),
-              color = item.backgroundColor,
+              shape = RoundedCornerShape(14.dp),
+              color = CoralPrimary.copy(alpha = 0.12f),
+              border = BorderStroke(0.5.dp, CoralPrimary.copy(alpha = 0.35f)),
               modifier = Modifier.clickable { showInterestsSheet = true }
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                Text(text = item.iconEmoji, fontSize = 13.sp)
-                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = item.iconEmoji, fontSize = 11.5.sp)
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                   text = item.name,
-                  fontSize = 12.5.sp,
+                  fontSize = 11.5.sp,
                   fontWeight = FontWeight.Medium,
-                  color = item.textColor
+                  color = CoralPrimary
                 )
               }
             }
@@ -2118,10 +2119,16 @@ fun ProfileEditScreen(
       }
       var customInterestInput by remember { mutableStateOf("") }
 
+      val allAvailableInterests = remember(currentSelections) {
+        val presetNames = AllPresetInterests.map { it.name }
+        val customOnes = currentSelections.filterNot { sel -> presetNames.any { it.equals(sel, ignoreCase = true) } }
+        AllPresetInterests.map { it.name to it.iconEmoji } + customOnes.map { it to "✨" }
+      }
+
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(20.dp)
+          .padding(horizontal = 16.dp, vertical = 10.dp)
           .verticalScroll(rememberScrollState())
       ) {
         Text("Select Your Interests", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -2131,44 +2138,45 @@ fun ProfileEditScreen(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 2.dp)
         )
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp)
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-          AllPresetInterests.forEach { item ->
-            val isSelected = currentSelections.any { it.equals(item.name, ignoreCase = true) }
+          allAvailableInterests.forEach { (name, emoji) ->
+            val isSelected = currentSelections.any { it.equals(name, ignoreCase = true) }
             Surface(
-              shape = RoundedCornerShape(20.dp),
-              color = if (isSelected) CoralPrimary else item.backgroundColor,
+              shape = RoundedCornerShape(14.dp),
+              color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+              border = if (isSelected) BorderStroke(1.dp, CoralPrimary) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
               modifier = Modifier.clickable {
                 currentSelections = if (isSelected) {
-                  currentSelections.filterNot { it.equals(item.name, ignoreCase = true) }
+                  currentSelections.filterNot { it.equals(name, ignoreCase = true) }
                 } else {
-                  currentSelections + item.name
+                  currentSelections + name
                 }
               }
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                Text(text = item.iconEmoji, fontSize = 13.sp)
-                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = emoji, fontSize = 11.5.sp)
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                  text = item.name,
-                  fontSize = 13.sp,
-                  fontWeight = FontWeight.Medium,
-                  color = if (isSelected) Color.White else item.textColor
+                  text = name,
+                  fontSize = 11.5.sp,
+                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                 )
               }
             }
           }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Add custom interest
         Row(
@@ -2198,7 +2206,7 @@ fun ProfileEditScreen(
           }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
           onClick = {
@@ -2208,14 +2216,14 @@ fun ProfileEditScreen(
           },
           modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(46.dp),
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Interests (${currentSelections.size} selected)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
       }
     }
   }
@@ -2228,11 +2236,12 @@ fun ProfileEditScreen(
     ) {
       var editQuestion by remember { mutableStateOf(userProfile.promptQuestion.ifBlank { PromptQuestionList.first() }) }
       var editAnswer by remember { mutableStateOf(userProfile.promptAnswer) }
+      var showQuestionPickerDialog by remember { mutableStateOf(false) }
 
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(20.dp)
+          .padding(horizontal = 16.dp, vertical = 10.dp)
           .verticalScroll(rememberScrollState())
       ) {
         Text("Edit Profile Prompt", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -2242,46 +2251,53 @@ fun ProfileEditScreen(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 2.dp)
         )
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Text("Select Prompt Question", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          PromptQuestionList.forEach { q ->
-            val isSelected = editQuestion == q
-            Surface(
-              shape = RoundedCornerShape(12.dp),
-              color = if (isSelected) CoralPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-              border = if (isSelected) BorderStroke(1.5.dp, CoralPrimary) else null,
-              modifier = Modifier
-                .fillMaxWidth()
-                .clickable { editQuestion = q }
-            ) {
-              Text(
-                text = q,
-                fontSize = 13.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+        // Prompt Question Selector Field (Clickable to open option list)
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showQuestionPickerDialog = true }
+        ) {
+          OutlinedTextField(
+            value = editQuestion,
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            label = { Text("Prompt Question") },
+            placeholder = { Text("Select a question") },
+            trailingIcon = {
+              Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = "Select Question",
+                tint = CoralPrimary
               )
-            }
-          }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+              disabledTextColor = MaterialTheme.colorScheme.onSurface,
+              disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+              disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+              disabledTrailingIconColor = CoralPrimary
+            )
+          )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         OutlinedTextField(
           value = editAnswer,
           onValueChange = { editAnswer = it },
           label = { Text("Your Answer") },
+          placeholder = { Text("Write something genuine, witty, or intriguing...") },
           minLines = 3,
-          maxLines = 6,
+          maxLines = 5,
           modifier = Modifier.fillMaxWidth(),
           colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
           onClick = {
@@ -2294,14 +2310,77 @@ fun ProfileEditScreen(
           },
           modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(46.dp),
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Prompt", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
+      }
+
+      // Question Selection Dialog
+      if (showQuestionPickerDialog) {
+        AlertDialog(
+          onDismissRequest = { showQuestionPickerDialog = false },
+          title = {
+            Text("Select Prompt Question", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+          },
+          text = {
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp)
+                .verticalScroll(rememberScrollState()),
+              verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              PromptQuestionList.forEach { q ->
+                val isSelected = editQuestion == q
+                Surface(
+                  shape = RoundedCornerShape(12.dp),
+                  color = if (isSelected) CoralPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                  border = if (isSelected) BorderStroke(1.5.dp, CoralPrimary) else null,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                      editQuestion = q
+                      showQuestionPickerDialog = false
+                    }
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Text(
+                      text = q,
+                      fontSize = 13.5.sp,
+                      fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                      color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                      modifier = Modifier.weight(1f)
+                    )
+                    if (isSelected) {
+                      Spacer(modifier = Modifier.width(8.dp))
+                      Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = CoralPrimary,
+                        modifier = Modifier.size(18.dp)
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          },
+          confirmButton = {},
+          dismissButton = {
+            TextButton(onClick = { showQuestionPickerDialog = false }) {
+              Text("Cancel", color = CoralPrimary)
+            }
+          }
+        )
       }
     }
   }

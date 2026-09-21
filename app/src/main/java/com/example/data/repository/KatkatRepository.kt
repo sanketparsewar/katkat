@@ -353,9 +353,9 @@ class KatkatRepository(
 
     val fixedProfile = profile.copy(id = uniqueId, photos = cloudPhotos)
 
-    // Clear stale rows and ensure active profile is cleanly saved
-    dao.deleteUserProfile()
+    // Save active profile cleanly without transient null emissions
     dao.saveUserProfile(fixedProfile.toEntity())
+    dao.deleteOtherUserProfiles(uniqueId)
     if (firestoreManager.isAvailable) {
       appScope.launch {
         firestoreManager.syncUserProfile(fixedProfile)

@@ -72,6 +72,9 @@ interface DatingDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun saveUserProfile(user: UserProfileEntity)
 
+  @Query("DELETE FROM user_profile WHERE id != :currentId")
+  suspend fun deleteOtherUserProfiles(currentId: String)
+
   @Query("UPDATE user_profile SET isAccountDisabled = :disabled")
   suspend fun setAccountDisabled(disabled: Boolean)
 
