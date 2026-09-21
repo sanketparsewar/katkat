@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -61,9 +62,42 @@ class KatkatRepository(
     }
   }
 
-  // Active Discover Deck
-  val activeProfiles: Flow<List<DatingProfile>> = dao.getActiveDeckProfiles().map { entities ->
-    entities.map { it.toDomain() }
+  // User Profile
+  val userProfile: Flow<UserProfile> = dao.getUserProfileFlow().map { entity ->
+    entity?.toDomain() ?: UserProfile(isOnboardingCompleted = false)
+  }
+
+  // Active Discover Deck (strictly excluding current user's profile)
+  val activeProfiles: Flow<List<DatingProfile>> = userProfile.flatMapLatest { currentUser ->
+    val authUid = phoneAuthManager.currentUserId
+    val excludeId = when {
+      !authUid.isNullOrBlank() -> authUid
+      currentUser.id.isNotBlank() && currentUser.id != "my_profile" -> currentUser.id
+      else -> {
+        val cleanPhone = currentUser.phoneNumber.filter { it.isDigit() }
+        if (cleanPhone.isNotBlank()) "user_$cleanPhone" else currentUser.id.ifBlank { null }
+      }
+    }
+    val currentPhone = currentUser.phoneNumber.filter { it.isDigit() }
+    val currentName = currentUser.name.trim().lowercase()
+
+    dao.getActiveDeckProfiles(excludeUserId = excludeId).map { entities ->
+      entities.mapNotNull { entity ->
+        // Multi-factor exclusion to ensure user's own profile never appears in discover deck:
+        // 1. By ID
+        if (excludeId != null && entity.id == excludeId) return@mapNotNull null
+        if (currentUser.id.isNotBlank() && entity.id == currentUser.id) return@mapNotNull null
+        if (!authUid.isNullOrBlank() && entity.id == authUid) return@mapNotNull null
+        // 2. By phone number pattern
+        if (currentPhone.isNotBlank() && (entity.id.contains(currentPhone) || entity.id == "user_$currentPhone")) return@mapNotNull null
+        // 3. By matching completed user's name if identical and user is onboarded
+        if (currentUser.isOnboardingCompleted && currentName.isNotBlank() && entity.name.trim().lowercase() == currentName) {
+          // If age or bio also matches, exclude to avoid showing self
+          if (currentUser.age > 0 && entity.age == currentUser.age) return@mapNotNull null
+        }
+        entity.toDomain()
+      }
+    }
   }
 
   // Mutual Matches
@@ -74,11 +108,6 @@ class KatkatRepository(
   // Profiles Who Liked Current User (for "Likes You" tab)
   val profilesWhoLikedMe: Flow<List<DatingProfile>> = dao.getProfilesWhoLikedMe().map { entities ->
     entities.map { it.toDomain() }
-  }
-
-  // User Profile
-  val userProfile: Flow<UserProfile> = dao.getUserProfileFlow().map { entity ->
-    entity?.toDomain() ?: UserProfile(isOnboardingCompleted = false)
   }
 
   // Subscription State combined with monthly swipe record counts
@@ -392,6 +421,9 @@ class KatkatRepository(
   suspend fun syncCommunityRegisteredUsers(currentUserId: String) {
     if (!firestoreManager.isAvailable) return
     try {
+      if (currentUserId.isNotBlank()) {
+        dao.deleteProfileById(currentUserId)
+      }
       val community = firestoreManager.fetchAllCommunityProfiles(currentUserId)
       if (community.isNotEmpty()) {
         val entities = community.map { profile ->
@@ -529,8 +561,11 @@ class KatkatRepository(
     return true
   }
 
-  suspend fun resetDeckForTesting() {
+  suspend fun resetDeckForTesting(currentUserId: String? = null) {
     dao.deleteAllProfiles()
+    if (firestoreManager.isAvailable && !currentUserId.isNullOrBlank()) {
+      syncCommunityRegisteredUsers(currentUserId)
+    }
   }
 
   private fun getGreetingForProfile(name: String): String {

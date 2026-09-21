@@ -516,7 +516,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       _isRefreshingDeck.value = true
       kotlinx.coroutines.delay(650)
-      repository.resetDeckForTesting()
+      val currentUserId = getEffectiveUserId()
+      repository.resetDeckForTesting(currentUserId)
       _isRefreshingDeck.value = false
       _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed! ✨"))
       _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))

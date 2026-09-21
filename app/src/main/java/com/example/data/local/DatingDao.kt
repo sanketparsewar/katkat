@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface DatingDao {
   // Profiles
-  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 ORDER BY id ASC")
-  fun getActiveDeckProfiles(): Flow<List<ProfileEntity>>
+  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC")
+  fun getActiveDeckProfiles(excludeUserId: String? = null): Flow<List<ProfileEntity>>
 
   @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
   fun getMutualMatches(): Flow<List<ProfileEntity>>
@@ -27,6 +27,9 @@ interface DatingDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertProfile(profile: ProfileEntity)
+
+  @Query("DELETE FROM dating_profiles WHERE id = :id")
+  suspend fun deleteProfileById(id: String)
 
   @Query("DELETE FROM dating_profiles")
   suspend fun deleteAllProfiles()
