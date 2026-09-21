@@ -710,7 +710,7 @@ fun OnboardingProfileSetupScreen(
                 } else {
                   digitsOnly
                 }
-                if (nationalNumber.length >= 7) {
+                if (nationalNumber.length == 10) {
                   val fullPhone = "+$codeDigits$nationalNumber"
                   val act = context as? Activity
                   if (act != null && viewModel != null) {
@@ -770,7 +770,7 @@ fun OnboardingProfileSetupScreen(
                     currentStep = OnboardingFlowStep.OTP_VERIFY
                   }
                 } else {
-                  Toast.makeText(context, "Please enter a valid mobile number", Toast.LENGTH_SHORT).show()
+                  Toast.makeText(context, "Please enter a valid 10-digit mobile number", Toast.LENGTH_SHORT).show()
                 }
               }
             )
@@ -1384,12 +1384,12 @@ private fun PhoneEntryStep(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Mobile Number Field: blank placeholder, no phone icon, full width
+        // Mobile Number Field: blank placeholder, no phone icon, full width (restricted to 10 digits)
         OutlinedTextField(
           value = phoneNumber,
           onValueChange = { input ->
             val filtered = input.filter { it.isDigit() }
-            if (filtered.length <= 15) {
+            if (filtered.length <= 10) {
               onPhoneNumberChange(filtered)
             }
           },
@@ -1476,7 +1476,7 @@ private fun PhoneEntryStep(
     // Send OTP Button
     Button(
       onClick = onSendOtp,
-      enabled = phoneNumber.trim().length >= 7 && !isSendingOtp,
+      enabled = phoneNumber.trim().length == 10 && !isSendingOtp,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp)
