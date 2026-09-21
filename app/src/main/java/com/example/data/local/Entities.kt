@@ -10,10 +10,13 @@ data class ProfileEntity(
   @PrimaryKey val id: String,
   val name: String,
   val age: Int,
+  val gender: String = "",
   val occupation: String,
   val company: String,
   val education: String,
   val location: String,
+  val latitude: Double = 0.0,
+  val longitude: Double = 0.0,
   val bio: String,
   val photosJoined: String, // comma or pipe separated
   val promptQuestion: String?,
@@ -68,6 +71,10 @@ data class UserProfileEntity(
   val longitude: Double = 0.0,
   val isPhoneVerified: Boolean = false,
   val isAccountDisabled: Boolean = false,
+  val maxDistanceKm: Int = 50,
+  val minAgePreference: Int = 18,
+  val maxAgePreference: Int = 35,
+  val interestedInGender: String = "",
   val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -103,6 +110,10 @@ fun UserProfileEntity.toDomain(): com.example.data.model.UserProfile =
     longitude = longitude,
     isPhoneVerified = isPhoneVerified,
     isAccountDisabled = isAccountDisabled,
+    maxDistanceKm = maxDistanceKm,
+    minAgePreference = minAgePreference,
+    maxAgePreference = maxAgePreference,
+    interestedInGender = interestedInGender,
     createdAt = createdAt
   )
 
@@ -138,6 +149,10 @@ fun com.example.data.model.UserProfile.toEntity(): UserProfileEntity =
     longitude = longitude,
     isPhoneVerified = isPhoneVerified,
     isAccountDisabled = isAccountDisabled,
+    maxDistanceKm = maxDistanceKm,
+    minAgePreference = minAgePreference,
+    maxAgePreference = maxAgePreference,
+    interestedInGender = interestedInGender,
     createdAt = createdAt
   )
 
@@ -146,10 +161,13 @@ fun ProfileEntity.toDomain(): com.example.data.model.DatingProfile =
     id = id,
     name = name,
     age = age,
+    gender = gender,
     occupation = occupation,
     company = company,
     education = education,
     location = location,
+    latitude = latitude,
+    longitude = longitude,
     bio = bio,
     photos = Converters.stringToList(photosJoined),
     promptQuestion = promptQuestion,
@@ -177,10 +195,13 @@ fun com.example.data.model.DatingProfile.toEntity(): ProfileEntity =
     id = id,
     name = name,
     age = age,
+    gender = gender,
     occupation = occupation,
     company = company,
     education = education,
     location = location,
+    latitude = latitude,
+    longitude = longitude,
     bio = bio,
     photosJoined = Converters.listToString(photos),
     promptQuestion = promptQuestion,

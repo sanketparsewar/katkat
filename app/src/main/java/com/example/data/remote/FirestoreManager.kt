@@ -83,6 +83,10 @@ class FirestoreManager {
         "latitude" to profile.latitude,
         "longitude" to profile.longitude,
         "isPhoneVerified" to profile.isPhoneVerified,
+        "maxDistanceKm" to profile.maxDistanceKm,
+        "minAgePreference" to profile.minAgePreference,
+        "maxAgePreference" to profile.maxAgePreference,
+        "interestedInGender" to profile.interestedInGender,
         "updatedAt" to System.currentTimeMillis()
       )
       db.collection("users")
@@ -143,7 +147,11 @@ class FirestoreManager {
       latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
       longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
       isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
-      isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false
+      isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false,
+      maxDistanceKm = (data["maxDistanceKm"] as? Number)?.toInt() ?: 50,
+      minAgePreference = (data["minAgePreference"] as? Number)?.toInt() ?: 18,
+      maxAgePreference = (data["maxAgePreference"] as? Number)?.toInt() ?: 35,
+      interestedInGender = data["interestedInGender"] as? String ?: ""
     )
   }
 
@@ -458,6 +466,9 @@ class FirestoreManager {
         "id" to profile.id,
         "name" to profile.name,
         "age" to profile.age,
+        "gender" to profile.gender,
+        "latitude" to profile.latitude,
+        "longitude" to profile.longitude,
         "occupation" to profile.occupation.ifBlank { "Katkat Member" },
         "company" to profile.education,
         "education" to profile.education,
@@ -507,10 +518,13 @@ class FirestoreManager {
           id = doc.id,
           name = name,
           age = (data["age"] as? Number)?.toInt() ?: 0,
+          gender = data["gender"] as? String ?: "",
           occupation = data["occupation"] as? String ?: "",
           company = data["education"] as? String ?: "",
           education = data["education"] as? String ?: "",
           location = data["currentLocationCity"] as? String ?: (data["hometown"] as? String ?: ""),
+          latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+          longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
           bio = data["bio"] as? String ?: "",
           photos = photos,
           promptQuestion = data["promptQuestion"] as? String ?: "",

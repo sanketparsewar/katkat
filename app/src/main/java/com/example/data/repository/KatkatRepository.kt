@@ -53,6 +53,12 @@ class KatkatRepository(
           )
         )
 
+        // Seed default discover profiles if database is fresh
+        val allCount = dao.getActiveDeckProfiles(null).firstOrNull()?.size ?: 0
+        if (allCount == 0) {
+          seedDefaultProfiles()
+        }
+
         // Sync community registered users from Firestore if user session exists
         val current = dao.getUserProfileFlow().firstOrNull()
         if (current != null && current.isOnboardingCompleted && firestoreManager.isAvailable) {
@@ -62,12 +68,210 @@ class KatkatRepository(
     }
   }
 
+  suspend fun seedDefaultProfiles() {
+    val seeds = listOf(
+      ProfileEntity(
+        id = "profile_maya_1",
+        name = "Maya Lin",
+        age = 24,
+        gender = "Women",
+        occupation = "UI/UX Designer",
+        company = "Studio Origami",
+        education = "Rhode Island School of Design",
+        location = "Indiranagar, Bengaluru (4 km away)",
+        latitude = 12.9716,
+        longitude = 77.5946,
+        bio = "Analog photography addict & matcha latte connoisseur 🍵 Always down for an impromptu art gallery stroll or thrift shopping!",
+        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "My simple pleasures in life...",
+        promptAnswer = "Sunday morning coffee, finding a rare vinyl record, and rainy city walks 🌧️",
+        passionsJoined = "Photography|||Design|||Art Galleries|||Coffee|||Vinyl Records",
+        zodiac = "Libra",
+        height = "5'6\" (168 cm)",
+        datingIntention = "Long-term relationship",
+        drinking = "Socially",
+        smoking = "Never",
+        pets = "Cat person",
+        anthemSong = "Good Days",
+        anthemArtist = "SZA",
+        isVerified = true,
+        likedMe = true,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_lucas_2",
+        name = "Lucas Thorne",
+        age = 27,
+        gender = "Men",
+        occupation = "Sound Designer & Musician",
+        company = "Waveform Studios",
+        education = "Berklee College of Music",
+        location = "Koramangala, Bengaluru (6 km away)",
+        latitude = 12.9352,
+        longitude = 77.6245,
+        bio = "Producing indie tracks by day, testing ramen recipes by night 🍜 Let's exchange Spotify playlists or hit an indie concert.",
+        photosJoined = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "Together, we could...",
+        promptAnswer = "Build the ultimate synthwave playlist and drive with the windows down at midnight 🌌",
+        passionsJoined = "Music Production|||Live Gigs|||Ramen|||Travel|||Guitar",
+        zodiac = "Scorpio",
+        height = "6'0\" (183 cm)",
+        datingIntention = "Long-term relationship",
+        drinking = "On special occasions",
+        smoking = "Never",
+        pets = "Dog person",
+        anthemSong = "Midnight City",
+        anthemArtist = "M83",
+        isVerified = true,
+        likedMe = true,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_chloe_3",
+        name = "Chloe Dubois",
+        age = 25,
+        gender = "Women",
+        occupation = "Artisan Baker & Pastry Chef",
+        company = "Le Petit Croissant",
+        education = "Le Cordon Bleu",
+        location = "Lavelle Road, Bengaluru (2 km away)",
+        latitude = 12.9719,
+        longitude = 77.5997,
+        bio = "Sourdough whisperer 🥐 You will always have warm fresh pastries on weekends. Looking for someone who appreciates good food and great humor.",
+        photosJoined = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "The hallmark of a great date is...",
+        promptAnswer = "Losing track of time because the conversation was that effortless and fun ✨",
+        passionsJoined = "Baking|||Cooking|||Wine Tasting|||Book Clubs|||Film",
+        zodiac = "Taurus",
+        height = "5'5\" (165 cm)",
+        datingIntention = "Looking for love",
+        drinking = "Socially",
+        smoking = "Never",
+        pets = "Have pets",
+        anthemSong = "La Vie En Rose",
+        anthemArtist = "Emily Watts",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_aarav_4",
+        name = "Aarav Sharma",
+        age = 28,
+        gender = "Men",
+        occupation = "Tech Lead & Angel Investor",
+        company = "HyperScale Labs",
+        education = "IIT Delhi",
+        location = "HSR Layout, Bengaluru (8 km away)",
+        latitude = 12.9121,
+        longitude = 77.6446,
+        bio = "Building smart tech & climbing boulders on weekends 🧗 Loves espresso, deep philosophical conversations, and spontaneous weekend road trips.",
+        photosJoined = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "I geek out on...",
+        promptAnswer = "Space exploration tech, vintage mechanical watches, and specialty pour-over coffee ☕",
+        passionsJoined = "Rock Climbing|||Startups|||Coffee|||Hiking|||Reading",
+        zodiac = "Capricorn",
+        height = "5'11\" (180 cm)",
+        datingIntention = "Long-term relationship",
+        drinking = "Socially",
+        smoking = "Never",
+        pets = "Love all pets",
+        anthemSong = "Stargazing",
+        anthemArtist = "Kygo",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_priya_5",
+        name = "Priya Patel",
+        age = 26,
+        gender = "Women",
+        occupation = "Architect & Ceramicist",
+        company = "Terra Studio",
+        education = "National Institute of Design",
+        location = "Sadashivanagar, Bengaluru (5 km away)",
+        latitude = 13.0068,
+        longitude = 77.5813,
+        bio = "Designing sustainable homes & throwing pottery clay on weekends 🏺 Let's find the best sunset viewpoint in the city.",
+        photosJoined = "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "My love language is...",
+        promptAnswer = "Quality time, homemade artisanal pasta, and making each other laugh till our cheeks hurt 😊",
+        passionsJoined = "Ceramics|||Architecture|||Yoga|||Plants|||Travel",
+        zodiac = "Virgo",
+        height = "5'7\" (170 cm)",
+        datingIntention = "Long-term relationship",
+        drinking = "Socially",
+        smoking = "Never",
+        pets = "Cat person",
+        anthemSong = "Sunflower",
+        anthemArtist = "Post Malone",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_rohan_6",
+        name = "Rohan Mehta",
+        age = 29,
+        gender = "Men",
+        occupation = "Documentary Filmmaker",
+        company = "Nomad Media",
+        education = "FTII Pune",
+        location = "Whitefield, Bengaluru (12 km away)",
+        latitude = 12.9698,
+        longitude = 77.7500,
+        bio = "Telling stories around the world 🎬 Coffee aficionado, vinyl collector, and avid cyclist.",
+        photosJoined = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "Best travel memory...",
+        promptAnswer = "Watching the Northern Lights from a cozy wooden cabin in Norway ❄️",
+        passionsJoined = "Filmmaking|||Cycling|||Coffee|||Cinema|||Photography",
+        zodiac = "Leo",
+        height = "6'1\" (185 cm)",
+        datingIntention = "Open to possibilities",
+        drinking = "Socially",
+        smoking = "Never",
+        pets = "Dog person",
+        anthemSong = "Dreams",
+        anthemArtist = "Fleetwood Mac",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      )
+    )
+    dao.insertProfiles(seeds)
+  }
+
   // User Profile
   val userProfile: Flow<UserProfile> = dao.getUserProfileFlow().map { entity ->
     entity?.toDomain() ?: UserProfile(isOnboardingCompleted = false)
   }
 
-  // Active Discover Deck (strictly excluding current user's profile)
+  // Active Discover Deck (strictly excluding current user's profile and filtered by Discovery Preferences)
   val activeProfiles: Flow<List<DatingProfile>> = userProfile.flatMapLatest { currentUser ->
     val authUid = phoneAuthManager.currentUserId
     val excludeId = when {
@@ -80,6 +284,20 @@ class KatkatRepository(
     }
     val currentPhone = currentUser.phoneNumber.filter { it.isDigit() }
     val currentName = currentUser.name.trim().lowercase()
+
+    // Determine effective "Interested In" filter:
+    // If explicitly saved in preferences, use it.
+    // Otherwise: Man -> Women, Woman/Women -> Men, Else -> Everyone
+    val effectiveInterestedIn = when {
+      currentUser.interestedInGender.isNotBlank() -> currentUser.interestedInGender
+      currentUser.gender.equals("Man", ignoreCase = true) -> "Women"
+      currentUser.gender.equals("Woman", ignoreCase = true) || currentUser.gender.equals("Women", ignoreCase = true) -> "Men"
+      else -> "Everyone"
+    }
+
+    val minAge = if (currentUser.minAgePreference in 18..100) currentUser.minAgePreference else 18
+    val maxAge = if (currentUser.maxAgePreference in 18..100) currentUser.maxAgePreference else 35
+    val maxDistance = if (currentUser.maxDistanceKm > 0) currentUser.maxDistanceKm else 50
 
     dao.getActiveDeckProfiles(excludeUserId = excludeId).map { entities ->
       entities.mapNotNull { entity ->
@@ -95,6 +313,54 @@ class KatkatRepository(
           // If age or bio also matches, exclude to avoid showing self
           if (currentUser.age > 0 && entity.age == currentUser.age) return@mapNotNull null
         }
+
+        // 4. Filter by Age Preference
+        if (entity.age > 0 && (entity.age < minAge || entity.age > maxAge)) {
+          return@mapNotNull null
+        }
+
+        // 5. Filter by Interested In / Gender Preference
+        if (effectiveInterestedIn.equals("Women", ignoreCase = true)) {
+          if (entity.gender.isNotBlank() &&
+              !entity.gender.equals("Woman", ignoreCase = true) &&
+              !entity.gender.equals("Women", ignoreCase = true) &&
+              !entity.gender.equals("Female", ignoreCase = true)) {
+            return@mapNotNull null
+          }
+        } else if (effectiveInterestedIn.equals("Men", ignoreCase = true)) {
+          if (entity.gender.isNotBlank() &&
+              !entity.gender.equals("Man", ignoreCase = true) &&
+              !entity.gender.equals("Men", ignoreCase = true) &&
+              !entity.gender.equals("Male", ignoreCase = true)) {
+            return@mapNotNull null
+          }
+        }
+
+        // 6. Filter by Maximum Distance Preference
+        if (currentUser.latitude != 0.0 && currentUser.longitude != 0.0 &&
+            entity.latitude != 0.0 && entity.longitude != 0.0) {
+          val distKm = calculateHaversineDistanceKm(
+            currentUser.latitude, currentUser.longitude,
+            entity.latitude, entity.longitude
+          )
+          if (distKm > maxDistance) {
+            return@mapNotNull null
+          }
+        } else if (entity.location.isNotBlank()) {
+          // Try to parse mock text like "X miles away" or "X km away"
+          val matchMiles = Regex("""(\d+)\s*miles\s*away""", RegexOption.IGNORE_CASE).find(entity.location)
+          if (matchMiles != null) {
+            val miles = matchMiles.groupValues[1].toDoubleOrNull() ?: 0.0
+            val km = miles * 1.60934
+            if (km > maxDistance) return@mapNotNull null
+          }
+          val matchKm = Regex("""(\d+)\s*km\s*away""", RegexOption.IGNORE_CASE).find(entity.location)
+          if (matchKm != null) {
+            val km = matchKm.groupValues[1].toDoubleOrNull() ?: 0.0
+            if (km > maxDistance) return@mapNotNull null
+          }
+        }
+
         entity.toDomain()
       }
     }
@@ -431,10 +697,13 @@ class KatkatRepository(
             id = profile.id,
             name = profile.name,
             age = profile.age,
+            gender = profile.gender,
             occupation = profile.occupation,
             company = profile.company,
             education = profile.education,
             location = profile.location,
+            latitude = profile.latitude,
+            longitude = profile.longitude,
             bio = profile.bio,
             photosJoined = profile.photos.joinToString("|||"),
             promptQuestion = profile.promptQuestion,
@@ -463,6 +732,17 @@ class KatkatRepository(
     } catch (e: Exception) {
       Log.w("KatkatRepository", "Notice syncing community users: ${e.message}")
     }
+  }
+
+  private fun calculateHaversineDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val r = 6371.0 // Earth radius in km
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return r * c
   }
 
   // Account creation / lookup based on mobile number

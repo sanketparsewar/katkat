@@ -4,10 +4,13 @@ data class DatingProfile(
   val id: String,
   val name: String,
   val age: Int,
+  val gender: String = "",
   val occupation: String,
   val company: String = "",
   val education: String = "",
   val location: String = "2 miles away",
+  val latitude: Double = 0.0,
+  val longitude: Double = 0.0,
   val bio: String,
   val photos: List<String>,
   val promptQuestion: String? = null,
@@ -61,6 +64,10 @@ data class UserProfile(
   val longitude: Double = 0.0,
   val isPhoneVerified: Boolean = false,
   val isAccountDisabled: Boolean = false,
+  val maxDistanceKm: Int = 50,
+  val minAgePreference: Int = 18,
+  val maxAgePreference: Int = 35,
+  val interestedInGender: String = "",
   val createdAt: Long = System.currentTimeMillis()
 ) {
   fun calculateProfileStrength(): Int {

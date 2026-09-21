@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -90,6 +91,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -1025,27 +1027,44 @@ fun ProfileEditScreen(
         ProfileAttributeItem(
           icon = Icons.Outlined.Phone,
           label = "Mobile Number",
-          value = "${userProfile.countryCode} ${userProfile.phoneNumber} ${if (userProfile.isPhoneVerified) "✓ Verified" else ""}"
+          value = "${userProfile.countryCode} ${userProfile.phoneNumber}",
+          trailingContent = if (userProfile.isPhoneVerified) {
+            {
+              Surface(
+                shape = CircleShape,
+                color = Color(0xFFE8F5E9),
+                modifier = Modifier.size(24.dp)
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Icon(
+                    imageVector = Icons.Filled.Verified,
+                    contentDescription = "Verified Mobile Number",
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(18.dp)
+                  )
+                }
+              }
+            }
+          } else null
         )
       }
-      if (userProfile.email.isNotBlank()) {
-        ProfileAttributeItem(
-          icon = Icons.Outlined.Email,
-          label = "Email Address",
-          value = userProfile.email
-        )
-      } else {
-        ProfileAttributeItem(
-          icon = Icons.Outlined.Email,
-          label = "Email Address",
-          value = "Not provided (Tap to add)"
-        )
-      }
+      ProfileAttributeItem(
+        icon = Icons.Outlined.Email,
+        label = "Email Address",
+        value = if (userProfile.email.isNotBlank()) userProfile.email else "N/A"
+      )
     }
 
     Spacer(modifier = Modifier.height(10.dp))
 
     // ── 11. Dating Discovery Preferences ───────────────────────────────
+    val summaryInterestedIn = when {
+      userProfile.interestedInGender.isNotBlank() -> userProfile.interestedInGender
+      userProfile.gender.equals("Man", ignoreCase = true) -> "Women"
+      userProfile.gender.equals("Woman", ignoreCase = true) || userProfile.gender.equals("Women", ignoreCase = true) -> "Men"
+      else -> "Everyone"
+    }
+
     Card(
       modifier = Modifier
         .fillMaxWidth()
@@ -1081,7 +1100,7 @@ fun ProfileEditScreen(
             color = MaterialTheme.colorScheme.onSurface
           )
           Text(
-            text = "Set your distance, age range, and filters",
+            text = "Up to ${userProfile.maxDistanceKm} km • Ages ${userProfile.minAgePreference}–${userProfile.maxAgePreference} • Interested in $summaryInterestedIn",
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp)
@@ -2392,64 +2411,98 @@ fun ProfileEditScreen(
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
       var editEmail by remember { mutableStateOf(userProfile.email) }
+      var emailError by remember { mutableStateOf<String?>(null) }
 
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(20.dp)
+          .padding(horizontal = 16.dp, vertical = 10.dp)
           .verticalScroll(rememberScrollState())
       ) {
         Text("Contact & Account Info", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Phone Info (read-only / verified)
         OutlinedTextField(
           value = "${userProfile.countryCode} ${userProfile.phoneNumber}",
           onValueChange = {},
           readOnly = true,
+          enabled = false,
           label = { Text("Registered Mobile Number") },
           trailingIcon = {
             if (userProfile.isPhoneVerified) {
-              Icon(Icons.Outlined.Verified, contentDescription = "Verified", tint = Color(0xFF4CAF50))
+              Icon(
+                imageVector = Icons.Filled.Verified,
+                contentDescription = "Verified Mobile",
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.size(22.dp)
+              )
             }
           },
           modifier = Modifier.fillMaxWidth(),
           colors = OutlinedTextFieldDefaults.colors(
-            disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledTextColor = MaterialTheme.colorScheme.onSurface
+            disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
           )
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Email Field (Editable)
+        // Email Field (Editable with format validation)
         OutlinedTextField(
           value = editEmail,
-          onValueChange = { editEmail = it },
+          onValueChange = {
+            editEmail = it
+            emailError = null
+          },
           label = { Text("Email Address") },
+          placeholder = { Text("example@domain.com") },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+          isError = emailError != null,
+          supportingText = {
+            if (emailError != null) {
+              Text(
+                text = emailError ?: "",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 12.sp
+              )
+            }
+          },
           modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = CoralPrimary,
+            errorBorderColor = MaterialTheme.colorScheme.error
+          )
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
           onClick = {
-            val updated = userProfile.copy(email = editEmail.trim())
+            val trimmedEmail = editEmail.trim()
+            if (trimmedEmail.isNotBlank()) {
+              val emailPattern = android.util.Patterns.EMAIL_ADDRESS
+              if (!emailPattern.matcher(trimmedEmail).matches()) {
+                emailError = "Please enter a valid email format (e.g. name@domain.com)"
+                Toast.makeText(context, "Please enter a valid email address", Toast.LENGTH_SHORT).show()
+                return@Button
+              }
+            }
+            val updated = userProfile.copy(email = trimmedEmail)
             onSaveProfile(updated)
             showContactInfoSheet = false
           },
           modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(46.dp),
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Contact Details", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
       }
     }
   }
@@ -2582,10 +2635,25 @@ fun ProfileEditScreen(
       onDismissRequest = { showPreferencesSheet = false },
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
-      var distanceKm by remember { mutableFloatStateOf(50f) }
-      var minAge by remember { mutableFloatStateOf(18f) }
-      var maxAge by remember { mutableFloatStateOf(35f) }
-      var interestedIn by remember { mutableStateOf("Everyone") }
+      val defaultInterestedIn = when {
+        userProfile.interestedInGender.isNotBlank() -> userProfile.interestedInGender
+        userProfile.gender.equals("Man", ignoreCase = true) -> "Women"
+        userProfile.gender.equals("Woman", ignoreCase = true) || userProfile.gender.equals("Women", ignoreCase = true) -> "Men"
+        else -> "Everyone"
+      }
+
+      var distanceKm by remember(userProfile.maxDistanceKm) {
+        mutableFloatStateOf(if (userProfile.maxDistanceKm > 0) userProfile.maxDistanceKm.toFloat() else 50f)
+      }
+      var minAge by remember(userProfile.minAgePreference) {
+        mutableFloatStateOf(if (userProfile.minAgePreference in 18..100) userProfile.minAgePreference.toFloat() else 18f)
+      }
+      var maxAge by remember(userProfile.maxAgePreference) {
+        mutableFloatStateOf(if (userProfile.maxAgePreference in 18..100) userProfile.maxAgePreference.toFloat() else 35f)
+      }
+      var interestedIn by remember(userProfile.interestedInGender, userProfile.gender) {
+        mutableStateOf(defaultInterestedIn)
+      }
 
       Column(
         modifier = Modifier
@@ -2596,11 +2664,25 @@ fun ProfileEditScreen(
         Text("Discovery Preferences", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-          "Maximum Distance: ${distanceKm.toInt()} km",
-          fontSize = 14.sp,
-          fontWeight = FontWeight.Medium
-        )
+        // Distance Slider
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            "Maximum Distance",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            "${distanceKm.toInt()} km",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = CoralPrimary
+          )
+        }
         Slider(
           value = distanceKm,
           onValueChange = { distanceKm = it },
@@ -2613,15 +2695,33 @@ fun ProfileEditScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        Text(
-          "Age Range: ${minAge.toInt()} - ${maxAge.toInt()} years",
-          fontSize = 14.sp,
-          fontWeight = FontWeight.Medium
-        )
-        Slider(
-          value = maxAge,
-          onValueChange = { maxAge = it },
-          valueRange = 20f..65f,
+        // Age Range Slider
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            "Age Range",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            "${minAge.toInt()} – ${maxAge.toInt()} years",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = CoralPrimary
+          )
+        }
+        RangeSlider(
+          value = minAge..maxAge,
+          onValueChange = { range ->
+            minAge = range.start.coerceIn(18f, 65f)
+            maxAge = range.endInclusive.coerceIn(18f, 65f)
+          },
+          valueRange = 18f..65f,
+          steps = 46,
           colors = SliderDefaults.colors(
             thumbColor = CoralPrimary,
             activeTrackColor = CoralPrimary
@@ -2662,8 +2762,15 @@ fun ProfileEditScreen(
 
         Button(
           onClick = {
+            val updated = userProfile.copy(
+              maxDistanceKm = distanceKm.toInt(),
+              minAgePreference = minAge.toInt(),
+              maxAgePreference = maxAge.toInt(),
+              interestedInGender = interestedIn
+            )
+            onSaveProfile(updated)
             showPreferencesSheet = false
-            Toast.makeText(context, "Preferences updated ✨", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Discovery preferences saved ✨", Toast.LENGTH_SHORT).show()
           },
           modifier = Modifier
             .fillMaxWidth()
@@ -2885,7 +2992,8 @@ private fun CategoryCard(
 private fun ProfileAttributeItem(
   icon: ImageVector,
   label: String,
-  value: String
+  value: String,
+  trailingContent: (@Composable () -> Unit)? = null
 ) {
   Row(
     modifier = Modifier
@@ -2900,7 +3008,7 @@ private fun ProfileAttributeItem(
       modifier = Modifier.size(18.dp)
     )
     Spacer(modifier = Modifier.width(12.dp))
-    Column {
+    Column(modifier = Modifier.weight(1f)) {
       Text(
         text = label,
         fontSize = 11.sp,
@@ -2912,6 +3020,9 @@ private fun ProfileAttributeItem(
         color = MaterialTheme.colorScheme.onSurface,
         fontWeight = FontWeight.Medium
       )
+    }
+    if (trailingContent != null) {
+      trailingContent()
     }
   }
 }
