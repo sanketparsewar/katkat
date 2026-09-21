@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -38,29 +36,34 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.LocalBar
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.PauseCircle
+import androidx.compose.material.icons.outlined.Pets
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.SmokingRooms
+import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.AlertDialog
@@ -68,7 +71,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,7 +96,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -102,7 +109,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -114,15 +120,84 @@ import com.example.data.model.SubscriptionState
 import com.example.data.model.UserProfile
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.CoralPrimary
-import java.io.File
-import java.io.FileOutputStream
 
-// Custom interest model with icon and pastel color palette matching the UI design
+// Preset interest category item
 data class InterestItem(
   val name: String,
   val iconEmoji: String,
   val backgroundColor: Color,
   val textColor: Color
+)
+
+val AllPresetInterests = listOf(
+  InterestItem("Travel", "✈️", Color(0xFFFFEBEE), Color(0xFFD32F2F)),
+  InterestItem("Foodie", "🍴", Color(0xFFFFF3E0), Color(0xFFE65100)),
+  InterestItem("Music", "🎵", Color(0xFFEDE7F6), Color(0xFF5E35B1)),
+  InterestItem("Fitness & Gym", "🏋️", Color(0xFFFCE4EC), Color(0xFFC2185B)),
+  InterestItem("Reading & Books", "📖", Color(0xFFE3F2FD), Color(0xFF1976D2)),
+  InterestItem("Photography", "📷", Color(0xFFFFEBEE), Color(0xFFE91E63)),
+  InterestItem("Nature & Hiking", "🍃", Color(0xFFE8F5E9), Color(0xFF2E7D32)),
+  InterestItem("Dogs & Pets", "🐾", Color(0xFFF3E5F5), Color(0xFF7B1FA2)),
+  InterestItem("Coffee", "☕", Color(0xFFE0F7FA), Color(0xFF00838F)),
+  InterestItem("Art & Design", "🎨", Color(0xFFFFF8E1), Color(0xFFF57F17)),
+  InterestItem("Gaming", "🎮", Color(0xFFEDE7F6), Color(0xFF673AB7)),
+  InterestItem("Yoga & Meditation", "🧘", Color(0xFFF1F8E9), Color(0xFF558B2F)),
+  InterestItem("Cooking", "🍳", Color(0xFFFFF3E0), Color(0xFFD84315)),
+  InterestItem("Movies & Cinema", "🎬", Color(0xFFECEFF1), Color(0xFF37474F)),
+  InterestItem("Startups & Tech", "💻", Color(0xFFE1F5FE), Color(0xFF0277BD)),
+  InterestItem("Dancing", "💃", Color(0xFFFCE4EC), Color(0xFFAD1457)),
+  InterestItem("Swimming", "🏊", Color(0xFFE0F2F1), Color(0xFF00695C))
+)
+
+val AllDatingIntentionsList = listOf(
+  "Long-term relationship",
+  "Long-term, open to short",
+  "Short-term relationship",
+  "Casual dating & coffee",
+  "Marriage & Matrimony",
+  "New friends & connections",
+  "Still figuring it out"
+)
+
+val AllZodiacList = listOf(
+  "Aries ♈", "Taurus ♉", "Gemini ♊", "Cancer ♋",
+  "Leo ♌", "Virgo ♍", "Libra ♎", "Scorpio ♏",
+  "Sagittarius ♐", "Capricorn ♑", "Aquarius ♒", "Pisces ♓"
+)
+
+val DrinkingHabitsList = listOf(
+  "Non-drinker 🚫",
+  "Socially on weekends 🍷",
+  "Frequently 🍻",
+  "Sober & Clean 🌱",
+  "Prefer not to say"
+)
+
+val SmokingHabitsList = listOf(
+  "Non-smoker 🚭",
+  "Occasionally 💨",
+  "Regular smoker 🚬",
+  "Trying to quit 🌿",
+  "Prefer not to say"
+)
+
+val PetsHabitsList = listOf(
+  "Dog lover 🐶",
+  "Cat lover 🐱",
+  "Has multiple pets 🐾",
+  "Bird / Aquarium 🦜",
+  "No pets, but love them ❤️",
+  "No pets 🚫"
+)
+
+val PromptQuestionList = listOf(
+  "My simple pleasures in life...",
+  "The key to my heart is...",
+  "A life goal of mine...",
+  "My most controversial opinion...",
+  "Together, we could...",
+  "Two truths and a lie...",
+  "Best travel memory..."
 )
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -131,9 +206,9 @@ fun ProfileEditScreen(
   userProfile: UserProfile,
   subscriptionState: SubscriptionState,
   themeMode: AppThemeMode = AppThemeMode.LIGHT,
-  likesCount: Int = 128,
-  matchesCount: Int = 36,
-  chatsCount: Int = 12,
+  likesCount: Int = 0,
+  matchesCount: Int = 0,
+  chatsCount: Int = 0,
   onThemeModeChange: (AppThemeMode) -> Unit = {},
   onSaveProfile: (UserProfile) -> Unit,
   onAddPhoto: (String) -> Unit,
@@ -150,39 +225,36 @@ fun ProfileEditScreen(
 ) {
   val context = LocalContext.current
 
-  // Sheet dialog states
-  var showEditBioSheet by remember { mutableStateOf(false) }
-  var showAboutMeSheet by remember { mutableStateOf(false) }
+  // Sheet dialog states for all categories
+  var showBasicInfoSheet by remember { mutableStateOf(false) }
+  var showWorkEducationSheet by remember { mutableStateOf(false) }
+  var showIntentionsLifestyleSheet by remember { mutableStateOf(false) }
   var showInterestsSheet by remember { mutableStateOf(false) }
+  var showPromptsSheet by remember { mutableStateOf(false) }
+  var showContactInfoSheet by remember { mutableStateOf(false) }
   var showPhotoManagementSheet by remember { mutableStateOf(false) }
   var showPreferencesSheet by remember { mutableStateOf(false) }
   var showSettingsSheet by remember { mutableStateOf(false) }
   var showNotificationsDialog by remember { mutableStateOf(false) }
   var showPhotoChoiceDialog by remember { mutableStateOf(false) }
 
-  // Media pickers (Delegated to Cloud Storage upload in KatkatViewModel)
+  // Media pickers
   val galleryLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
   ) { uri: Uri? ->
-    uri?.let {
-      onAddPhoto(it.toString())
-    }
+    uri?.let { onAddPhoto(it.toString()) }
   }
 
   val filePickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.GetContent()
   ) { uri: Uri? ->
-    uri?.let {
-      onAddPhoto(it.toString())
-    }
+    uri?.let { onAddPhoto(it.toString()) }
   }
 
   val cameraLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.TakePicturePreview()
   ) { bitmap: Bitmap? ->
-    bitmap?.let {
-      onAddBitmap(it)
-    }
+    bitmap?.let { onAddBitmap(it) }
   }
 
   val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -195,55 +267,37 @@ fun ProfileEditScreen(
     }
   }
 
-  // Predefined interests with pastel styling
-  val allPresetInterests = listOf(
-    InterestItem("Travel", "✈️", Color(0xFFFFEBEE), Color(0xFFD32F2F)),
-    InterestItem("Food", "🍴", Color(0xFFFFF3E0), Color(0xFFE65100)),
-    InterestItem("Music", "🎵", Color(0xFFEDE7F6), Color(0xFF5E35B1)),
-    InterestItem("Fitness", "🏋️", Color(0xFFFCE4EC), Color(0xFFC2185B)),
-    InterestItem("Books", "📖", Color(0xFFE3F2FD), Color(0xFF1976D2)),
-    InterestItem("Photography", "📷", Color(0xFFFFEBEE), Color(0xFFE91E63)),
-    InterestItem("Nature", "🍃", Color(0xFFE8F5E9), Color(0xFF2E7D32)),
-    InterestItem("Dogs", "🐾", Color(0xFFF3E5F5), Color(0xFF7B1FA2)),
-    InterestItem("Coffee", "☕", Color(0xFFE0F7FA), Color(0xFF00838F)),
-    InterestItem("Art & Design", "🎨", Color(0xFFFFF8E1), Color(0xFFF57F17)),
-    InterestItem("Gaming", "🎮", Color(0xFFEDE7F6), Color(0xFF673AB7)),
-    InterestItem("Yoga", "🧘", Color(0xFFF1F8E9), Color(0xFF558B2F))
-  )
-
-  // Primary avatar image URL
+  // Primary avatar image URL from database
   val avatarUrl = userProfile.photos.firstOrNull { it.isNotBlank() }
 
   val displayName = userProfile.name.ifBlank { "User" }
   val displayAge = if (userProfile.age > 0) userProfile.age else null
-  val displayLocation = userProfile.hometown.ifBlank {
-    userProfile.currentLocationCity.ifBlank { "" }
+  val displayLocation = when {
+    userProfile.hometown.isNotBlank() && userProfile.currentLocationCity.isNotBlank() ->
+      "${userProfile.currentLocationCity}, ${userProfile.hometown}"
+    userProfile.currentLocationCity.isNotBlank() -> userProfile.currentLocationCity
+    userProfile.hometown.isNotBlank() -> userProfile.hometown
+    else -> ""
   }
-  val displayBio = userProfile.bio.ifBlank {
-    ""
-  }
+  val displayBio = userProfile.bio
 
-  // Effective user interests
+  // Real user passions from database
   val displayedInterests = remember(userProfile.passions) {
-    if (userProfile.passions.isNotEmpty()) {
-      userProfile.passions.map { passionName ->
-        allPresetInterests.find { it.name.equals(passionName, ignoreCase = true) }
-          ?: InterestItem(
-            name = passionName,
-            iconEmoji = "✨",
-            backgroundColor = Color(0xFFFFEBEE),
-            textColor = Color(0xFFE53950)
-          )
-      }
-    } else {
-      allPresetInterests.take(9)
+    userProfile.passions.map { passionName ->
+      AllPresetInterests.find { it.name.equals(passionName, ignoreCase = true) }
+        ?: InterestItem(
+          name = passionName,
+          iconEmoji = "✨",
+          backgroundColor = Color(0xFFFFEBEE),
+          textColor = Color(0xFFE53950)
+        )
     }
   }
 
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(Color(0xFFFBF8F8))
+      .background(MaterialTheme.colorScheme.background)
       .verticalScroll(rememberScrollState())
       .testTag("profile_edit_screen")
   ) {
@@ -262,13 +316,13 @@ fun ProfileEditScreen(
           fontSize = 28.sp,
           fontWeight = FontWeight.Bold,
           fontStyle = FontStyle.Italic,
-          color = Color(0xFFE53950),
+          color = CoralPrimary,
           letterSpacing = (-0.5).sp
         )
         Text(
           text = "Better People. Brighter Connections.",
           fontSize = 11.5.sp,
-          color = Color(0xFF555555),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           fontWeight = FontWeight.Normal,
           modifier = Modifier.padding(top = 1.dp)
         )
@@ -282,7 +336,7 @@ fun ProfileEditScreen(
           Icon(
             imageVector = Icons.Outlined.Settings,
             contentDescription = "Settings",
-            tint = Color(0xFF222222),
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(24.dp)
           )
         }
@@ -298,186 +352,214 @@ fun ProfileEditScreen(
             Icon(
               imageVector = Icons.Outlined.Notifications,
               contentDescription = "Notifications",
-              tint = Color(0xFF222222),
+              tint = MaterialTheme.colorScheme.onSurface,
               modifier = Modifier.size(26.dp)
             )
           }
-          // Notification Pink Dot Badge
+          // Notification Dot Badge
           Box(
             modifier = Modifier
               .size(8.dp)
               .align(Alignment.TopEnd)
-              .offset(x = (-8).dp, y = 8.dp)
+              .padding(top = 8.dp, end = 8.dp)
               .clip(CircleShape)
-              .background(Color(0xFFE53950))
+              .background(CoralPrimary)
           )
         }
       }
     }
 
-    Spacer(modifier = Modifier.height(6.dp))
+    Spacer(modifier = Modifier.height(4.dp))
 
-    // ── 2. Top Profile Info (Avatar + Name/Location/Bio) ─────────────────
-    Row(
+    // ── 2. Top Profile Info (Avatar + Identity + Single Edit Button) ─────
+    Card(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.Top
+        .padding(horizontal = 20.dp, vertical = 6.dp),
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+      elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
     ) {
-      // Large Circular Avatar with Camera overlay
-      Box(
-        modifier = Modifier
-          .size(116.dp)
-          .align(Alignment.Top)
-      ) {
-        Box(
-          modifier = Modifier
-            .size(116.dp)
-            .clip(CircleShape)
-            .border(2.dp, Color.White, CircleShape)
-            .shadow(2.dp, CircleShape)
-            .background(
-              Brush.verticalGradient(
-                listOf(Color(0xFF2E1A36), Color(0xFF16091D))
-              )
-            ),
-          contentAlignment = Alignment.Center
-        ) {
-          if (!avatarUrl.isNullOrBlank()) {
-            AsyncImage(
-              model = coil.request.ImageRequest.Builder(LocalContext.current)
-                .data(avatarUrl)
-                .crossfade(true)
-                .build(),
-              contentDescription = "User Avatar",
-              contentScale = ContentScale.Crop,
-              modifier = Modifier.fillMaxSize()
-            )
-          } else {
-            Text(
-              text = displayName.take(1).uppercase().ifBlank { "?" },
-              style = MaterialTheme.typography.headlineLarge,
-              color = CoralPrimary,
-              fontWeight = FontWeight.Bold
-            )
-          }
-        }
-
-        // Camera Action Button
-        Box(
-          modifier = Modifier
-            .size(34.dp)
-            .align(Alignment.BottomEnd)
-            .clip(CircleShape)
-            .background(Color(0xFFE53950))
-            .border(2.dp, Color.White, CircleShape)
-            .clickable { showPhotoChoiceDialog = true },
-          contentAlignment = Alignment.Center
-        ) {
-          Icon(
-            imageVector = Icons.Filled.CameraAlt,
-            contentDescription = "Change avatar",
-            tint = Color.White,
-            modifier = Modifier.size(18.dp)
-          )
-        }
-      }
-
-      // Profile Identity and Bio
       Column(
         modifier = Modifier
-          .weight(1f)
-          .padding(start = 16.dp)
+          .fillMaxWidth()
+          .padding(16.dp)
       ) {
-        // Name & Age Row
         Row(
-          verticalAlignment = Alignment.CenterVertically,
-          modifier = Modifier.fillMaxWidth()
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          val ageStr = if (displayAge != null && displayAge > 0) ", $displayAge" else ""
-          Text(
-            text = "$displayName$ageStr",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E1E1E)
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Icon(
-            imageVector = Icons.Outlined.Edit,
-            contentDescription = "Edit Profile",
-            tint = Color(0xFF757575),
-            modifier = Modifier
-              .size(16.dp)
-              .clickable { showEditBioSheet = true }
-          )
-        }
+          // Large Circular Avatar with Camera overlay
+          Box(modifier = Modifier.size(92.dp)) {
+            Box(
+              modifier = Modifier
+                .size(92.dp)
+                .clip(CircleShape)
+                .border(2.dp, CoralPrimary.copy(alpha = 0.3f), CircleShape)
+                .background(
+                  Brush.verticalGradient(
+                    listOf(Color(0xFF2E1A36), Color(0xFF16091D))
+                  )
+                ),
+              contentAlignment = Alignment.Center
+            ) {
+              if (!avatarUrl.isNullOrBlank()) {
+                AsyncImage(
+                  model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(avatarUrl)
+                    .crossfade(true)
+                    .build(),
+                  contentDescription = "User Avatar",
+                  contentScale = ContentScale.Crop,
+                  modifier = Modifier.fillMaxSize()
+                )
+              } else {
+                Text(
+                  text = displayName.take(1).uppercase().ifBlank { "?" },
+                  style = MaterialTheme.typography.headlineLarge,
+                  color = CoralPrimary,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+            }
 
-        // Location Row
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          modifier = Modifier.padding(top = 4.dp)
-        ) {
-          Icon(
-            imageVector = Icons.Outlined.LocationOn,
-            contentDescription = null,
-            tint = Color(0xFF757575),
-            modifier = Modifier.size(15.dp)
-          )
-          Spacer(modifier = Modifier.width(3.dp))
-          Text(
-            text = displayLocation.ifBlank { "Add location" },
-            fontSize = 12.5.sp,
-            color = Color(0xFF555555),
-            fontWeight = FontWeight.Medium
-          )
-        }
-
-        // Bio Text
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp)
-            .clickable { showEditBioSheet = true }
-        ) {
-          Column {
-            Text(
-              text = displayBio.ifBlank { "Tap to write your bio..." },
-              fontSize = 12.sp,
-              lineHeight = 16.5.sp,
-              color = if (displayBio.isNotBlank()) Color(0xFF333333) else Color(0xFF888888)
-            )
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.End
+            // Camera Action Button
+            Box(
+              modifier = Modifier
+                .size(30.dp)
+                .align(Alignment.BottomEnd)
+                .clip(CircleShape)
+                .background(CoralPrimary)
+                .border(2.dp, Color.White, CircleShape)
+                .clickable { showPhotoChoiceDialog = true },
+              contentAlignment = Alignment.Center
             ) {
               Icon(
-                imageVector = Icons.Outlined.Edit,
-                contentDescription = "Edit Bio",
-                tint = Color(0xFF888888),
-                modifier = Modifier.size(14.dp)
+                imageVector = Icons.Filled.CameraAlt,
+                contentDescription = "Change photo",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
               )
             }
           }
+
+          Spacer(modifier = Modifier.width(16.dp))
+
+          // Name, Age, Location, Pronouns
+          Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              val ageStr = if (displayAge != null && displayAge > 0) ", $displayAge" else ""
+              Text(
+                text = "$displayName$ageStr",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              if (userProfile.isPhoneVerified) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                  imageVector = Icons.Outlined.Verified,
+                  contentDescription = "Verified",
+                  tint = Color(0xFF4CAF50),
+                  modifier = Modifier.size(18.dp)
+                )
+              }
+            }
+
+            if (userProfile.pronouns.isNotBlank() || userProfile.gender.isNotBlank()) {
+              val genderInfo = listOfNotNull(
+                userProfile.gender.ifBlank { null },
+                userProfile.pronouns.ifBlank { null }
+              ).joinToString(" • ")
+              Text(
+                text = genderInfo,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+              )
+            }
+
+            if (displayLocation.isNotBlank()) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp)
+              ) {
+                Icon(
+                  imageVector = Icons.Outlined.LocationOn,
+                  contentDescription = null,
+                  tint = CoralPrimary,
+                  modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                  text = displayLocation,
+                  fontSize = 12.5.sp,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  fontWeight = FontWeight.Medium
+                )
+              }
+            }
+          }
+        }
+
+        // Bio section
+        if (displayBio.isNotBlank()) {
+          Spacer(modifier = Modifier.height(12.dp))
+          Text(
+            text = displayBio,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Single Edit Profile / Basic Info Button
+        Button(
+          onClick = { showBasicInfoSheet = true },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = ButtonDefaults.buttonColors(
+            containerColor = CoralPrimary.copy(alpha = 0.12f),
+            contentColor = CoralPrimary
+          ),
+          elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+        ) {
+          Icon(
+            imageVector = Icons.Outlined.Edit,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Edit Basic Info",
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.5.sp
+          )
         }
       }
     }
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 
-    // ── 3. Horizontal Stats Row (Likes, Matches, Chats, Profile Views) ──
+    // ── 3. Real Stats Row from Database ─────────────────────────────────
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 8.dp),
+        .padding(horizontal = 20.dp, vertical = 6.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {
       // 1. Likes
       StatCounterItem(
         icon = Icons.Outlined.FavoriteBorder,
-        iconTint = Color(0xFFE53950),
+        iconTint = CoralPrimary,
         label = "Likes",
-        value = "${likesCount.coerceAtLeast(128)}"
+        value = "$likesCount"
       )
 
       StatDivider()
@@ -485,9 +567,9 @@ fun ProfileEditScreen(
       // 2. Matches
       StatCounterItem(
         icon = Icons.Outlined.Group,
-        iconTint = Color(0xFFE53950),
+        iconTint = CoralPrimary,
         label = "Matches",
-        value = "${matchesCount.coerceAtLeast(36)}"
+        value = "$matchesCount"
       )
 
       StatDivider()
@@ -495,25 +577,25 @@ fun ProfileEditScreen(
       // 3. Chats
       StatCounterItem(
         icon = Icons.Outlined.ChatBubbleOutline,
-        iconTint = Color(0xFFE53950),
+        iconTint = CoralPrimary,
         label = "Chats",
-        value = "${chatsCount.coerceAtLeast(12)}"
+        value = "$chatsCount"
       )
 
       StatDivider()
 
-      // 4. Profile Views
+      // 4. Swipes Used
       StatCounterItem(
         icon = Icons.Outlined.Visibility,
-        iconTint = Color(0xFF222222),
-        label = "Profile Views",
-        value = "314"
+        iconTint = MaterialTheme.colorScheme.onSurface,
+        label = "Swipes Used",
+        value = "${subscriptionState.swipesUsedThisMonth}"
       )
     }
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 
-    // ── 4. Upgrade to Heartly Plus Banner ────────────────────────────────
+    // ── 4. Upgrade VIP / Plan Banner ────────────────────────────────────
     Card(
       modifier = Modifier
         .fillMaxWidth()
@@ -533,7 +615,7 @@ fun ProfileEditScreen(
           modifier = Modifier
             .size(38.dp)
             .clip(CircleShape)
-            .background(Color(0xFFE53950)),
+            .background(CoralPrimary),
           contentAlignment = Alignment.Center
         ) {
           Icon(
@@ -550,13 +632,13 @@ fun ProfileEditScreen(
             .padding(horizontal = 12.dp)
         ) {
           Text(
-            text = "Upgrade to Katkat Plus",
+            text = "Upgrade to Katkat VIP",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFFE53950)
+            color = CoralPrimary
           )
           Text(
-            text = "See who liked you, get more matches and more control.",
+            text = "See who liked you, get unlimited swipes and instant matches.",
             fontSize = 11.5.sp,
             color = Color(0xFF555555),
             modifier = Modifier.padding(top = 1.dp)
@@ -572,221 +654,196 @@ fun ProfileEditScreen(
       }
     }
 
-    Spacer(modifier = Modifier.height(10.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 
     // ── 5. My Photos Section ───────────────────────────────────────────
     val validUserPhotos = userProfile.photos.filter { it.isNotBlank() }
 
-    Card(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 6.dp),
-      shape = RoundedCornerShape(18.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
-      elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-      border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+    CategoryCard(
+      title = "My Photos",
+      actionText = "Manage",
+      onAction = { showPhotoManagementSheet = true }
     ) {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(vertical = 12.dp)
+      LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
       ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = "My Photos",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E1E1E)
-          )
-          Text(
-            text = "Edit",
-            fontSize = 13.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(0xFFE53950),
+        // Display user photos
+        itemsIndexed(validUserPhotos) { index, photoUrl ->
+          Box(
             modifier = Modifier
+              .size(width = 84.dp, height = 96.dp)
+              .clip(RoundedCornerShape(12.dp))
               .clickable { showPhotoManagementSheet = true }
-              .padding(4.dp)
-          )
+          ) {
+            AsyncImage(
+              model = coil.request.ImageRequest.Builder(LocalContext.current)
+                .data(photoUrl)
+                .crossfade(true)
+                .build(),
+              contentDescription = "Photo ${index + 1}",
+              contentScale = ContentScale.Crop,
+              modifier = Modifier.fillMaxSize()
+            )
+          }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Photos LazyRow
-        LazyRow(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
-          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp)
-        ) {
-          // Display user photos
-          itemsIndexed(validUserPhotos) { index, photoUrl ->
-            Box(
-              modifier = Modifier
-                .size(width = 84.dp, height = 96.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { showPhotoManagementSheet = true }
+        // + Add Photo item
+        item {
+          Box(
+            modifier = Modifier
+              .size(width = 84.dp, height = 96.dp)
+              .clip(RoundedCornerShape(12.dp))
+              .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+              .border(
+                BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.4f)),
+                RoundedCornerShape(12.dp)
+              )
+              .clickable { showPhotoChoiceDialog = true },
+            contentAlignment = Alignment.Center
+          ) {
+            Column(
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.Center
             ) {
-              AsyncImage(
-                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                  .data(photoUrl)
-                  .crossfade(true)
-                  .build(),
-                contentDescription = "Photo ${index + 1}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+              Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = "Add Photo",
+                tint = CoralPrimary,
+                modifier = Modifier.size(24.dp)
+              )
+              Spacer(modifier = Modifier.height(3.dp))
+              Text(
+                text = "Add Photo",
+                fontSize = 11.sp,
+                color = CoralPrimary,
+                fontWeight = FontWeight.Medium
               )
             }
           }
-
-          // + Add Photo item
-          item {
-            Box(
-              modifier = Modifier
-                .size(width = 84.dp, height = 96.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFFFAFAFA))
-                .border(BorderStroke(1.dp, Color(0xFFE0E0E0)), RoundedCornerShape(12.dp))
-                .clickable { showPhotoChoiceDialog = true },
-              contentAlignment = Alignment.Center
-            ) {
-              Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.Add,
-                  contentDescription = "Add Photo",
-                  tint = Color(0xFFE53950),
-                  modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                  text = "Add Photo",
-                  fontSize = 11.sp,
-                  color = Color(0xFF555555),
-                  fontWeight = FontWeight.Medium
-                )
-              }
-            }
-          }
         }
       }
     }
 
     Spacer(modifier = Modifier.height(10.dp))
 
-    // ── 6. About Me Section ────────────────────────────────────────────
-    Card(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 6.dp),
-      shape = RoundedCornerShape(18.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
-      elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-      border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+    // ── 6. Work & Education Section ────────────────────────────────────
+    CategoryCard(
+      title = "Work & Education",
+      actionIcon = Icons.Outlined.Edit,
+      onAction = { showWorkEducationSheet = true }
     ) {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(16.dp)
-      ) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = "About Me",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E1E1E)
-          )
-          Icon(
-            imageVector = Icons.Outlined.Edit,
-            contentDescription = "Edit About Me",
-            tint = Color(0xFF757575),
-            modifier = Modifier
-              .size(18.dp)
-              .clickable { showAboutMeSheet = true }
+      val hasOccupation = userProfile.occupation.isNotBlank()
+      val hasEducation = userProfile.education.isNotBlank()
+
+      if (!hasOccupation && !hasEducation) {
+        Text(
+          text = "No work or education info added yet. Tap to add.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      } else {
+        if (hasOccupation) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.WorkOutline,
+            label = "Occupation",
+            value = userProfile.occupation
           )
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // About Me Attributes list matching screenshot
-        AboutMeItem(
-          icon = Icons.Outlined.Cake,
-          text = "$displayAge years old"
-        )
-        AboutMeItem(
-          icon = Icons.Outlined.LocationOn,
-          text = displayLocation
-        )
-        AboutMeItem(
-          icon = Icons.Outlined.WorkOutline,
-          text = userProfile.occupation.ifBlank { "Product Designer" }
-        )
-        AboutMeItem(
-          icon = Icons.Outlined.School,
-          text = userProfile.education.ifBlank { "National Institute of Design" }
-        )
-        AboutMeItem(
-          icon = Icons.Outlined.FavoriteBorder,
-          text = userProfile.datingIntention.ifBlank { "Looking for a meaningful relationship" }
-        )
-        AboutMeItem(
-          icon = Icons.Outlined.Group,
-          text = userProfile.promptAnswer.ifBlank { "Open to new people and great conversations" }
-        )
+        if (hasEducation) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.School,
+            label = "Education",
+            value = userProfile.education
+          )
+        }
       }
     }
 
     Spacer(modifier = Modifier.height(10.dp))
 
-    // ── 7. My Interests Section ────────────────────────────────────────
-    Card(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 6.dp),
-      shape = RoundedCornerShape(18.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
-      elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-      border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+    // ── 7. Relationship Goals & Details ────────────────────────────────
+    CategoryCard(
+      title = "Dating Goals & Details",
+      actionIcon = Icons.Outlined.Edit,
+      onAction = { showIntentionsLifestyleSheet = true }
     ) {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(16.dp)
-      ) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = "My Interests",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E1E1E)
-          )
-          Icon(
-            imageVector = Icons.Outlined.Edit,
-            contentDescription = "Edit Interests",
-            tint = Color(0xFF757575),
-            modifier = Modifier
-              .size(18.dp)
-              .clickable { showInterestsSheet = true }
+      val hasIntention = userProfile.datingIntention.isNotBlank()
+      val hasHeight = userProfile.height.isNotBlank()
+      val hasZodiac = userProfile.zodiac.isNotBlank()
+      val hasDrinking = userProfile.drinking.isNotBlank()
+      val hasSmoking = userProfile.smoking.isNotBlank()
+      val hasPets = userProfile.pets.isNotBlank()
+
+      val anyDetail = hasIntention || hasHeight || hasZodiac || hasDrinking || hasSmoking || hasPets
+
+      if (!anyDetail) {
+        Text(
+          text = "No lifestyle or dating goals added yet. Tap to customize.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      } else {
+        if (hasIntention) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.FavoriteBorder,
+            label = "Relationship Goal",
+            value = userProfile.datingIntention
           )
         }
+        if (hasHeight) {
+          ProfileAttributeItem(
+            icon = Icons.Filled.Straighten,
+            label = "Height",
+            value = userProfile.height
+          )
+        }
+        if (hasZodiac) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.Stars,
+            label = "Zodiac Sign",
+            value = userProfile.zodiac
+          )
+        }
+        if (hasDrinking) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.LocalBar,
+            label = "Drinking",
+            value = userProfile.drinking
+          )
+        }
+        if (hasSmoking) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.SmokingRooms,
+            label = "Smoking",
+            value = userProfile.smoking
+          )
+        }
+        if (hasPets) {
+          ProfileAttributeItem(
+            icon = Icons.Outlined.Pets,
+            label = "Pets",
+            value = userProfile.pets
+          )
+        }
+      }
+    }
 
-        Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(10.dp))
 
-        // FlowRow of colorful pastel interest chips matching screenshot
+    // ── 8. My Interests & Passions Section ──────────────────────────────
+    CategoryCard(
+      title = "My Interests",
+      actionIcon = Icons.Outlined.Edit,
+      onAction = { showInterestsSheet = true }
+    ) {
+      if (displayedInterests.isEmpty()) {
+        Text(
+          text = "No interests selected yet. Tap edit to pick what you love.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      } else {
         FlowRow(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -802,10 +859,7 @@ fun ProfileEditScreen(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                Text(
-                  text = item.iconEmoji,
-                  fontSize = 13.sp
-                )
+                Text(text = item.iconEmoji, fontSize = 13.sp)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                   text = item.name,
@@ -822,16 +876,78 @@ fun ProfileEditScreen(
 
     Spacer(modifier = Modifier.height(10.dp))
 
-    // ── 8. Dating Preferences Section ──────────────────────────────────
+    // ── 9. Profile Prompt & Conversation Starter ───────────────────────
+    CategoryCard(
+      title = "Profile Prompt",
+      actionIcon = Icons.Outlined.Edit,
+      onAction = { showPromptsSheet = true }
+    ) {
+      val question = userProfile.promptQuestion.ifBlank { "My simple pleasures in life..." }
+      val answer = userProfile.promptAnswer
+
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { showPromptsSheet = true }
+      ) {
+        Text(
+          text = question,
+          fontSize = 14.sp,
+          fontWeight = FontWeight.Bold,
+          color = CoralPrimary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+          text = if (answer.isNotBlank()) answer else "Tap to write an answer to start fun conversations...",
+          fontSize = 13.sp,
+          lineHeight = 18.sp,
+          color = if (answer.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // ── 10. Contact & Account Info ─────────────────────────────────────
+    CategoryCard(
+      title = "Contact & Account",
+      actionIcon = Icons.Outlined.Edit,
+      onAction = { showContactInfoSheet = true }
+    ) {
+      if (userProfile.phoneNumber.isNotBlank()) {
+        ProfileAttributeItem(
+          icon = Icons.Outlined.Phone,
+          label = "Mobile Number",
+          value = "${userProfile.countryCode} ${userProfile.phoneNumber} ${if (userProfile.isPhoneVerified) "✓ Verified" else ""}"
+        )
+      }
+      if (userProfile.email.isNotBlank()) {
+        ProfileAttributeItem(
+          icon = Icons.Outlined.Email,
+          label = "Email Address",
+          value = userProfile.email
+        )
+      } else {
+        ProfileAttributeItem(
+          icon = Icons.Outlined.Email,
+          label = "Email Address",
+          value = "Not provided (Tap to add)"
+        )
+      }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // ── 11. Dating Discovery Preferences ───────────────────────────────
     Card(
       modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = 20.dp, vertical = 6.dp)
         .clickable { showPreferencesSheet = true },
       shape = RoundedCornerShape(16.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-      border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
     ) {
       Row(
         modifier = Modifier
@@ -842,7 +958,7 @@ fun ProfileEditScreen(
         Icon(
           imageVector = Icons.Outlined.Tune,
           contentDescription = null,
-          tint = Color(0xFF1E1E1E),
+          tint = CoralPrimary,
           modifier = Modifier.size(24.dp)
         )
 
@@ -852,15 +968,15 @@ fun ProfileEditScreen(
             .padding(horizontal = 14.dp)
         ) {
           Text(
-            text = "Dating Preferences",
+            text = "Discovery Preferences",
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E1E1E)
+            color = MaterialTheme.colorScheme.onSurface
           )
           Text(
-            text = "Set your preferences and dealbreakers",
+            text = "Set your distance, age range, and filters",
             fontSize = 12.sp,
-            color = Color(0xFF757575),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp)
           )
         }
@@ -868,7 +984,7 @@ fun ProfileEditScreen(
         Icon(
           imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
           contentDescription = null,
-          tint = Color(0xFF888888),
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.size(14.dp)
         )
       }
@@ -878,7 +994,7 @@ fun ProfileEditScreen(
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // BOTTOM SHEETS & MODALS FOR EDITING
+  // BOTTOM SHEETS & MODALS FOR EDITING ALL CATEGORIES
   // ─────────────────────────────────────────────────────────────────────────
 
   // 1. Photo Choice (Camera, File / Storage, Gallery)
@@ -913,7 +1029,7 @@ fun ProfileEditScreen(
             },
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, Color(0xFFE53950).copy(alpha = 0.3f)),
+            border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
             modifier = Modifier
               .fillMaxWidth()
               .testTag("profile_photo_camera")
@@ -924,14 +1040,14 @@ fun ProfileEditScreen(
             ) {
               Surface(
                 shape = CircleShape,
-                color = Color(0xFFE53950).copy(alpha = 0.15f),
+                color = CoralPrimary.copy(alpha = 0.15f),
                 modifier = Modifier.size(40.dp)
               ) {
                 Box(contentAlignment = Alignment.Center) {
                   Icon(
                     Icons.Default.CameraAlt,
                     contentDescription = "Camera",
-                    tint = Color(0xFFE53950),
+                    tint = CoralPrimary,
                     modifier = Modifier.size(22.dp)
                   )
                 }
@@ -961,7 +1077,7 @@ fun ProfileEditScreen(
             },
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, Color(0xFFE53950).copy(alpha = 0.3f)),
+            border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
             modifier = Modifier
               .fillMaxWidth()
               .testTag("profile_photo_file")
@@ -972,14 +1088,14 @@ fun ProfileEditScreen(
             ) {
               Surface(
                 shape = CircleShape,
-                color = Color(0xFFE53950).copy(alpha = 0.15f),
+                color = CoralPrimary.copy(alpha = 0.15f),
                 modifier = Modifier.size(40.dp)
               ) {
                 Box(contentAlignment = Alignment.Center) {
                   Icon(
                     Icons.Outlined.WorkOutline,
                     contentDescription = "Files",
-                    tint = Color(0xFFE53950),
+                    tint = CoralPrimary,
                     modifier = Modifier.size(22.dp)
                   )
                 }
@@ -1013,7 +1129,7 @@ fun ProfileEditScreen(
             },
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, Color(0xFFE53950).copy(alpha = 0.3f)),
+            border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
             modifier = Modifier
               .fillMaxWidth()
               .testTag("profile_photo_gallery")
@@ -1024,14 +1140,14 @@ fun ProfileEditScreen(
             ) {
               Surface(
                 shape = CircleShape,
-                color = Color(0xFFE53950).copy(alpha = 0.15f),
+                color = CoralPrimary.copy(alpha = 0.15f),
                 modifier = Modifier.size(40.dp)
               ) {
                 Box(contentAlignment = Alignment.Center) {
                   Icon(
                     Icons.Outlined.PhotoLibrary,
                     contentDescription = "Gallery",
-                    tint = Color(0xFFE53950),
+                    tint = CoralPrimary,
                     modifier = Modifier.size(22.dp)
                   )
                 }
@@ -1057,21 +1173,25 @@ fun ProfileEditScreen(
       confirmButton = {},
       dismissButton = {
         TextButton(onClick = { showPhotoChoiceDialog = false }) {
-          Text("Cancel", color = Color(0xFFE53950))
+          Text("Cancel", color = CoralPrimary)
         }
       }
     )
   }
 
-  // 2. Edit Profile Bio & Name Sheet
-  if (showEditBioSheet) {
+  // 2. Edit Basic Info Sheet (Name, Age, DOB, Gender, Pronouns, Location, Bio)
+  if (showBasicInfoSheet) {
     ModalBottomSheet(
-      onDismissRequest = { showEditBioSheet = false },
+      onDismissRequest = { showBasicInfoSheet = false },
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
       var editName by remember { mutableStateOf(userProfile.name) }
-      var editAge by remember { mutableStateOf(if (userProfile.age > 0) userProfile.age.toString() else "24") }
-      var editLocation by remember { mutableStateOf(userProfile.hometown.ifBlank { "Bangalore, India" }) }
+      var editAge by remember { mutableStateOf(if (userProfile.age > 0) userProfile.age.toString() else "") }
+      var editDob by remember { mutableStateOf(userProfile.dob) }
+      var editGender by remember { mutableStateOf(userProfile.gender) }
+      var editPronouns by remember { mutableStateOf(userProfile.pronouns) }
+      var editCity by remember { mutableStateOf(userProfile.currentLocationCity) }
+      var editHometown by remember { mutableStateOf(userProfile.hometown) }
       var editBio by remember { mutableStateOf(userProfile.bio) }
 
       Column(
@@ -1088,28 +1208,74 @@ fun ProfileEditScreen(
           onValueChange = { editName = it },
           label = { Text("Full Name") },
           modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          OutlinedTextField(
+            value = editAge,
+            onValueChange = { editAge = it.filter { ch -> ch.isDigit() }.take(3) },
+            label = { Text("Age") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+          )
+
+          OutlinedTextField(
+            value = editDob,
+            onValueChange = { editDob = it },
+            label = { Text("DOB (DD/MM/YYYY)") },
+            modifier = Modifier.weight(1.5f),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+          )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          OutlinedTextField(
+            value = editGender,
+            onValueChange = { editGender = it },
+            label = { Text("Gender (e.g. Woman, Man)") },
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+          )
+
+          OutlinedTextField(
+            value = editPronouns,
+            onValueChange = { editPronouns = it },
+            label = { Text("Pronouns (she/her, etc.)") },
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+          )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedTextField(
+          value = editCity,
+          onValueChange = { editCity = it },
+          label = { Text("Current City / Location") },
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
         OutlinedTextField(
-          value = editAge,
-          onValueChange = { editAge = it },
-          label = { Text("Age") },
-          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+          value = editHometown,
+          onValueChange = { editHometown = it },
+          label = { Text("Hometown") },
           modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-          value = editLocation,
-          onValueChange = { editLocation = it },
-          label = { Text("Location / City") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -1117,32 +1283,36 @@ fun ProfileEditScreen(
         OutlinedTextField(
           value = editBio,
           onValueChange = { editBio = it },
-          label = { Text("Bio") },
+          label = { Text("About Me / Bio") },
           minLines = 3,
           maxLines = 6,
           modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(
           onClick = {
+            val parsedAge = editAge.toIntOrNull() ?: userProfile.age
             val updated = userProfile.copy(
               name = editName.trim(),
-              age = editAge.toIntOrNull() ?: userProfile.age,
-              hometown = editLocation.trim(),
+              age = parsedAge,
+              dob = editDob.trim(),
+              gender = editGender.trim(),
+              pronouns = editPronouns.trim(),
+              currentLocationCity = editCity.trim(),
+              hometown = editHometown.trim(),
               bio = editBio.trim()
             )
             onSaveProfile(updated)
-            showEditBioSheet = false
-            Toast.makeText(context, "Profile updated ✨", Toast.LENGTH_SHORT).show()
+            showBasicInfoSheet = false
           },
           modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53950))
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
@@ -1152,16 +1322,14 @@ fun ProfileEditScreen(
     }
   }
 
-  // 3. Edit About Me Details Sheet
-  if (showAboutMeSheet) {
+  // 3. Edit Work & Education Sheet
+  if (showWorkEducationSheet) {
     ModalBottomSheet(
-      onDismissRequest = { showAboutMeSheet = false },
+      onDismissRequest = { showWorkEducationSheet = false },
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
       var editOccupation by remember { mutableStateOf(userProfile.occupation) }
       var editEducation by remember { mutableStateOf(userProfile.education) }
-      var editIntention by remember { mutableStateOf(userProfile.datingIntention) }
-      var editPromptAnswer by remember { mutableStateOf(userProfile.promptAnswer) }
 
       Column(
         modifier = Modifier
@@ -1169,7 +1337,7 @@ fun ProfileEditScreen(
           .padding(20.dp)
           .verticalScroll(rememberScrollState())
       ) {
-        Text("Edit About Me", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("Edit Work & Education", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(14.dp))
 
         OutlinedTextField(
@@ -1177,37 +1345,17 @@ fun ProfileEditScreen(
           onValueChange = { editOccupation = it },
           label = { Text("Occupation / Job Title") },
           modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
           value = editEducation,
           onValueChange = { editEducation = it },
-          label = { Text("College / University / Education") },
+          label = { Text("College / University / Degree") },
           modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-          value = editIntention,
-          onValueChange = { editIntention = it },
-          label = { Text("Dating Intention (e.g. Long-term relationship)") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-          value = editPromptAnswer,
-          onValueChange = { editPromptAnswer = it },
-          label = { Text("Highlight / Open to") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE53950))
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -1216,19 +1364,16 @@ fun ProfileEditScreen(
           onClick = {
             val updated = userProfile.copy(
               occupation = editOccupation.trim(),
-              education = editEducation.trim(),
-              datingIntention = editIntention.trim(),
-              promptAnswer = editPromptAnswer.trim()
+              education = editEducation.trim()
             )
             onSaveProfile(updated)
-            showAboutMeSheet = false
-            Toast.makeText(context, "About Me saved ✨", Toast.LENGTH_SHORT).show()
+            showWorkEducationSheet = false
           },
           modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53950))
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
@@ -1238,18 +1383,196 @@ fun ProfileEditScreen(
     }
   }
 
-  // 4. Edit Interests Sheet
+  // 4. Edit Dating Goals & Lifestyle Sheet
+  if (showIntentionsLifestyleSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showIntentionsLifestyleSheet = false },
+      sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+      var editIntention by remember { mutableStateOf(userProfile.datingIntention) }
+      var editHeight by remember { mutableStateOf(userProfile.height) }
+      var editZodiac by remember { mutableStateOf(userProfile.zodiac) }
+      var editDrinking by remember { mutableStateOf(userProfile.drinking) }
+      var editSmoking by remember { mutableStateOf(userProfile.smoking) }
+      var editPets by remember { mutableStateOf(userProfile.pets) }
+
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(20.dp)
+          .verticalScroll(rememberScrollState())
+      ) {
+        Text("Edit Dating Goals & Lifestyle", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Relationship Goals Picker
+        Text("Dating Intention", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          AllDatingIntentionsList.forEach { intention ->
+            val isSelected = editIntention.equals(intention, ignoreCase = true)
+            FilterChip(
+              selected = isSelected,
+              onClick = { editIntention = if (isSelected) "" else intention },
+              label = { Text(intention, fontSize = 12.sp) },
+              colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = CoralPrimary,
+                selectedLabelColor = Color.White
+              )
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Height Field
+        OutlinedTextField(
+          value = editHeight,
+          onValueChange = { editHeight = it },
+          label = { Text("Height (e.g. 5'10\" or 178 cm)") },
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Zodiac Sign Picker
+        Text("Zodiac Sign", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          AllZodiacList.forEach { zodiac ->
+            val isSelected = editZodiac.equals(zodiac, ignoreCase = true)
+            FilterChip(
+              selected = isSelected,
+              onClick = { editZodiac = if (isSelected) "" else zodiac },
+              label = { Text(zodiac, fontSize = 12.sp) },
+              colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = CoralPrimary,
+                selectedLabelColor = Color.White
+              )
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Drinking Habits
+        Text("Drinking Habit", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          DrinkingHabitsList.forEach { drink ->
+            val isSelected = editDrinking.equals(drink, ignoreCase = true)
+            FilterChip(
+              selected = isSelected,
+              onClick = { editDrinking = if (isSelected) "" else drink },
+              label = { Text(drink, fontSize = 12.sp) },
+              colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = CoralPrimary,
+                selectedLabelColor = Color.White
+              )
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Smoking Habits
+        Text("Smoking Habit", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          SmokingHabitsList.forEach { smoke ->
+            val isSelected = editSmoking.equals(smoke, ignoreCase = true)
+            FilterChip(
+              selected = isSelected,
+              onClick = { editSmoking = if (isSelected) "" else smoke },
+              label = { Text(smoke, fontSize = 12.sp) },
+              colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = CoralPrimary,
+                selectedLabelColor = Color.White
+              )
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Pets
+        Text("Pets", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          PetsHabitsList.forEach { pet ->
+            val isSelected = editPets.equals(pet, ignoreCase = true)
+            FilterChip(
+              selected = isSelected,
+              onClick = { editPets = if (isSelected) "" else pet },
+              label = { Text(pet, fontSize = 12.sp) },
+              colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = CoralPrimary,
+                selectedLabelColor = Color.White
+              )
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+          onClick = {
+            val updated = userProfile.copy(
+              datingIntention = editIntention.trim(),
+              height = editHeight.trim(),
+              zodiac = editZodiac.trim(),
+              drinking = editDrinking.trim(),
+              smoking = editSmoking.trim(),
+              pets = editPets.trim()
+            )
+            onSaveProfile(updated)
+            showIntentionsLifestyleSheet = false
+          },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+        ) {
+          Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+      }
+    }
+  }
+
+  // 5. Edit Interests & Passions Sheet
   if (showInterestsSheet) {
     ModalBottomSheet(
       onDismissRequest = { showInterestsSheet = false },
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
       var currentSelections by remember {
-        mutableStateOf(
-          if (userProfile.passions.isNotEmpty()) userProfile.passions
-          else allPresetInterests.take(9).map { it.name }
-        )
+        mutableStateOf(userProfile.passions)
       }
+      var customInterestInput by remember { mutableStateOf("") }
 
       Column(
         modifier = Modifier
@@ -1259,9 +1582,9 @@ fun ProfileEditScreen(
       ) {
         Text("Select Your Interests", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
-          "Pick what excites you to connect with like-minded people.",
+          "Pick your favorite topics to connect with like-minded people.",
           fontSize = 12.sp,
-          color = Color(0xFF555555),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 2.dp)
         )
         Spacer(modifier = Modifier.height(14.dp))
@@ -1271,11 +1594,11 @@ fun ProfileEditScreen(
           horizontalArrangement = Arrangement.spacedBy(8.dp),
           verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          allPresetInterests.forEach { item ->
+          AllPresetInterests.forEach { item ->
             val isSelected = currentSelections.any { it.equals(item.name, ignoreCase = true) }
             Surface(
               shape = RoundedCornerShape(20.dp),
-              color = if (isSelected) Color(0xFFE53950) else item.backgroundColor,
+              color = if (isSelected) CoralPrimary else item.backgroundColor,
               modifier = Modifier.clickable {
                 currentSelections = if (isSelected) {
                   currentSelections.filterNot { it.equals(item.name, ignoreCase = true) }
@@ -1301,22 +1624,51 @@ fun ProfileEditScreen(
           }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Add custom interest
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          OutlinedTextField(
+            value = customInterestInput,
+            onValueChange = { customInterestInput = it },
+            placeholder = { Text("Add custom interest...") },
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Button(
+            onClick = {
+              val trimmed = customInterestInput.trim()
+              if (trimmed.isNotBlank() && !currentSelections.any { it.equals(trimmed, ignoreCase = true) }) {
+                currentSelections = currentSelections + trimmed
+                customInterestInput = ""
+              }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+            shape = RoundedCornerShape(12.dp)
+          ) {
+            Text("Add")
+          }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         Button(
           onClick = {
             val updated = userProfile.copy(passions = currentSelections)
             onSaveProfile(updated)
             showInterestsSheet = false
-            Toast.makeText(context, "Interests saved ✨", Toast.LENGTH_SHORT).show()
           },
           modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53950))
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
-          Text("Save Interests", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+          Text("Save Interests (${currentSelections.size} selected)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1324,7 +1676,162 @@ fun ProfileEditScreen(
     }
   }
 
-  // 5. Manage Photos Sheet
+  // 6. Edit Prompts Sheet
+  if (showPromptsSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showPromptsSheet = false },
+      sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+      var editQuestion by remember { mutableStateOf(userProfile.promptQuestion.ifBlank { PromptQuestionList.first() }) }
+      var editAnswer by remember { mutableStateOf(userProfile.promptAnswer) }
+
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(20.dp)
+          .verticalScroll(rememberScrollState())
+      ) {
+        Text("Edit Profile Prompt", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(
+          "Choose a prompt question and share your unique personality.",
+          fontSize = 12.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text("Select Prompt Question", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          PromptQuestionList.forEach { q ->
+            val isSelected = editQuestion == q
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = if (isSelected) CoralPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+              border = if (isSelected) BorderStroke(1.5.dp, CoralPrimary) else null,
+              modifier = Modifier
+                .fillMaxWidth()
+                .clickable { editQuestion = q }
+            ) {
+              Text(
+                text = q,
+                fontSize = 13.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+              )
+            }
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        OutlinedTextField(
+          value = editAnswer,
+          onValueChange = { editAnswer = it },
+          label = { Text("Your Answer") },
+          minLines = 3,
+          maxLines = 6,
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+          onClick = {
+            val updated = userProfile.copy(
+              promptQuestion = editQuestion.trim(),
+              promptAnswer = editAnswer.trim()
+            )
+            onSaveProfile(updated)
+            showPromptsSheet = false
+          },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+        ) {
+          Text("Save Prompt", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+      }
+    }
+  }
+
+  // 7. Edit Contact Info Sheet (Phone, Email)
+  if (showContactInfoSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showContactInfoSheet = false },
+      sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+      var editEmail by remember { mutableStateOf(userProfile.email) }
+
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(20.dp)
+          .verticalScroll(rememberScrollState())
+      ) {
+        Text("Contact & Account Info", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Phone Info (read-only / verified)
+        OutlinedTextField(
+          value = "${userProfile.countryCode} ${userProfile.phoneNumber}",
+          onValueChange = {},
+          readOnly = true,
+          label = { Text("Registered Mobile Number") },
+          trailingIcon = {
+            if (userProfile.isPhoneVerified) {
+              Icon(Icons.Outlined.Verified, contentDescription = "Verified", tint = Color(0xFF4CAF50))
+            }
+          },
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(
+            disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledTextColor = MaterialTheme.colorScheme.onSurface
+          )
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Email Field (Editable)
+        OutlinedTextField(
+          value = editEmail,
+          onValueChange = { editEmail = it },
+          label = { Text("Email Address") },
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+          onClick = {
+            val updated = userProfile.copy(email = editEmail.trim())
+            onSaveProfile(updated)
+            showContactInfoSheet = false
+          },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+        ) {
+          Text("Save Contact Details", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+      }
+    }
+  }
+
+  // 8. Manage Photos Sheet
   if (showPhotoManagementSheet) {
     ModalBottomSheet(
       onDismissRequest = { showPhotoManagementSheet = false },
@@ -1338,79 +1845,89 @@ fun ProfileEditScreen(
       ) {
         Text("Manage Photos", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
-          "Your first photo is your main profile picture.",
+          "Your first photo is your main profile avatar.",
           fontSize = 12.sp,
-          color = Color(0xFF555555),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 2.dp)
         )
         Spacer(modifier = Modifier.height(14.dp))
 
-        userProfile.photos.forEachIndexed { index, photoUrl ->
-          Card(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(vertical = 4.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-            border = BorderStroke(1.dp, Color(0xFFEEEEEE))
-          ) {
-            Row(
+        val currentPhotos = userProfile.photos.filter { it.isNotBlank() }
+
+        if (currentPhotos.isEmpty()) {
+          Text(
+            text = "No photos added yet.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        } else {
+          currentPhotos.forEachIndexed { index, photoUrl ->
+            Card(
               modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-              verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = 4.dp),
+              shape = RoundedCornerShape(12.dp),
+              colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
             ) {
-              Box(
+              Row(
                 modifier = Modifier
-                  .size(60.dp)
-                  .clip(RoundedCornerShape(8.dp))
+                  .fillMaxWidth()
+                  .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
               ) {
-                AsyncImage(
-                  model = photoUrl,
-                  contentDescription = null,
-                  contentScale = ContentScale.Crop,
-                  modifier = Modifier.fillMaxSize()
-                )
-              }
-
-              Column(
-                modifier = Modifier
-                  .weight(1f)
-                  .padding(start = 12.dp)
-              ) {
-                Text(
-                  text = if (index == 0) "Primary Photo (Avatar)" else "Photo #${index + 1}",
-                  fontWeight = FontWeight.Bold,
-                  fontSize = 14.sp,
-                  color = if (index == 0) Color(0xFFE53950) else Color(0xFF222222)
-                )
-                if (index != 0) {
-                  Text(
-                    text = "Make Primary",
-                    fontSize = 12.sp,
-                    color = Color(0xFFE53950),
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                      .clickable {
-                        onSetPrimaryPhoto(index)
-                        Toast.makeText(context, "Primary photo updated", Toast.LENGTH_SHORT).show()
-                      }
-                      .padding(vertical = 2.dp)
+                Box(
+                  modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                ) {
+                  AsyncImage(
+                    model = photoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                   )
                 }
-              }
 
-              IconButton(
-                onClick = {
-                  onRemovePhoto(index)
-                  Toast.makeText(context, "Photo removed", Toast.LENGTH_SHORT).show()
+                Column(
+                  modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp)
+                ) {
+                  Text(
+                    text = if (index == 0) "Primary Photo (Avatar)" else "Photo #${index + 1}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = if (index == 0) CoralPrimary else MaterialTheme.colorScheme.onSurface
+                  )
+                  if (index != 0) {
+                    Text(
+                      text = "Make Primary",
+                      fontSize = 12.sp,
+                      color = CoralPrimary,
+                      fontWeight = FontWeight.Medium,
+                      modifier = Modifier
+                        .clickable {
+                          onSetPrimaryPhoto(index)
+                          Toast.makeText(context, "Primary photo updated", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(vertical = 2.dp)
+                    )
+                  }
                 }
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.Delete,
-                  contentDescription = "Delete",
-                  tint = Color(0xFFD32F2F)
-                )
+
+                IconButton(
+                  onClick = {
+                    onRemovePhoto(index)
+                    Toast.makeText(context, "Photo removed", Toast.LENGTH_SHORT).show()
+                  }
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.error
+                  )
+                }
               }
             }
           }
@@ -1419,14 +1936,12 @@ fun ProfileEditScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-          onClick = {
-            showPhotoChoiceDialog = true
-          },
+          onClick = { showPhotoChoiceDialog = true },
           modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53950))
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(modifier = Modifier.width(6.dp))
@@ -1438,15 +1953,15 @@ fun ProfileEditScreen(
     }
   }
 
-  // 6. Dating Preferences Sheet
+  // 9. Dating Preferences Sheet
   if (showPreferencesSheet) {
     ModalBottomSheet(
       onDismissRequest = { showPreferencesSheet = false },
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
-      var distanceKm by remember { mutableFloatStateOf(25f) }
-      var minAge by remember { mutableFloatStateOf(20f) }
-      var maxAge by remember { mutableFloatStateOf(32f) }
+      var distanceKm by remember { mutableFloatStateOf(50f) }
+      var minAge by remember { mutableFloatStateOf(18f) }
+      var maxAge by remember { mutableFloatStateOf(35f) }
       var interestedIn by remember { mutableStateOf("Everyone") }
 
       Column(
@@ -1455,7 +1970,7 @@ fun ProfileEditScreen(
           .padding(20.dp)
           .verticalScroll(rememberScrollState())
       ) {
-        Text("Dating Preferences", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("Discovery Preferences", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
@@ -1468,8 +1983,8 @@ fun ProfileEditScreen(
           onValueChange = { distanceKm = it },
           valueRange = 5f..150f,
           colors = SliderDefaults.colors(
-            thumbColor = Color(0xFFE53950),
-            activeTrackColor = Color(0xFFE53950)
+            thumbColor = CoralPrimary,
+            activeTrackColor = CoralPrimary
           )
         )
 
@@ -1483,10 +1998,10 @@ fun ProfileEditScreen(
         Slider(
           value = maxAge,
           onValueChange = { maxAge = it },
-          valueRange = 21f..60f,
+          valueRange = 20f..65f,
           colors = SliderDefaults.colors(
-            thumbColor = Color(0xFFE53950),
-            activeTrackColor = Color(0xFFE53950)
+            thumbColor = CoralPrimary,
+            activeTrackColor = CoralPrimary
           )
         )
 
@@ -1503,7 +2018,7 @@ fun ProfileEditScreen(
             val selected = interestedIn == genderOption
             Surface(
               shape = RoundedCornerShape(16.dp),
-              color = if (selected) Color(0xFFE53950) else Color(0xFFF0F0F0),
+              color = if (selected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
               modifier = Modifier
                 .weight(1f)
                 .clickable { interestedIn = genderOption }
@@ -1512,7 +2027,7 @@ fun ProfileEditScreen(
                 text = genderOption,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = if (selected) Color.White else Color(0xFF333333),
+                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(vertical = 10.dp)
               )
@@ -1531,7 +2046,7 @@ fun ProfileEditScreen(
             .fillMaxWidth()
             .height(48.dp),
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53950))
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
         ) {
           Text("Save Preferences", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
@@ -1541,7 +2056,7 @@ fun ProfileEditScreen(
     }
   }
 
-  // 7. Settings Modal Sheet
+  // 10. Settings Modal Sheet (WITHOUT "Update Complete Profile")
   if (showSettingsSheet) {
     ModalBottomSheet(
       onDismissRequest = { showSettingsSheet = false },
@@ -1568,13 +2083,13 @@ fun ProfileEditScreen(
             Icon(
               imageVector = if (themeMode == AppThemeMode.DARK) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
               contentDescription = null,
-              tint = Color(0xFFE53950),
+              tint = CoralPrimary,
               modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
               Text("Dark Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-              Text("Toggle dark appearance", fontSize = 11.5.sp, color = Color(0xFF555555))
+              Text("Toggle dark appearance", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
           }
           Switch(
@@ -1582,11 +2097,11 @@ fun ProfileEditScreen(
             onCheckedChange = { isDark ->
               onThemeModeChange(if (isDark) AppThemeMode.DARK else AppThemeMode.LIGHT)
             },
-            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFE53950))
+            colors = SwitchDefaults.colors(checkedThumbColor = CoralPrimary)
           )
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFEEEEEE))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
         // Disable / Pause Account
         Row(
@@ -1601,47 +2116,25 @@ fun ProfileEditScreen(
           Icon(
             imageVector = Icons.Outlined.PauseCircle,
             contentDescription = null,
-            tint = Color(0xFFE53950),
+            tint = CoralPrimary,
             modifier = Modifier.size(24.dp)
           )
           Spacer(modifier = Modifier.width(12.dp))
           Column(modifier = Modifier.weight(1f)) {
-            Text("Pause Profile", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Text(
-              "Temporarily hide your profile from Discover",
+              text = if (userProfile.isAccountDisabled) "Unpause Profile" else "Pause Profile",
+              fontWeight = FontWeight.Bold,
+              fontSize = 14.sp
+            )
+            Text(
+              text = if (userProfile.isAccountDisabled) "Make your profile discoverable again" else "Temporarily hide your profile from Discover",
               fontSize = 11.5.sp,
-              color = Color(0xFF555555)
+              color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFEEEEEE))
-
-        // Reset / Re-run Onboarding
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-              showSettingsSheet = false
-              onRestartOnboarding()
-            }
-            .padding(vertical = 10.dp),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Icon(
-            imageVector = Icons.Outlined.AccountCircle,
-            contentDescription = null,
-            tint = Color(0xFF222222),
-            modifier = Modifier.size(24.dp)
-          )
-          Spacer(modifier = Modifier.width(12.dp))
-          Column(modifier = Modifier.weight(1f)) {
-            Text("Update Complete Profile", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text("Re-enter full 6-step registration details", fontSize = 11.5.sp, color = Color(0xFF555555))
-          }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFEEEEEE))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
         // Logout
         Row(
@@ -1657,11 +2150,11 @@ fun ProfileEditScreen(
           Icon(
             imageVector = Icons.Outlined.Logout,
             contentDescription = null,
-            tint = Color(0xFFD32F2F),
+            tint = MaterialTheme.colorScheme.error,
             modifier = Modifier.size(24.dp)
           )
           Spacer(modifier = Modifier.width(12.dp))
-          Text("Log Out", fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F), fontSize = 14.sp)
+          Text("Log Out", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1669,13 +2162,13 @@ fun ProfileEditScreen(
     }
   }
 
-  // 8. Notifications Dialog
+  // 11. Notifications Dialog
   if (showNotificationsDialog) {
     AlertDialog(
       onDismissRequest = { showNotificationsDialog = false },
       title = {
         Row(verticalAlignment = Alignment.CenterVertically) {
-          Icon(Icons.Outlined.Notifications, contentDescription = null, tint = Color(0xFFE53950))
+          Icon(Icons.Outlined.Notifications, contentDescription = null, tint = CoralPrimary)
           Spacer(modifier = Modifier.width(8.dp))
           Text("Notifications", fontWeight = FontWeight.Bold)
         }
@@ -1685,16 +2178,118 @@ fun ProfileEditScreen(
           Text(
             text = "No new notifications right now. Real-time updates and matches will appear here.",
             fontSize = 14.sp,
-            color = Color(0xFF666666)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
           )
         }
       },
       confirmButton = {
         TextButton(onClick = { showNotificationsDialog = false }) {
-          Text("Close", color = Color(0xFFE53950), fontWeight = FontWeight.Bold)
+          Text("Close", color = CoralPrimary, fontWeight = FontWeight.Bold)
         }
       }
     )
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reusable Component Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun CategoryCard(
+  title: String,
+  actionText: String? = null,
+  actionIcon: ImageVector? = null,
+  onAction: () -> Unit,
+  content: @Composable () -> Unit
+) {
+  Card(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 20.dp, vertical = 5.dp),
+    shape = RoundedCornerShape(18.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(16.dp)
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = title,
+          fontSize = 16.sp,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.onSurface
+        )
+
+        if (actionText != null) {
+          Text(
+            text = actionText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = CoralPrimary,
+            modifier = Modifier
+              .clickable(onClick = onAction)
+              .padding(4.dp)
+          )
+        } else if (actionIcon != null) {
+          Icon(
+            imageVector = actionIcon,
+            contentDescription = "Edit $title",
+            tint = CoralPrimary,
+            modifier = Modifier
+              .size(18.dp)
+              .clickable(onClick = onAction)
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(10.dp))
+
+      content()
+    }
+  }
+}
+
+@Composable
+private fun ProfileAttributeItem(
+  icon: ImageVector,
+  label: String,
+  value: String
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 5.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Icon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = CoralPrimary,
+      modifier = Modifier.size(18.dp)
+    )
+    Spacer(modifier = Modifier.width(12.dp))
+    Column {
+      Text(
+        text = label,
+        fontSize = 11.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+      Text(
+        text = value,
+        fontSize = 13.5.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+        fontWeight = FontWeight.Medium
+      )
+    }
   }
 }
 
@@ -1720,14 +2315,14 @@ private fun StatCounterItem(
       Text(
         text = label,
         fontSize = 11.sp,
-        color = Color(0xFF757575),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.Normal
       )
       Text(
         text = value,
         fontSize = 15.sp,
         fontWeight = FontWeight.Bold,
-        color = Color(0xFF1E1E1E),
+        color = MaterialTheme.colorScheme.onSurface,
         lineHeight = 16.sp
       )
     }
@@ -1740,50 +2335,6 @@ private fun StatDivider() {
     modifier = Modifier
       .width(1.dp)
       .height(26.dp)
-      .background(Color(0xFFE8E8E8))
+      .background(MaterialTheme.colorScheme.surfaceVariant)
   )
-}
-
-@Composable
-private fun AboutMeItem(
-  icon: ImageVector,
-  text: String
-) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(vertical = 5.dp),
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Icon(
-      imageVector = icon,
-      contentDescription = null,
-      tint = Color(0xFF555555),
-      modifier = Modifier.size(18.dp)
-    )
-    Spacer(modifier = Modifier.width(12.dp))
-    Text(
-      text = text,
-      fontSize = 13.5.sp,
-      color = Color(0xFF2E2E2E),
-      fontWeight = FontWeight.Normal
-    )
-  }
-}
-
-@Composable
-private fun NotificationRowItem(
-  title: String,
-  time: String
-) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(vertical = 6.dp),
-    horizontalArrangement = Arrangement.SpaceBetween,
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF222222))
-    Text(text = time, fontSize = 11.sp, color = Color(0xFF888888))
-  }
 }
