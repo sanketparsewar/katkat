@@ -658,35 +658,6 @@ fun ProfileEditScreen(
                 )
               }
             }
-
-            // Profile completion status indicator
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              modifier = Modifier.padding(top = 4.dp)
-            ) {
-              Icon(
-                imageVector = if (completionPercent == 100) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
-                contentDescription = null,
-                tint = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary,
-                modifier = Modifier.size(13.dp)
-              )
-              Spacer(modifier = Modifier.width(4.dp))
-              Text(
-                text = if (completionPercent == 100) "Profile Completed" else "$completionPercent% Completed",
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary
-              )
-            }
-
-            if (remainingFields.isNotEmpty()) {
-              Text(
-                text = "Missing: ${remainingFields.take(2).joinToString(", ")}${if (remainingFields.size > 2) " +${remainingFields.size - 2} more" else ""}",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                modifier = Modifier.padding(top = 1.dp)
-              )
-            }
           }
         }
 
