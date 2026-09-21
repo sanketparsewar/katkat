@@ -187,14 +187,32 @@ enum class OnboardingFlowStep {
 }
 
 val AllZodiacSigns = listOf(
-  "Aries ♈", "Taurus ♉", "Gemini ♊", "Cancer ♋",
-  "Leo ♌", "Virgo ♍", "Libra ♎", "Scorpio ♏",
-  "Sagittarius ♐", "Capricorn ♑", "Aquarius ♒", "Pisces ♓"
+  "♈ Aries", "♉ Taurus", "♊ Gemini",
+  "♋ Cancer", "♌ Leo",
+  "♍ Virgo", "♎ Libra", "♏ Scorpio",
+  "♐ Sagittarius", "♑ Capricorn",
+  "♒ Aquarius", "♓ Pisces"
 )
 
 val DomesticPetsList = listOf(
-  "Dog lover", "Cat lover", "Has multiple pets", "Bird/Aquarium", "No pets (but love them)", "No pets"
+  "🐶 Dog lover", "🐱 Cat lover",
+  "🐾 Multiple pets", "🦜 Bird/Aquarium", "🐰 Pet friendly",
+  "🚫 No pets"
 )
+
+fun <T> chunkByPattern(items: List<T>, pattern: List<Int>): List<List<T>> {
+  val result = mutableListOf<List<T>>()
+  var currentIndex = 0
+  var patternIndex = 0
+  while (currentIndex < items.size) {
+    val count = pattern[patternIndex % pattern.size]
+    val nextIndex = (currentIndex + count).coerceAtMost(items.size)
+    result.add(items.subList(currentIndex, nextIndex))
+    currentIndex = nextIndex
+    patternIndex++
+  }
+  return result
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -989,8 +1007,12 @@ fun OnboardingProfileSetupScreen(
               onIntentionChange = { datingIntention = it },
               selectedPassions = selectedPassions,
               onTogglePassion = { pass ->
-                selectedPassions = if (selectedPassions.contains(pass)) {
-                  selectedPassions - pass
+                val cleanPass = pass.filter { it.isLetter() }.lowercase()
+                val existing = selectedPassions.find { sel ->
+                  sel == pass || (cleanPass.isNotEmpty() && sel.filter { it.isLetter() }.equals(cleanPass, ignoreCase = true))
+                }
+                selectedPassions = if (existing != null) {
+                  selectedPassions - existing
                 } else {
                   if (selectedPassions.size < 8) selectedPassions + pass else selectedPassions
                 }
@@ -1015,8 +1037,12 @@ fun OnboardingProfileSetupScreen(
               onZodiacChange = { zodiac = it },
               selectedPets = selectedPets,
               onTogglePet = { pet ->
-                selectedPets = if (selectedPets.contains(pet)) {
-                  selectedPets - pet
+                val cleanPet = pet.filter { it.isLetter() }.lowercase()
+                val existing = selectedPets.find { sel ->
+                  sel == pet || (cleanPet.isNotEmpty() && sel.filter { it.isLetter() }.equals(cleanPet, ignoreCase = true))
+                }
+                selectedPets = if (existing != null) {
+                  selectedPets - existing
                 } else {
                   selectedPets + pet
                 }
@@ -2522,19 +2548,24 @@ private fun IntentionsPassionsStep(
   onNext: () -> Unit
 ) {
   val datingIntentionsList = listOf(
-    "Long term",
-    "Casual dating",
-    "Marriage",
-    "New friends",
-    "Short term",
-    "Figuring it out"
+    "💘 Long term",
+    "🥂 Casual dating",
+    "💍 Marriage",
+    "👯 New friends",
+    "✨ Short term",
+    "🧭 Figuring it out"
   )
 
   val allInterests = listOf(
-    "Travel", "Foodie", "Music", "Fitness & Gym", "Reading & Books",
-    "Photography", "Nature & Hiking", "Dogs & Pets", "Coffee", "Art & Design",
-    "Gaming", "Yoga & Meditation", "Cooking", "Movies & Cinema",
-    "Startups & Tech", "Dancing", "Swimming"
+    "✈️ Travel", "🍕 Foodie", "🎵 Music",
+    "💪 Fitness & Gym", "📚 Reading",
+    "☕ Coffee lover", "🎨 Art & Design", "🎮 Gaming",
+    "🌲 Nature & Hiking", "📸 Photography",
+    "🍳 Cooking", "💃 Dancing", "🏊 Swimming",
+    "🧘 Yoga & Zen", "🎬 Movies",
+    "🐶 Dogs & Pets", "🍷 Wine Tasting", "🚴 Cycling",
+    "💡 Tech & Startups", "🎤 Karaoke",
+    "⛺ Camping", "🎭 Theater", "🛹 Skateboarding"
   )
 
   Column(
@@ -2564,23 +2595,43 @@ private fun IntentionsPassionsStep(
       )
       Spacer(modifier = Modifier.height(8.dp))
 
-      FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        datingIntentionsList.forEach { item ->
-          val isSelected = intention.equals(item, ignoreCase = true)
-          FilterChip(
-            selected = isSelected,
-            onClick = { onIntentionChange(if (isSelected) "" else item) },
-            label = { Text(item) },
-            shape = RoundedCornerShape(20.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = CoralPrimary,
-              selectedLabelColor = Color.White
-            )
-          )
+      val intentionRows = remember {
+        chunkByPattern(datingIntentionsList, listOf(2, 3, 1))
+      }
+
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        intentionRows.forEach { rowItems ->
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            rowItems.forEach { item ->
+              val cleanItem = item.filter { it.isLetter() }.lowercase()
+              val isSelected = intention.isNotBlank() && (
+                intention.equals(item, ignoreCase = true) ||
+                intention.filter { it.isLetter() }.equals(cleanItem, ignoreCase = true)
+              )
+              Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = if (isSelected) BorderStroke(1.2.dp, CoralPrimary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+                modifier = Modifier.clickable {
+                  onIntentionChange(if (isSelected) "" else item)
+                }
+              ) {
+                Text(
+                  text = item,
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  ),
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
+            }
+          }
         }
       }
 
@@ -2594,22 +2645,42 @@ private fun IntentionsPassionsStep(
       )
       Spacer(modifier = Modifier.height(8.dp))
 
-      FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-      ) {
-        allInterests.forEach { interest ->
-          val isSelected = selectedPassions.contains(interest)
-          FilterChip(
-            selected = isSelected,
-            onClick = { onTogglePassion(interest) },
-            label = { Text(interest) },
-            shape = RoundedCornerShape(20.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = CoralPrimary,
-              selectedLabelColor = Color.White
-            )
-          )
+      val interestRows = remember {
+        chunkByPattern(allInterests, listOf(3, 2, 3, 2, 3, 2, 3, 2, 3))
+      }
+
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        interestRows.forEach { rowItems ->
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            rowItems.forEach { interest ->
+              val cleanInterest = interest.filter { it.isLetter() }.lowercase()
+              val isSelected = selectedPassions.any { sel ->
+                sel == interest || (cleanInterest.isNotEmpty() && sel.filter { it.isLetter() }.equals(cleanInterest, ignoreCase = true))
+              }
+              Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = if (isSelected) BorderStroke(1.2.dp, CoralPrimary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+                modifier = Modifier.clickable {
+                  onTogglePassion(interest)
+                }
+              ) {
+                Text(
+                  text = interest,
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  ),
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
+            }
+          }
         }
       }
     }
@@ -2811,7 +2882,7 @@ private fun LifestylePromptsStep(
 
       LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
       ) {
         val standardHeights = listOf(
           "4'8\" (142 cm)", "4'9\" (145 cm)", "4'10\" (147 cm)", "4'11\" (150 cm)",
@@ -2824,22 +2895,28 @@ private fun LifestylePromptsStep(
         )
         items(standardHeights) { item ->
           val isSelected = height == item
-          FilterChip(
-            selected = isSelected,
-            onClick = { onHeightChange(if (isSelected) "" else item) },
-            label = { Text(item) },
+          Surface(
             shape = RoundedCornerShape(18.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = CoralPrimary,
-              selectedLabelColor = Color.White
+            color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            border = if (isSelected) BorderStroke(1.2.dp, CoralPrimary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+            modifier = Modifier.clickable { onHeightChange(if (isSelected) "" else item) }
+          ) {
+            Text(
+              text = item,
+              style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 12.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+              ),
+              color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
             )
-          )
+          }
         }
       }
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Zodiac Sign: Pills to select one
+      // Zodiac Sign: Pills with emojis and row count randomness
       Text(
         text = "Zodiac Sign",
         style = MaterialTheme.typography.bodyMedium,
@@ -2847,28 +2924,49 @@ private fun LifestylePromptsStep(
         color = MaterialTheme.colorScheme.onBackground
       )
       Spacer(modifier = Modifier.height(6.dp))
-      FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-      ) {
-        AllZodiacSigns.forEach { sign ->
-          val isSelected = zodiac == sign
-          FilterChip(
-            selected = isSelected,
-            onClick = { onZodiacChange(if (isSelected) "" else sign) },
-            label = { Text(sign) },
-            shape = RoundedCornerShape(20.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = CoralPrimary,
-              selectedLabelColor = Color.White
-            )
-          )
+
+      val zodiacRows = remember {
+        chunkByPattern(AllZodiacSigns, listOf(3, 2, 3, 2, 2))
+      }
+
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        zodiacRows.forEach { rowItems ->
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            rowItems.forEach { sign ->
+              val cleanSign = sign.filter { it.isLetter() }.lowercase()
+              val isSelected = zodiac.isNotBlank() && (
+                zodiac == sign || zodiac.filter { it.isLetter() }.equals(cleanSign, ignoreCase = true)
+              )
+              Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = if (isSelected) BorderStroke(1.2.dp, CoralPrimary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+                modifier = Modifier.clickable {
+                  onZodiacChange(if (isSelected) "" else sign)
+                }
+              ) {
+                Text(
+                  text = sign,
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  ),
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
+            }
+          }
         }
       }
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Domestic Pets: Multi-select pills
+      // Domestic Pets: Multi-select pills with emojis and row count randomness
       Text(
         text = "Pets (Select all that apply)",
         style = MaterialTheme.typography.bodyMedium,
@@ -2876,22 +2974,153 @@ private fun LifestylePromptsStep(
         color = MaterialTheme.colorScheme.onBackground
       )
       Spacer(modifier = Modifier.height(6.dp))
-      FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-      ) {
-        DomesticPetsList.forEach { pet ->
-          val isSelected = selectedPets.contains(pet)
-          FilterChip(
-            selected = isSelected,
-            onClick = { onTogglePet(pet) },
-            label = { Text(pet) },
-            shape = RoundedCornerShape(20.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = PeachSecondary,
-              selectedLabelColor = Color.White
-            )
-          )
+
+      val petsRows = remember {
+        chunkByPattern(DomesticPetsList, listOf(2, 3, 1))
+      }
+
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        petsRows.forEach { rowItems ->
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            rowItems.forEach { pet ->
+              val cleanPet = pet.filter { it.isLetter() }.lowercase()
+              val isSelected = selectedPets.any { sel ->
+                sel == pet || (cleanPet.isNotEmpty() && sel.filter { it.isLetter() }.equals(cleanPet, ignoreCase = true))
+              }
+              Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) PeachSecondary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = if (isSelected) BorderStroke(1.2.dp, PeachSecondary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+                modifier = Modifier.clickable {
+                  onTogglePet(pet)
+                }
+              ) {
+                Text(
+                  text = pet,
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  ),
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
+            }
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      // Drinking Habit
+      Text(
+        text = "Drinking Habit",
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+      )
+      Spacer(modifier = Modifier.height(6.dp))
+
+      val drinkingOptions = listOf(
+        "🍷 Socially", "🚫 Non-drinker",
+        "🍻 Frequently", "🌱 Sober & clean", "🤫 Prefer not to say"
+      )
+      val drinkingRows = remember {
+        chunkByPattern(drinkingOptions, listOf(2, 3))
+      }
+
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        drinkingRows.forEach { rowItems ->
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            rowItems.forEach { drink ->
+              val cleanDrink = drink.filter { it.isLetter() }.lowercase()
+              val isSelected = drinking.isNotBlank() && (
+                drinking.equals(drink, ignoreCase = true) ||
+                drinking.filter { it.isLetter() }.equals(cleanDrink, ignoreCase = true)
+              )
+              Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = if (isSelected) BorderStroke(1.2.dp, CoralPrimary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+                modifier = Modifier.clickable {
+                  onDrinkingChange(if (isSelected) "" else drink)
+                }
+              ) {
+                Text(
+                  text = drink,
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  ),
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
+            }
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      // Smoking Habit
+      Text(
+        text = "Smoking Habit",
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+      )
+      Spacer(modifier = Modifier.height(6.dp))
+
+      val smokingOptions = listOf(
+        "🚭 Non-smoker", "💨 Occasionally", "🚬 Regular",
+        "🌿 Trying to quit", "🤫 Prefer not to say"
+      )
+      val smokingRows = remember {
+        chunkByPattern(smokingOptions, listOf(3, 2))
+      }
+
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        smokingRows.forEach { rowItems ->
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            rowItems.forEach { smoke ->
+              val cleanSmoke = smoke.filter { it.isLetter() }.lowercase()
+              val isSelected = smoking.isNotBlank() && (
+                smoking.equals(smoke, ignoreCase = true) ||
+                smoking.filter { it.isLetter() }.equals(cleanSmoke, ignoreCase = true)
+              )
+              Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = if (isSelected) BorderStroke(1.2.dp, CoralPrimary) else BorderStroke(0.6.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+                modifier = Modifier.clickable {
+                  onSmokingChange(if (isSelected) "" else smoke)
+                }
+              ) {
+                Text(
+                  text = smoke,
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  ),
+                  color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+              }
+            }
+          }
         }
       }
     }
@@ -3051,28 +3280,6 @@ private fun ReviewAndLaunchStep(
           }
 
           Column(modifier = Modifier.padding(18.dp)) {
-            if (profile.phoneNumber.isNotBlank()) {
-              Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = LikeGreen.copy(alpha = 0.15f),
-                modifier = Modifier.padding(bottom = 12.dp)
-              ) {
-                Row(
-                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                  verticalAlignment = Alignment.CenterVertically
-                ) {
-                  Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = LikeGreen, modifier = Modifier.size(14.dp))
-                  Spacer(modifier = Modifier.width(6.dp))
-                  Text(
-                    text = "Verified Mobile: ${profile.countryCode} ${profile.phoneNumber}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = LikeGreen,
-                    fontWeight = FontWeight.Bold
-                  )
-                }
-              }
-            }
-
             if (profile.occupation.isNotBlank()) {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Work, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(16.dp))
