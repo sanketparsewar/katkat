@@ -193,8 +193,7 @@ val AllZodiacSigns = listOf(
 )
 
 val DomesticPetsList = listOf(
-  "Dog 🐶", "Cat 🐱", "Bird 🦜", "Fish 🐠",
-  "Hamster 🐹", "Rabbit 🐰", "Turtle 🐢", "Guinea Pig 🐹", "No Pets 🚫"
+  "Dog lover", "Cat lover", "Has multiple pets", "Bird/Aquarium", "No pets (but love them)", "No pets"
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -343,7 +342,6 @@ fun OnboardingProfileSetupScreen(
   val processAndAddPhotoUri: (Uri) -> Unit = { uri ->
     coroutineScope.launch {
       isUploadingPhoto = true
-      Toast.makeText(context, "Processing photo...", Toast.LENGTH_SHORT).show()
       try {
         val userId = viewModel?.getEffectiveUserId() ?: run {
           val currentAuthUid = viewModel?.phoneAuthManager?.currentUserId
@@ -367,11 +365,7 @@ fun OnboardingProfileSetupScreen(
           } else {
             photos = photos.toMutableList().apply { set(5, uploadedUrl) }
           }
-          if (uploadedUrl.startsWith("http")) {
-            Toast.makeText(context, "✓ Photo uploaded to Firebase Cloud Storage ✨", Toast.LENGTH_SHORT).show()
-          } else {
-            Toast.makeText(context, "✓ Photo added! (Update Storage rules in console to enable cloud sync)", Toast.LENGTH_LONG).show()
-          }
+          Toast.makeText(context, "Photo uploaded", Toast.LENGTH_SHORT).show()
         } else {
           val err = viewModel?.firebaseStorageManager?.lastErrorMessage ?: "Could not process photo. Please try another image."
           Toast.makeText(context, err, Toast.LENGTH_LONG).show()
@@ -1163,55 +1157,7 @@ fun OnboardingProfileSetupScreen(
               }
             }
 
-            // Option 2: File / Storage
-            Surface(
-              onClick = {
-                showPhotoSourceDialog = false
-                filePickerLauncher.launch("image/*")
-              },
-              shape = RoundedCornerShape(14.dp),
-              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-              border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("photo_source_file")
-            ) {
-              Row(
-                modifier = Modifier.padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Surface(
-                  shape = CircleShape,
-                  color = CoralPrimary.copy(alpha = 0.15f),
-                  modifier = Modifier.size(42.dp)
-                ) {
-                  Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                      Icons.Default.FolderOpen,
-                      contentDescription = "Files",
-                      tint = CoralPrimary,
-                      modifier = Modifier.size(22.dp)
-                    )
-                  }
-                }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column {
-                  Text(
-                    "File / Storage",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                  )
-                  Text(
-                    "Browse files from internal storage or downloads",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                  )
-                }
-              }
-            }
-
-            // Option 3: Photo Gallery
+            // Option 2: Photo Gallery
             Surface(
               onClick = {
                 showPhotoSourceDialog = false
@@ -1247,7 +1193,7 @@ fun OnboardingProfileSetupScreen(
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
                   Text(
-                    "Photo Gallery",
+                    "Gallery",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
@@ -1950,7 +1896,7 @@ private fun PersonalInfoStep(
   onPronounsChange: (String) -> Unit,
   onNext: () -> Unit
 ) {
-  val genders = listOf("Woman", "Man", "Non-binary", "Genderfluid", "Agender")
+  val genders = listOf("Woman", "Man", "Non-binary", "Other")
   val pronounsList = listOf("She/Her", "He/Him", "They/Them", "She/They", "He/They", "Any pronouns")
 
   Column(
@@ -2326,7 +2272,7 @@ private fun PhotosStep(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-              text = "Uploading image to Firebase...",
+              text = "Uploading image...",
               style = MaterialTheme.typography.bodyMedium,
               color = CoralPrimary,
               fontWeight = FontWeight.SemiBold
@@ -2541,14 +2487,20 @@ private fun CareerEducationStep(
 
     Spacer(modifier = Modifier.height(40.dp))
 
-    // Next Button (Simple "Next")
+    val isStep3Valid = occupation.trim().isNotBlank() && education.trim().isNotBlank()
+
+    // Next Button (Enabled only when work and education are filled)
     Button(
       onClick = onNext,
+      enabled = isStep3Valid,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp),
       shape = RoundedCornerShape(16.dp),
-      colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+      colors = ButtonDefaults.buttonColors(
+        containerColor = CoralPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+      )
     ) {
       Text("Next", fontSize = 17.sp, fontWeight = FontWeight.Bold)
       Spacer(modifier = Modifier.width(8.dp))
@@ -2569,18 +2521,20 @@ private fun IntentionsPassionsStep(
   onTogglePassion: (String) -> Unit,
   onNext: () -> Unit
 ) {
-  val intentionsList = listOf(
-    "Long-term relationship 💖",
-    "Long-term, open to short 💫",
-    "Short-term relationship 🌴",
-    "New friends & connections ☕",
-    "Still figuring it out 🌈"
+  val datingIntentionsList = listOf(
+    "Long term",
+    "Casual dating",
+    "Marriage",
+    "New friends",
+    "Short term",
+    "Figuring it out"
   )
 
-  val allPassions = listOf(
-    "Photography", "Coffee", "Vinyl Records", "Art Galleries", "Cooking", "Cats", "Dogs",
-    "Hiking", "Indie Pop", "Travel", "Yoga", "Film Photography", "Baking", "Live Music",
-    "Museums", "Board Games", "Reading", "Running", "Gardening", "Astrology", "Festivals"
+  val allInterests = listOf(
+    "Travel", "Foodie", "Music", "Fitness & Gym", "Reading & Books",
+    "Photography", "Nature & Hiking", "Dogs & Pets", "Coffee", "Art & Design",
+    "Gaming", "Yoga & Meditation", "Cooking", "Movies & Cinema",
+    "Startups & Tech", "Dancing", "Swimming"
   )
 
   Column(
@@ -2592,7 +2546,7 @@ private fun IntentionsPassionsStep(
   ) {
     Column {
       Text(
-        text = "Dating Goals & Passions",
+        text = "Dating Goals & Interests",
         style = MaterialTheme.typography.headlineSmall.copy(
           fontWeight = FontWeight.Bold,
           fontSize = 24.sp
@@ -2603,62 +2557,53 @@ private fun IntentionsPassionsStep(
       Spacer(modifier = Modifier.height(16.dp))
 
       Text(
-        text = "What are you looking for?",
+        text = "Dating Intention",
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
       )
       Spacer(modifier = Modifier.height(8.dp))
 
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        intentionsList.forEach { item ->
-          val isSelected = intention == item
-          Surface(
-            onClick = { onIntentionChange(item) },
-            shape = RoundedCornerShape(14.dp),
-            color = if (isSelected) CoralPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-            border = BorderStroke(1.5.dp, if (isSelected) CoralPrimary else Color.Transparent),
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Row(
-              modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-              Text(
-                text = item,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface
-              )
-              if (isSelected) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(18.dp))
-              }
-            }
-          }
+      FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        datingIntentionsList.forEach { item ->
+          val isSelected = intention.equals(item, ignoreCase = true)
+          FilterChip(
+            selected = isSelected,
+            onClick = { onIntentionChange(if (isSelected) "" else item) },
+            label = { Text(item) },
+            shape = RoundedCornerShape(20.dp),
+            colors = FilterChipDefaults.filterChipColors(
+              selectedContainerColor = CoralPrimary,
+              selectedLabelColor = Color.White
+            )
+          )
         }
       }
 
       Spacer(modifier = Modifier.height(24.dp))
 
       Text(
-        text = "Select up to 8 Passions (${selectedPassions.size}/8)",
+        text = "Interests (${selectedPassions.size}/8)",
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
       )
       Spacer(modifier = Modifier.height(8.dp))
 
       FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
       ) {
-        allPassions.forEach { pass ->
-          val isSelected = selectedPassions.contains(pass)
+        allInterests.forEach { interest ->
+          val isSelected = selectedPassions.contains(interest)
           FilterChip(
             selected = isSelected,
-            onClick = { onTogglePassion(pass) },
-            label = { Text(pass) },
+            onClick = { onTogglePassion(interest) },
+            label = { Text(interest) },
             shape = RoundedCornerShape(20.dp),
             colors = FilterChipDefaults.filterChipColors(
               selectedContainerColor = CoralPrimary,
@@ -2671,14 +2616,20 @@ private fun IntentionsPassionsStep(
 
     Spacer(modifier = Modifier.height(32.dp))
 
-    // Next Button (Simple "Next")
+    val isStep4Valid = intention.isNotBlank() && selectedPassions.isNotEmpty()
+
+    // Next Button (Enabled only when required fields are filled)
     Button(
       onClick = onNext,
+      enabled = isStep4Valid,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp),
       shape = RoundedCornerShape(16.dp),
-      colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+      colors = ButtonDefaults.buttonColors(
+        containerColor = CoralPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+      )
     ) {
       Text("Next", fontSize = 17.sp, fontWeight = FontWeight.Bold)
       Spacer(modifier = Modifier.width(8.dp))
@@ -2740,6 +2691,14 @@ private fun LifestylePromptsStep(
 
       Spacer(modifier = Modifier.height(20.dp))
 
+      Text(
+        text = "Dating Prompt",
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+      )
+      Spacer(modifier = Modifier.height(8.dp))
+
       // Dating Prompt Dropdown
       ExposedDropdownMenuBox(
         expanded = isPromptExpanded,
@@ -2795,6 +2754,14 @@ private fun LifestylePromptsStep(
       Spacer(modifier = Modifier.height(18.dp))
 
       // About Me Bio
+      Text(
+        text = "About Me Bio",
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+      )
+      Spacer(modifier = Modifier.height(8.dp))
+
       OutlinedTextField(
         value = bio,
         onValueChange = onBioChange,
@@ -2814,10 +2781,10 @@ private fun LifestylePromptsStep(
       Text(
         text = "Height",
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
       )
-      Spacer(modifier = Modifier.height(4.dp))
+      Spacer(modifier = Modifier.height(6.dp))
 
       if (height.isNotBlank()) {
         Surface(
@@ -2844,7 +2811,7 @@ private fun LifestylePromptsStep(
 
       LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
       ) {
         val standardHeights = listOf(
           "4'8\" (142 cm)", "4'9\" (145 cm)", "4'10\" (147 cm)", "4'11\" (150 cm)",
@@ -2876,13 +2843,13 @@ private fun LifestylePromptsStep(
       Text(
         text = "Zodiac Sign",
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
       )
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(6.dp))
       FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
       ) {
         AllZodiacSigns.forEach { sign ->
           val isSelected = zodiac == sign
@@ -2905,13 +2872,13 @@ private fun LifestylePromptsStep(
       Text(
         text = "Pets (Select all that apply)",
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
       )
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(6.dp))
       FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
       ) {
         DomesticPetsList.forEach { pet ->
           val isSelected = selectedPets.contains(pet)
@@ -2931,14 +2898,20 @@ private fun LifestylePromptsStep(
 
     Spacer(modifier = Modifier.height(32.dp))
 
-    // Next Button (Simple "Next")
+    val isStep5Valid = promptAnswer.trim().isNotBlank() && height.isNotBlank() && zodiac.isNotBlank() && selectedPets.isNotEmpty()
+
+    // Next Button (Enabled only when required fields are filled)
     Button(
       onClick = onNext,
+      enabled = isStep5Valid,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp),
       shape = RoundedCornerShape(16.dp),
-      colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+      colors = ButtonDefaults.buttonColors(
+        containerColor = CoralPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+      )
     ) {
       Text("Next", fontSize = 17.sp, fontWeight = FontWeight.Bold)
       Spacer(modifier = Modifier.width(8.dp))
