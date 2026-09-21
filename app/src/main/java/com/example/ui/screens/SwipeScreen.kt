@@ -36,6 +36,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,6 +80,8 @@ fun SwipeScreen(
 ) {
   val refreshState = rememberPullToRefreshState()
   var programmaticSwipe by remember { mutableStateOf<CardSwipeDirection?>(null) }
+  var topCardDragProgress by remember { mutableFloatStateOf(0f) }
+  var topCardDragDirection by remember { mutableStateOf<CardSwipeDirection?>(null) }
 
   PullToRefreshBox(
     isRefreshing = isRefreshing,
@@ -112,30 +116,48 @@ fun SwipeScreen(
         ) {
           // Render up to 2 cards for optimal performance & stack depth
           val visibleCards = profiles.take(2).reversed()
-          visibleCards.forEachIndexed { index, profile ->
+          visibleCards.forEachIndexed { _, profile ->
             val isTop = profile == profiles.first()
-            val scale = if (isTop) 1f else 0.94f
-            val yOffset = if (isTop) 0.dp else 12.dp
+            // Dynamically scale and lift background card as top card moves
+            val bgScale = if (isTop) 1f else 0.94f + (0.06f * topCardDragProgress)
+            val bgYOffset = if (isTop) 0.dp else 12.dp * (1f - topCardDragProgress)
+            val bgAlpha = if (isTop) 1f else 0.85f + (0.15f * topCardDragProgress)
 
             Box(
               modifier = Modifier
                 .fillMaxSize()
-                .scale(scale)
-                .padding(top = yOffset)
+                .graphicsLayer {
+                  scaleX = bgScale
+                  scaleY = bgScale
+                  translationY = bgYOffset.toPx()
+                  alpha = bgAlpha
+                }
             ) {
               SwipeCard(
                 profile = profile,
                 onSwipedLeft = {
+                  topCardDragProgress = 0f
+                  topCardDragDirection = null
                   programmaticSwipe = null
                   onSwipeLeft(profile.id)
                 },
                 onSwipedRight = {
+                  topCardDragProgress = 0f
+                  topCardDragDirection = null
                   programmaticSwipe = null
                   onSwipeRight(profile.id)
                 },
                 onSuperLiked = {
+                  topCardDragProgress = 0f
+                  topCardDragDirection = null
                   programmaticSwipe = null
                   onSuperLike(profile.id)
+                },
+                onDragProgress = { fraction, direction ->
+                  if (isTop) {
+                    topCardDragProgress = fraction
+                    topCardDragDirection = direction
+                  }
                 },
                 onInspectProfile = { onInspectProfile(profile) },
                 isTopCard = isTop,
@@ -145,7 +167,7 @@ fun SwipeScreen(
           }
         }
 
-        // Action Buttons Bar connected to spring physics animations
+        // Action Buttons Bar connected to spring physics animations and reactive drag highlighting
         ActionButtonsBar(
           onRewind = onRewind,
           onPass = {
@@ -164,7 +186,9 @@ fun SwipeScreen(
             }
           },
           onBoost = onBoost,
-          enabled = programmaticSwipe == null
+          enabled = programmaticSwipe == null,
+          activeDirection = topCardDragDirection,
+          dragFraction = topCardDragProgress
         )
       } else {
         // Empty Deck State with animated radar pulse

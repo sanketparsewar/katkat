@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,13 +54,15 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -73,7 +75,6 @@ import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.SuperlikeBlue
 import com.example.util.HapticHelper
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 enum class CardSwipeDirection {
   LEFT, RIGHT, UP
@@ -89,7 +90,8 @@ fun SwipeCard(
   onInspectProfile: () -> Unit,
   modifier: Modifier = Modifier,
   isTopCard: Boolean = true,
-  programmaticSwipe: CardSwipeDirection? = null
+  programmaticSwipe: CardSwipeDirection? = null,
+  onDragProgress: (fraction: Float, direction: CardSwipeDirection?) -> Unit = { _, _ -> }
 ) {
   val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
@@ -100,48 +102,68 @@ fun SwipeCard(
   val photos = profile.photos.filter { it.isNotBlank() }
 
   val density = LocalDensity.current
-  val swipeThresholdPx = with(density) { 130.dp.toPx() }
-  val superlikeThresholdPx = with(density) { 150.dp.toPx() }
+  val swipeThresholdPx = with(density) { 120.dp.toPx() }
+  val superlikeThresholdPx = with(density) { 140.dp.toPx() }
 
-  // Spring Specs for custom physics animations
-  val likeSpringSpec = spring<Offset>(
-    dampingRatio = Spring.DampingRatioMediumBouncy,
+  // Butter-smooth exit fling spring without bounce oscillation offscreen
+  val exitSpringSpec = spring<Offset>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = Spring.StiffnessMediumLow
   )
-  val passSpringSpec = spring<Offset>(
-    dampingRatio = Spring.DampingRatioLowBouncy,
-    stiffness = Spring.StiffnessMediumLow
-  )
-  val superlikeSpringSpec = spring<Offset>(
-    dampingRatio = Spring.DampingRatioMediumBouncy,
-    stiffness = Spring.StiffnessLow
-  )
+
+  // Gentle, elastic snap-back spring with realistic physical settle
   val snapBackSpringSpec = spring<Offset>(
-    dampingRatio = Spring.DampingRatioMediumBouncy,
-    stiffness = Spring.StiffnessMedium
+    dampingRatio = 0.72f,
+    stiffness = Spring.StiffnessMediumLow
   )
 
-  // Handle programmatic button triggers with the same custom spring animation
+  // Continuously report drag progress to the deck & action bar
+  LaunchedEffect(offset.value, isTopCard) {
+    if (isTopCard) {
+      val absX = kotlin.math.abs(offset.value.x)
+      val curY = offset.value.y
+      val direction: CardSwipeDirection?
+      val fraction: Float
+      if (absX > 8f || curY < -8f) {
+        if (absX >= kotlin.math.abs(curY) || curY >= 0f) {
+          direction = if (offset.value.x > 0f) CardSwipeDirection.RIGHT else CardSwipeDirection.LEFT
+          fraction = (absX / swipeThresholdPx).coerceIn(0f, 1f)
+        } else {
+          direction = CardSwipeDirection.UP
+          fraction = (-curY / superlikeThresholdPx).coerceIn(0f, 1f)
+        }
+      } else {
+        direction = null
+        fraction = 0f
+      }
+      onDragProgress(fraction, direction)
+    }
+  }
+
+  // Handle programmatic button triggers with haptic confirmation and smooth exit physics
   LaunchedEffect(programmaticSwipe) {
     when (programmaticSwipe) {
       CardSwipeDirection.RIGHT -> {
+        HapticHelper.triggerHaptic(context, "swipe_like")
         offset.animateTo(
-          Offset(1500f, 120f),
-          animationSpec = likeSpringSpec
+          Offset(1800f, 140f),
+          animationSpec = exitSpringSpec
         )
         onSwipedRight()
       }
       CardSwipeDirection.LEFT -> {
+        HapticHelper.triggerHaptic(context, "swipe_pass")
         offset.animateTo(
-          Offset(-1500f, 120f),
-          animationSpec = passSpringSpec
+          Offset(-1800f, 140f),
+          animationSpec = exitSpringSpec
         )
         onSwipedLeft()
       }
       CardSwipeDirection.UP -> {
+        HapticHelper.triggerHaptic(context, "swipe_superlike")
         offset.animateTo(
-          Offset(0f, -1700f),
-          animationSpec = superlikeSpringSpec
+          Offset(0f, -2000f),
+          animationSpec = exitSpringSpec
         )
         onSuperLiked()
       }
@@ -151,7 +173,7 @@ fun SwipeCard(
 
   // Tactile lift scaling when card is actively picked up / dragged
   val cardLiftScale by animateFloatAsState(
-    targetValue = if (isDragging) 1.028f else 1f,
+    targetValue = if (isDragging) 1.03f else 1f,
     animationSpec = spring(
       dampingRatio = Spring.DampingRatioMediumBouncy,
       stiffness = Spring.StiffnessMedium
@@ -159,60 +181,87 @@ fun SwipeCard(
     label = "cardLiftScale"
   )
 
-  // Dynamic rotation based on X drag (max ~20 degrees for playful tilt)
-  val rotationDegrees = (offset.value.x / 18f).coerceIn(-20f, 20f)
+  // Natural tilt angle based on horizontal drag distance (max ~22 degrees)
+  val rotationDegrees = (offset.value.x / 18f).coerceIn(-24f, 24f)
 
   // Alpha and animated scale values for overlay stamps
   val likeAlpha = (offset.value.x / swipeThresholdPx).coerceIn(0f, 1f)
   val nopeAlpha = (-offset.value.x / swipeThresholdPx).coerceIn(0f, 1f)
   val superlikeAlpha = (-offset.value.y / superlikeThresholdPx).coerceIn(0f, 1f)
-  val stampScale = (0.88f + (likeAlpha.coerceAtLeast(nopeAlpha).coerceAtLeast(superlikeAlpha)) * 0.22f).coerceIn(0.88f, 1.15f)
+  val maxSwipeIntent = likeAlpha.coerceAtLeast(nopeAlpha).coerceAtLeast(superlikeAlpha)
+  val stampScale = (0.75f + maxSwipeIntent * 0.35f).coerceIn(0.75f, 1.15f)
 
   Card(
     modifier = modifier
       .fillMaxSize()
       .testTag("swipe_card_${profile.id}")
-      .offset { IntOffset(offset.value.x.roundToInt(), offset.value.y.roundToInt()) }
-      .rotate(if (isTopCard) rotationDegrees else 0f)
-      .scale(if (isTopCard) cardLiftScale else 1f)
+      .graphicsLayer {
+        translationX = offset.value.x
+        translationY = offset.value.y
+        // Anchored pivot slightly below center for realistic handheld card physics
+        transformOrigin = TransformOrigin(0.5f, 0.85f)
+        rotationZ = if (isTopCard) rotationDegrees else 0f
+        scaleX = if (isTopCard) cardLiftScale else 1f
+        scaleY = if (isTopCard) cardLiftScale else 1f
+        cameraDistance = 14f * density.density
+      }
       .shadow(
-        elevation = if (isDragging) 22.dp else if (isTopCard) 12.dp else 4.dp,
-        shape = RoundedCornerShape(26.dp)
+        elevation = if (isDragging) 24.dp else if (isTopCard) 12.dp else 4.dp,
+        shape = RoundedCornerShape(26.dp),
+        spotColor = when {
+          likeAlpha > 0.15f -> LikeGreen.copy(alpha = 0.5f)
+          nopeAlpha > 0.15f -> NopeRed.copy(alpha = 0.5f)
+          superlikeAlpha > 0.15f -> SuperlikeBlue.copy(alpha = 0.5f)
+          else -> Color.Black.copy(alpha = 0.3f)
+        }
       )
       .clip(RoundedCornerShape(26.dp))
       .then(
         if (isTopCard) {
-          Modifier.pointerInput(Unit) {
+          val velocityTracker = remember { VelocityTracker() }
+          Modifier.pointerInput(profile.id) {
             detectDragGestures(
               onDragStart = {
                 isDragging = true
+                velocityTracker.resetTracking()
+                HapticHelper.triggerHaptic(context, "threshold")
               },
               onDragEnd = {
                 isDragging = false
                 lastThresholdZone = null
+                val velocity = velocityTracker.calculateVelocity()
+                val vx = velocity.x
+                val vy = velocity.y
                 coroutineScope.launch {
                   when {
-                    offset.value.x > swipeThresholdPx -> {
+                    // Like: crossed threshold or flicked right
+                    offset.value.x > swipeThresholdPx || (vx > 900f && offset.value.x > 30f) -> {
+                      HapticHelper.triggerHaptic(context, "swipe_like")
                       offset.animateTo(
-                        Offset(1500f, offset.value.y * 0.5f),
-                        animationSpec = likeSpringSpec
+                        Offset(1800f, offset.value.y + vy * 0.08f),
+                        animationSpec = exitSpringSpec
                       )
                       onSwipedRight()
                     }
-                    offset.value.x < -swipeThresholdPx -> {
+                    // Pass: crossed threshold or flicked left
+                    offset.value.x < -swipeThresholdPx || (vx < -900f && offset.value.x < -30f) -> {
+                      HapticHelper.triggerHaptic(context, "swipe_pass")
                       offset.animateTo(
-                        Offset(-1500f, offset.value.y * 0.5f),
-                        animationSpec = passSpringSpec
+                        Offset(-1800f, offset.value.y + vy * 0.08f),
+                        animationSpec = exitSpringSpec
                       )
                       onSwipedLeft()
                     }
-                    offset.value.y < -superlikeThresholdPx -> {
+                    // Super Like: crossed threshold or flicked up
+                    offset.value.y < -superlikeThresholdPx || (vy < -900f && offset.value.y < -30f) -> {
+                      HapticHelper.triggerHaptic(context, "swipe_superlike")
                       offset.animateTo(
-                        Offset(offset.value.x * 0.3f, -1700f),
-                        animationSpec = superlikeSpringSpec
+                        Offset(offset.value.x * 0.3f, -2000f),
+                        animationSpec = exitSpringSpec
                       )
                       onSuperLiked()
                     }
+                    // Snap back: threshold not met
                     else -> {
                       offset.animateTo(
                         Offset.Zero,
@@ -234,6 +283,7 @@ fun SwipeCard(
               },
               onDrag = { change, dragAmount ->
                 change.consume()
+                velocityTracker.addPosition(change.uptimeMillis, change.position)
                 val targetOffset = offset.value + dragAmount
                 val currentZone = when {
                   targetOffset.x > swipeThresholdPx -> "like"
@@ -241,8 +291,8 @@ fun SwipeCard(
                   targetOffset.y < -superlikeThresholdPx -> "superlike"
                   else -> null
                 }
-                // Subtle tactile tick when crossing into a commit zone
-                if (currentZone != null && currentZone != lastThresholdZone) {
+                // Tactile tick when crossing into or out of a commit zone
+                if (currentZone != lastThresholdZone) {
                   HapticHelper.triggerHaptic(context, "threshold")
                 }
                 lastThresholdZone = currentZone
@@ -493,75 +543,154 @@ fun SwipeCard(
         }
       }
 
+      // ── Tactile Ambient Aura Overlays ──────────────────────────────────
+      if (likeAlpha > 0.02f) {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .background(
+              Brush.horizontalGradient(
+                colors = listOf(
+                  Color.Transparent,
+                  LikeGreen.copy(alpha = 0.28f * likeAlpha)
+                )
+              )
+            )
+        )
+      }
+
+      if (nopeAlpha > 0.02f) {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .background(
+              Brush.horizontalGradient(
+                colors = listOf(
+                  NopeRed.copy(alpha = 0.28f * nopeAlpha),
+                  Color.Transparent
+                )
+              )
+            )
+        )
+      }
+
+      if (superlikeAlpha > 0.02f) {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .background(
+              Brush.verticalGradient(
+                colors = listOf(
+                  Color.Transparent,
+                  SuperlikeBlue.copy(alpha = 0.32f * superlikeAlpha)
+                )
+              )
+            )
+        )
+      }
+
       // ── Swipe Stamp Overlays ──────────────────────────────────────────
 
-      // LIKE Stamp (Top-Left, Green/Coral border)
-      if (likeAlpha > 0.05f) {
-        Box(
+      // LIKE Stamp (Top-Left)
+      if (likeAlpha > 0.04f) {
+        Surface(
           modifier = Modifier
             .align(Alignment.TopStart)
             .padding(start = 24.dp, top = 40.dp)
-            .rotate(-15f)
-            .scale(stampScale)
-            .alpha(likeAlpha)
-            .border(3.dp, LikeGreen, RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .graphicsLayer {
+              rotationZ = -14f
+              scaleX = stampScale
+              scaleY = stampScale
+              alpha = likeAlpha
+            },
+          shape = RoundedCornerShape(14.dp),
+          color = Color.Black.copy(alpha = 0.5f),
+          border = BorderStroke(3.5.dp, LikeGreen),
+          shadowElevation = 8.dp
         ) {
-          Text(
-            text = "LIKE",
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontWeight = FontWeight.ExtraBold,
-              color = LikeGreen,
-              letterSpacing = 2.sp
+          Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(
+              text = "LIKE",
+              style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Black,
+                color = LikeGreen,
+                letterSpacing = 2.5.sp
+              )
             )
-          )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(text = "💚", fontSize = 19.sp)
+          }
         }
       }
 
-      // NOPE Stamp (Top-Right, Red border)
-      if (nopeAlpha > 0.05f) {
-        Box(
+      // NOPE Stamp (Top-Right)
+      if (nopeAlpha > 0.04f) {
+        Surface(
           modifier = Modifier
             .align(Alignment.TopEnd)
             .padding(end = 24.dp, top = 40.dp)
-            .rotate(15f)
-            .scale(stampScale)
-            .alpha(nopeAlpha)
-            .border(3.dp, NopeRed, RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .graphicsLayer {
+              rotationZ = 14f
+              scaleX = stampScale
+              scaleY = stampScale
+              alpha = nopeAlpha
+            },
+          shape = RoundedCornerShape(14.dp),
+          color = Color.Black.copy(alpha = 0.5f),
+          border = BorderStroke(3.5.dp, NopeRed),
+          shadowElevation = 8.dp
         ) {
-          Text(
-            text = "NOPE",
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontWeight = FontWeight.ExtraBold,
-              color = NopeRed,
-              letterSpacing = 2.sp
+          Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(text = "❌", fontSize = 18.sp)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "NOPE",
+              style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Black,
+                color = NopeRed,
+                letterSpacing = 2.5.sp
+              )
             )
-          )
+          }
         }
       }
 
-      // SUPER LIKE Stamp (Bottom-Center, Blue border)
-      if (superlikeAlpha > 0.1f) {
-        Box(
+      // SUPER LIKE Stamp (Center)
+      if (superlikeAlpha > 0.06f) {
+        Surface(
           modifier = Modifier
             .align(Alignment.Center)
-            .scale(stampScale)
-            .alpha(superlikeAlpha)
-            .border(3.dp, SuperlikeBlue, RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 18.dp, vertical = 8.dp)
+            .graphicsLayer {
+              scaleX = stampScale
+              scaleY = stampScale
+              alpha = superlikeAlpha
+            },
+          shape = RoundedCornerShape(16.dp),
+          color = Color.Black.copy(alpha = 0.6f),
+          border = BorderStroke(3.5.dp, SuperlikeBlue),
+          shadowElevation = 12.dp
         ) {
-          Text(
-            text = "SUPER LIKE ⭐",
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontWeight = FontWeight.ExtraBold,
-              color = SuperlikeBlue,
-              letterSpacing = 2.sp
+          Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(text = "⭐", fontSize = 22.sp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "SUPER LIKE",
+              style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Black,
+                color = SuperlikeBlue,
+                letterSpacing = 2.sp
+              )
             )
-          )
+          }
         }
       }
     }
