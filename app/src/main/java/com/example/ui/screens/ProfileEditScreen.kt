@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -39,6 +41,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.MyLocation
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
@@ -112,8 +116,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -317,6 +325,7 @@ fun ProfileEditScreen(
   likesCount: Int = 0,
   matchesCount: Int = 0,
   chatsCount: Int = 0,
+  isUploadingPhoto: Boolean = false,
   onThemeModeChange: (AppThemeMode) -> Unit = {},
   onSaveProfile: (UserProfile) -> Unit,
   onAddPhoto: (String) -> Unit,
@@ -332,6 +341,11 @@ fun ProfileEditScreen(
   modifier: Modifier = Modifier
 ) {
   val context = LocalContext.current
+
+  // Calculate profile completeness and missing fields
+  val (completionPercent, remainingFields) = remember(userProfile) {
+    userProfile.calculateProfileCompletion()
+  }
 
   // Sheet dialog states for all categories
   var showBasicInfoSheet by remember { mutableStateOf(false) }
@@ -349,12 +363,6 @@ fun ProfileEditScreen(
   // Media pickers
   val galleryLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
-  ) { uri: Uri? ->
-    uri?.let { onAddPhoto(it.toString()) }
-  }
-
-  val filePickerLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.GetContent()
   ) { uri: Uri? ->
     uri?.let { onAddPhoto(it.toString()) }
   }
@@ -498,13 +506,55 @@ fun ProfileEditScreen(
           modifier = Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          // Large Circular Avatar with Camera overlay
-          Box(modifier = Modifier.size(92.dp)) {
+          // Circular Avatar with profile completion progress border
+          Box(
+            modifier = Modifier
+              .size(92.dp)
+              .clickable { showPhotoManagementSheet = true },
+            contentAlignment = Alignment.Center
+          ) {
+            // Circular Completion Progress Ring
+            Canvas(modifier = Modifier.fillMaxSize()) {
+              val strokeWidthPx = 4.dp.toPx()
+              val radius = (size.minDimension - strokeWidthPx) / 2f
+              val centerOffset = Offset(size.width / 2f, size.height / 2f)
+              val topLeft = Offset(centerOffset.x - radius, centerOffset.y - radius)
+              val arcSize = Size(radius * 2f, radius * 2f)
+
+              // Background ring track
+              drawArc(
+                color = CoralPrimary.copy(alpha = 0.15f),
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidthPx)
+              )
+
+              // Active progress arc
+              val sweep = (completionPercent / 100f) * 360f
+              if (sweep > 0f) {
+                drawArc(
+                  color = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary,
+                  startAngle = -90f,
+                  sweepAngle = sweep,
+                  useCenter = false,
+                  topLeft = topLeft,
+                  size = arcSize,
+                  style = Stroke(
+                    width = strokeWidthPx,
+                    cap = StrokeCap.Round
+                  )
+                )
+              }
+            }
+
+            // Inner Avatar Image
             Box(
               modifier = Modifier
-                .size(92.dp)
+                .size(78.dp)
                 .clip(CircleShape)
-                .border(2.dp, CoralPrimary.copy(alpha = 0.3f), CircleShape)
                 .background(
                   Brush.verticalGradient(
                     listOf(Color(0xFF2E1A36), Color(0xFF16091D))
@@ -532,29 +582,29 @@ fun ProfileEditScreen(
               }
             }
 
-            // Camera Action Button
-            Box(
+            // Percentage Badge at bottom center of avatar
+            Surface(
               modifier = Modifier
-                .size(30.dp)
-                .align(Alignment.BottomEnd)
-                .clip(CircleShape)
-                .background(CoralPrimary)
-                .border(2.dp, Color.White, CircleShape)
-                .clickable { showPhotoChoiceDialog = true },
-              contentAlignment = Alignment.Center
+                .align(Alignment.BottomCenter)
+                .offset(y = 6.dp),
+              shape = RoundedCornerShape(10.dp),
+              color = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary,
+              shadowElevation = 2.dp,
+              border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface)
             ) {
-              Icon(
-                imageVector = Icons.Filled.CameraAlt,
-                contentDescription = "Change photo",
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
+              Text(
+                text = "$completionPercent%",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.5.dp)
               )
             }
           }
 
           Spacer(modifier = Modifier.width(16.dp))
 
-          // Name, Age, Location, Pronouns
+          // Name, Age, Location, Pronouns & Completion Status
           Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
               val ageStr = if (displayAge != null && displayAge > 0) ", $displayAge" else ""
@@ -591,22 +641,51 @@ fun ProfileEditScreen(
             if (displayLocation.isNotBlank()) {
               Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 3.dp)
               ) {
                 Icon(
                   imageVector = Icons.Outlined.LocationOn,
                   contentDescription = null,
                   tint = CoralPrimary,
-                  modifier = Modifier.size(15.dp)
+                  modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                   text = displayLocation,
-                  fontSize = 12.5.sp,
+                  fontSize = 12.sp,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                   fontWeight = FontWeight.Medium
                 )
               }
+            }
+
+            // Profile completion status indicator
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier.padding(top = 4.dp)
+            ) {
+              Icon(
+                imageVector = if (completionPercent == 100) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                contentDescription = null,
+                tint = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary,
+                modifier = Modifier.size(13.dp)
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(
+                text = if (completionPercent == 100) "Profile Completed" else "$completionPercent% Completed",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary
+              )
+            }
+
+            if (remainingFields.isNotEmpty()) {
+              Text(
+                text = "Missing: ${remainingFields.take(2).joinToString(", ")}${if (remainingFields.size > 2) " +${remainingFields.size - 2} more" else ""}",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                modifier = Modifier.padding(top = 1.dp)
+              )
             }
           }
         }
@@ -807,26 +886,34 @@ fun ProfileEditScreen(
                 BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.4f)),
                 RoundedCornerShape(12.dp)
               )
-              .clickable { showPhotoChoiceDialog = true },
+              .clickable(enabled = !isUploadingPhoto) { showPhotoChoiceDialog = true },
             contentAlignment = Alignment.Center
           ) {
-            Column(
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.Center
-            ) {
-              Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = "Add Photo",
-                tint = CoralPrimary,
-                modifier = Modifier.size(24.dp)
-              )
-              Spacer(modifier = Modifier.height(3.dp))
-              Text(
-                text = "Add Photo",
-                fontSize = 11.sp,
+            if (isUploadingPhoto) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
                 color = CoralPrimary,
-                fontWeight = FontWeight.Medium
+                strokeWidth = 2.5.dp
               )
+            } else {
+              Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Filled.Add,
+                  contentDescription = "Add Photo",
+                  tint = CoralPrimary,
+                  modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                  text = "Add Photo",
+                  fontSize = 11.sp,
+                  color = CoralPrimary,
+                  fontWeight = FontWeight.Medium
+                )
+              }
             }
           }
         }
@@ -1195,55 +1282,7 @@ fun ProfileEditScreen(
             }
           }
 
-          // Option 2: File / Storage
-          Surface(
-            onClick = {
-              showPhotoChoiceDialog = false
-              filePickerLauncher.launch("image/*")
-            },
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.3f)),
-            modifier = Modifier
-              .fillMaxWidth()
-              .testTag("profile_photo_file")
-          ) {
-            Row(
-              modifier = Modifier.padding(14.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Surface(
-                shape = CircleShape,
-                color = CoralPrimary.copy(alpha = 0.15f),
-                modifier = Modifier.size(40.dp)
-              ) {
-                Box(contentAlignment = Alignment.Center) {
-                  Icon(
-                    Icons.Outlined.WorkOutline,
-                    contentDescription = "Files",
-                    tint = CoralPrimary,
-                    modifier = Modifier.size(22.dp)
-                  )
-                }
-              }
-              Spacer(modifier = Modifier.width(14.dp))
-              Column {
-                Text(
-                  "File / Storage",
-                  fontWeight = FontWeight.Bold,
-                  style = MaterialTheme.typography.titleMedium,
-                  color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                  "Browse files from internal storage or downloads",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-              }
-            }
-          }
-
-          // Option 3: Photo Gallery
+          // Option 2: Photo Gallery
           Surface(
             onClick = {
               showPhotoChoiceDialog = false
@@ -2613,15 +2652,29 @@ fun ProfileEditScreen(
 
         Button(
           onClick = { showPhotoChoiceDialog = true },
+          enabled = !isUploadingPhoto,
           modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
+          colors = ButtonDefaults.buttonColors(
+            containerColor = CoralPrimary,
+            disabledContainerColor = CoralPrimary.copy(alpha = 0.6f)
+          )
         ) {
-          Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text("Add New Photo", fontWeight = FontWeight.Bold)
+          if (isUploadingPhoto) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(20.dp),
+              color = Color.White,
+              strokeWidth = 2.5.dp
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("Uploading Photo...", fontWeight = FontWeight.Bold, color = Color.White)
+          } else {
+            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Add New Photo", fontWeight = FontWeight.Bold)
+          }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

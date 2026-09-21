@@ -49,6 +49,7 @@ fun MainScreen(
   val subscriptionState by viewModel.subscriptionState.collectAsStateWithLifecycle()
   val isRefreshingDeck by viewModel.isRefreshingDeck.collectAsStateWithLifecycle()
   val isSessionLoaded by viewModel.isSessionLoaded.collectAsStateWithLifecycle()
+  val isUploadingPhoto by viewModel.isUploadingPhoto.collectAsStateWithLifecycle()
   val showGreetingSplash by viewModel.showGreetingSplash.collectAsStateWithLifecycle()
 
   val activeMatchCelebration by viewModel.activeMatchCelebration.collectAsStateWithLifecycle()
@@ -182,6 +183,7 @@ fun MainScreen(
               likesCount = likedMeProfiles.size,
               matchesCount = mutualMatches.size,
               chatsCount = mutualMatches.size,
+              isUploadingPhoto = isUploadingPhoto,
               onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
               onSaveProfile = { updated -> viewModel.autoSaveProfile(updated) },
               onAddPhoto = { uriString ->

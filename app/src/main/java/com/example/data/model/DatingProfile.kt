@@ -71,18 +71,41 @@ data class UserProfile(
   val createdAt: Long = System.currentTimeMillis()
 ) {
   fun calculateProfileStrength(): Int {
+    return calculateProfileCompletion().first
+  }
+
+  fun calculateProfileCompletion(): Pair<Int, List<String>> {
+    val remaining = mutableListOf<String>()
     var score = 0
-    if (name.isNotBlank()) score += 10
-    if (age > 0 || dob.isNotBlank()) score += 10
-    if (gender.isNotBlank()) score += 5
-    if (photos.isNotEmpty()) score += 15
-    if (photos.size >= 2) score += 15
-    if (bio.isNotBlank()) score += 15
-    if (currentLocationCity.isNotBlank() || currentLocationCountry.isNotBlank()) score += 10
-    if (occupation.isNotBlank() || education.isNotBlank()) score += 10
-    if (passions.isNotEmpty()) score += 5
-    if (promptAnswer.isNotBlank()) score += 5
-    return score.coerceIn(0, 100)
+
+    if (name.isNotBlank()) score += 10 else remaining.add("Name")
+    if (age > 0 || dob.isNotBlank()) score += 10 else remaining.add("Age / Birthday")
+    if (gender.isNotBlank()) score += 5 else remaining.add("Gender")
+
+    val validPhotos = photos.filter { it.isNotBlank() }
+    if (validPhotos.isNotEmpty()) {
+      score += 15
+      if (validPhotos.size >= 2) {
+        score += 10
+      } else {
+        remaining.add("Add 2+ photos")
+      }
+    } else {
+      remaining.add("Add photos")
+    }
+
+    if (bio.isNotBlank()) score += 15 else remaining.add("Bio")
+    if (currentLocationCity.isNotBlank() || hometown.isNotBlank() || currentLocationCountry.isNotBlank()) score += 10 else remaining.add("Location")
+    if (occupation.isNotBlank() || education.isNotBlank()) score += 10 else remaining.add("Work or Education")
+    if (passions.isNotEmpty()) score += 10 else remaining.add("Interests")
+    if (promptAnswer.isNotBlank()) score += 10 else remaining.add("Profile Prompt")
+    if (datingIntention.isNotBlank() || drinking.isNotBlank() || smoking.isNotBlank() || pets.isNotBlank() || zodiac.isNotBlank()) {
+      score += 5
+    } else {
+      remaining.add("Lifestyle info")
+    }
+
+    return Pair(score.coerceIn(0, 100), remaining)
   }
 }
 

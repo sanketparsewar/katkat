@@ -61,6 +61,10 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _isSessionLoaded = MutableStateFlow(false)
   val isSessionLoaded: StateFlow<Boolean> = _isSessionLoaded.asStateFlow()
 
+  // Photo upload loading state
+  private val _isUploadingPhoto = MutableStateFlow(false)
+  val isUploadingPhoto: StateFlow<Boolean> = _isUploadingPhoto.asStateFlow()
+
   // App opening Greeting Splash visibility
   private val _showGreetingSplash = MutableStateFlow(true)
   val showGreetingSplash: StateFlow<Boolean> = _showGreetingSplash.asStateFlow()
@@ -375,106 +379,110 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun uploadAndAddPhoto(context: android.content.Context, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
-      val current = userProfile.value
-      val userId = getEffectiveUserId()
-      _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
-      val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
-      if (storedUrl.isNotBlank()) {
-        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
-          if (size < 6) add(storedUrl) else set(5, storedUrl)
-        }
-        val updated = current.copy(photos = newPhotos)
-        repository.saveUserProfile(updated)
-        if (storedUrl.startsWith("http")) {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
+      _isUploadingPhoto.value = true
+      try {
+        val current = userProfile.value
+        val userId = getEffectiveUserId()
+        _uiEvents.emit(UiEvent.ShowToast("Uploading..."))
+        val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
+        if (storedUrl.isNotBlank()) {
+          val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
+            if (size < 6) add(storedUrl) else set(5, storedUrl)
+          }
+          val updated = current.copy(photos = newPhotos)
+          repository.saveUserProfile(updated)
+          _uiEvents.emit(UiEvent.ShowToast("Photo saved"))
+          onComplete?.invoke(storedUrl)
         } else {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo saved! (Update Storage rules in console to enable cloud sync)"))
+          val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload photo. Please check connection."
+          _uiEvents.emit(UiEvent.ShowToast(err))
         }
-        onComplete?.invoke(storedUrl)
-      } else {
-        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
-        _uiEvents.emit(UiEvent.ShowToast(err))
+      } finally {
+        _isUploadingPhoto.value = false
       }
     }
   }
 
   fun uploadAndAddBitmap(context: android.content.Context, bitmap: android.graphics.Bitmap, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
-      val current = userProfile.value
-      val userId = getEffectiveUserId()
-      _uiEvents.emit(UiEvent.ShowToast("Uploading photo to Firebase Storage..."))
-      val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
-      if (storedUrl.isNotBlank()) {
-        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
-          if (size < 6) add(storedUrl) else set(5, storedUrl)
-        }
-        val updated = current.copy(photos = newPhotos)
-        repository.saveUserProfile(updated)
-        if (storedUrl.startsWith("http")) {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo uploaded to cloud storage ✨"))
+      _isUploadingPhoto.value = true
+      try {
+        val current = userProfile.value
+        val userId = getEffectiveUserId()
+        _uiEvents.emit(UiEvent.ShowToast("Uploading..."))
+        val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
+        if (storedUrl.isNotBlank()) {
+          val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList().apply {
+            if (size < 6) add(storedUrl) else set(5, storedUrl)
+          }
+          val updated = current.copy(photos = newPhotos)
+          repository.saveUserProfile(updated)
+          _uiEvents.emit(UiEvent.ShowToast("Photo saved"))
+          onComplete?.invoke(storedUrl)
         } else {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo saved! (Update Storage rules in console to enable cloud sync)"))
+          val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload photo. Please check connection."
+          _uiEvents.emit(UiEvent.ShowToast(err))
         }
-        onComplete?.invoke(storedUrl)
-      } else {
-        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
-        _uiEvents.emit(UiEvent.ShowToast(err))
+      } finally {
+        _isUploadingPhoto.value = false
       }
     }
   }
 
   fun uploadAndReplacePhoto(context: android.content.Context, index: Int, uri: android.net.Uri, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
-      val current = userProfile.value
-      val userId = getEffectiveUserId()
-      _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
-      val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
-      if (storedUrl.isNotBlank()) {
-        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
-        if (index in newPhotos.indices) {
-          newPhotos[index] = storedUrl
-        } else if (newPhotos.size < 6) {
-          newPhotos.add(storedUrl)
-        }
-        val updated = current.copy(photos = newPhotos)
-        repository.saveUserProfile(updated)
-        if (storedUrl.startsWith("http")) {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
+      _isUploadingPhoto.value = true
+      try {
+        val current = userProfile.value
+        val userId = getEffectiveUserId()
+        _uiEvents.emit(UiEvent.ShowToast("Uploading..."))
+        val storedUrl = repository.firebaseStorageManager.uploadProfileImage(context, userId, uri)
+        if (storedUrl.isNotBlank()) {
+          val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
+          if (index in newPhotos.indices) {
+            newPhotos[index] = storedUrl
+          } else if (newPhotos.size < 6) {
+            newPhotos.add(storedUrl)
+          }
+          val updated = current.copy(photos = newPhotos)
+          repository.saveUserProfile(updated)
+          _uiEvents.emit(UiEvent.ShowToast("Photo saved"))
+          onComplete?.invoke(storedUrl)
         } else {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated! (Update Storage rules to enable cloud sync)"))
+          val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload photo. Please check connection."
+          _uiEvents.emit(UiEvent.ShowToast(err))
         }
-        onComplete?.invoke(storedUrl)
-      } else {
-        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
-        _uiEvents.emit(UiEvent.ShowToast(err))
+      } finally {
+        _isUploadingPhoto.value = false
       }
     }
   }
 
   fun uploadAndReplaceBitmap(context: android.content.Context, index: Int, bitmap: android.graphics.Bitmap, onComplete: ((String) -> Unit)? = null) {
     viewModelScope.launch {
-      val current = userProfile.value
-      val userId = getEffectiveUserId()
-      _uiEvents.emit(UiEvent.ShowToast("Updating photo in Firebase Storage..."))
-      val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
-      if (storedUrl.isNotBlank()) {
-        val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
-        if (index in newPhotos.indices) {
-          newPhotos[index] = storedUrl
-        } else if (newPhotos.size < 6) {
-          newPhotos.add(storedUrl)
-        }
-        val updated = current.copy(photos = newPhotos)
-        repository.saveUserProfile(updated)
-        if (storedUrl.startsWith("http")) {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated in cloud storage ✨"))
+      _isUploadingPhoto.value = true
+      try {
+        val current = userProfile.value
+        val userId = getEffectiveUserId()
+        _uiEvents.emit(UiEvent.ShowToast("Uploading..."))
+        val storedUrl = repository.firebaseStorageManager.uploadBitmap(context, userId, bitmap)
+        if (storedUrl.isNotBlank()) {
+          val newPhotos = current.photos.filter { it.isNotBlank() }.toMutableList()
+          if (index in newPhotos.indices) {
+            newPhotos[index] = storedUrl
+          } else if (newPhotos.size < 6) {
+            newPhotos.add(storedUrl)
+          }
+          val updated = current.copy(photos = newPhotos)
+          repository.saveUserProfile(updated)
+          _uiEvents.emit(UiEvent.ShowToast("Photo saved"))
+          onComplete?.invoke(storedUrl)
         } else {
-          _uiEvents.emit(UiEvent.ShowToast("✓ Photo updated! (Update Storage rules to enable cloud sync)"))
+          val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload photo. Please check connection."
+          _uiEvents.emit(UiEvent.ShowToast(err))
         }
-        onComplete?.invoke(storedUrl)
-      } else {
-        val err = repository.firebaseStorageManager.lastErrorMessage ?: "Could not upload to cloud storage. Please check connection."
-        _uiEvents.emit(UiEvent.ShowToast(err))
+      } finally {
+        _isUploadingPhoto.value = false
       }
     }
   }
