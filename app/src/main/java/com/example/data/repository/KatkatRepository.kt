@@ -46,6 +46,10 @@ class KatkatRepository(
   private val _realtimeMatchEvent = MutableSharedFlow<DatingProfile>(extraBufferCapacity = 5)
   val realtimeMatchEvent: SharedFlow<DatingProfile> = _realtimeMatchEvent.asSharedFlow()
 
+  // Event stream for real-time blocks (emitted to immediately close chats if blocked by other user)
+  private val _realtimeBlockedEvent = MutableSharedFlow<String>(extraBufferCapacity = 5)
+  val realtimeBlockedEvent: SharedFlow<String> = _realtimeBlockedEvent.asSharedFlow()
+
   private var realTimeSyncJob: Job? = null
 
   init {
@@ -165,6 +169,17 @@ class KatkatRepository(
                 }
               }
             }
+          }
+        }
+      }
+
+      // 4. Observe blocked user IDs (two-way) in real time
+      launch {
+        firestoreManager.observeBlockedUserIds(currentUserId).collect { blockedIds ->
+          blockedIds.forEach { blockedId ->
+            dao.deleteProfileById(blockedId)
+            dao.deleteMessagesForMatch(blockedId)
+            _realtimeBlockedEvent.emit(blockedId)
           }
         }
       }
@@ -734,6 +749,17 @@ class KatkatRepository(
     deleteMessagesForMatch(matchId)
   }
 
+  suspend fun blockProfile(matchId: String) {
+    dao.deleteProfileById(matchId)
+    deleteMessagesForMatch(matchId)
+    val myUserId = getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      appScope.launch {
+        firestoreManager.blockUser(myUserId, matchId)
+      }
+    }
+  }
+
   suspend fun createSimulatedTestMatch(): DatingProfile? {
     val nonMatches = dao.getActiveDeckProfiles().firstOrNull()?.filter { !it.isMutualMatch }
     val candidate = nonMatches?.firstOrNull()
@@ -879,9 +905,18 @@ class KatkatRepository(
       val outgoingLikedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingLikedUserIds(currentUserId) else emptySet()
       val mutualMatchedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchMutualMatchedUserIds(currentUserId) else emptySet()
       val outgoingPassedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingPassedUserIds(currentUserId) else emptySet()
+      val blockedOrBlockingIds = if (currentUserId.isNotBlank()) firestoreManager.fetchAllBlockedOrBlockingUserIds(currentUserId) else emptySet()
 
-      if (community.isNotEmpty()) {
-        val entities = community.map { profile ->
+      // Purge any local profiles or messages for blocked users (two-way)
+      blockedOrBlockingIds.forEach { bId ->
+        dao.deleteProfileById(bId)
+        dao.deleteMessagesForMatch(bId)
+      }
+
+      val unblockedCommunity = community.filter { !blockedOrBlockingIds.contains(it.id) }
+
+      if (unblockedCommunity.isNotEmpty()) {
+        val entities = unblockedCommunity.map { profile ->
           val existing = dao.getProfileById(profile.id)
           val isAlreadyLiked = existing?.isLikedByMe == true || existing?.isSuperLikedByMe == true || outgoingLikedIds.contains(profile.id) || mutualMatchedIds.contains(profile.id)
           val isAlreadyMutual = existing?.isMutualMatch == true || mutualMatchedIds.contains(profile.id)

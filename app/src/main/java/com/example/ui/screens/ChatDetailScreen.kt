@@ -103,6 +103,7 @@ fun ChatDetailScreen(
   isMatchTyping: Boolean = false,
   onClearChat: (() -> Unit)? = null,
   onUnmatch: (() -> Unit)? = null,
+  onBlockProfile: (() -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   var inputText by remember { mutableStateOf("") }
@@ -110,6 +111,7 @@ fun ChatDetailScreen(
   var showCallDialog by remember { mutableStateOf(false) }
   var showUnmatchConfirm by remember { mutableStateOf(false) }
   var showClearChatConfirm by remember { mutableStateOf(false) }
+  var showBlockConfirm by remember { mutableStateOf(false) }
 
   val listState = rememberLazyListState()
 
@@ -319,6 +321,14 @@ fun ChatDetailScreen(
               onClick = {
                 showMenu = false
                 showUnmatchConfirm = true
+              }
+            )
+            DropdownMenuItem(
+              text = { Text("Block ${match.name}", color = Color(0xFFD32F2F)) },
+              leadingIcon = { Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFD32F2F)) },
+              onClick = {
+                showMenu = false
+                showBlockConfirm = true
               }
             )
           }
@@ -539,6 +549,31 @@ fun ChatDetailScreen(
       },
       dismissButton = {
         TextButton(onClick = { showUnmatchConfirm = false }) {
+          Text("Cancel")
+        }
+      }
+    )
+  }
+
+  // ── Block Confirmation Dialog ───────────────────────────────────────
+  if (showBlockConfirm) {
+    AlertDialog(
+      onDismissRequest = { showBlockConfirm = false },
+      title = { Text("Block ${match.name}?", fontWeight = FontWeight.Bold) },
+      text = { Text("They will be permanently blocked. You will no longer be able to message each other, and neither of you will see each other in Discover.") },
+      confirmButton = {
+        Button(
+          onClick = {
+            showBlockConfirm = false
+            onBlockProfile?.invoke()
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+        ) {
+          Text("Block Profile")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showBlockConfirm = false }) {
           Text("Cancel")
         }
       }

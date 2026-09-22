@@ -150,7 +150,8 @@ fun MainScreen(
       onInspectProfile = { viewModel.inspectProfile(currentChat) },
       isMatchTyping = typingMatchIds.contains(currentChat.id),
       onClearChat = { viewModel.clearChat(currentChat.id) },
-      onUnmatch = { viewModel.unmatch(currentChat.id) }
+      onUnmatch = { viewModel.unmatch(currentChat.id) },
+      onBlockProfile = { viewModel.blockUser(currentChat.id) }
     )
   } else {
     Scaffold(

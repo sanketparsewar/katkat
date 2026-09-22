@@ -85,6 +85,15 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _uiEvents.emit(UiEvent.VibrateFeedback("match"))
       }
     }
+    // Listen for real-time blocks to dismiss chat if blocked
+    viewModelScope.launch {
+      repository.realtimeBlockedEvent.collect { blockedId ->
+        if (_selectedChatMatch.value?.id == blockedId) {
+          _selectedChatMatch.value = null
+          _uiEvents.emit(UiEvent.ShowToast("This conversation is no longer available."))
+        }
+      }
+    }
   }
 
   fun dismissGreeting() {
@@ -285,6 +294,17 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _selectedChatMatch.value = null
       }
       _uiEvents.emit(UiEvent.ShowToast("Unmatched profile"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("click"))
+    }
+  }
+
+  fun blockUser(matchId: String) {
+    viewModelScope.launch {
+      repository.blockProfile(matchId)
+      if (_selectedChatMatch.value?.id == matchId) {
+        _selectedChatMatch.value = null
+      }
+      _uiEvents.emit(UiEvent.ShowToast("Profile blocked"))
       _uiEvents.emit(UiEvent.VibrateFeedback("click"))
     }
   }

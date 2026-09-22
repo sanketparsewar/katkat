@@ -748,6 +748,120 @@ class FirestoreManager {
     }
   }
 
+  /**
+   * Blocks a user in Cloud Firestore.
+   * Records the block, removes mutual match, likes, and cleans up messages.
+   */
+  suspend fun blockUser(fromUserId: String, targetUserId: String): Boolean {
+    val db = firestore ?: return false
+    if (fromUserId.isBlank() || targetUserId.isBlank()) return false
+    return try {
+      val docId = "${fromUserId}_$targetUserId"
+      val data = mapOf(
+        "fromUserId" to fromUserId,
+        "blockedUserId" to targetUserId,
+        "timestamp" to System.currentTimeMillis()
+      )
+      db.collection("blocks").document(docId).set(data, SetOptions.merge()).await()
+
+      // Delete mutual match record if existing
+      val (u1, u2) = if (fromUserId < targetUserId) Pair(fromUserId, targetUserId) else Pair(targetUserId, fromUserId)
+      val matchDocId = "${u1}_$u2"
+      try {
+        db.collection("matches").document(matchDocId).delete().await()
+      } catch (_: Exception) {}
+
+      // Delete like entries between them
+      try {
+        db.collection("likes").document("${fromUserId}_$targetUserId").delete().await()
+        db.collection("likes").document("${targetUserId}_$fromUserId").delete().await()
+      } catch (_: Exception) {}
+
+      // Delete canonical chat messages
+      val chatId = getCanonicalChatId(fromUserId, targetUserId)
+      deleteChatMessages(targetUserId, fromUserId)
+
+      Log.d(tag, "User successfully blocked: $fromUserId blocked $targetUserId")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice blocking user: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Fetches all user IDs that either:
+   * 1. The current user has blocked (outgoing)
+   * 2. Have blocked the current user (incoming)
+   * Ensures two-way blocking everywhere in discovery and chats.
+   */
+  suspend fun fetchAllBlockedOrBlockingUserIds(myUserId: String): Set<String> {
+    val db = firestore ?: return emptySet()
+    if (myUserId.isBlank()) return emptySet()
+    return try {
+      val blockedByMe = db.collection("blocks")
+        .whereEqualTo("fromUserId", myUserId)
+        .get()
+        .await()
+        .documents
+        .mapNotNull { it.getString("blockedUserId") }
+
+      val blockingMe = db.collection("blocks")
+        .whereEqualTo("blockedUserId", myUserId)
+        .get()
+        .await()
+        .documents
+        .mapNotNull { it.getString("fromUserId") }
+
+      (blockedByMe + blockingMe).filter { it.isNotBlank() }.toSet()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching blocked users: ${e.message}")
+      emptySet()
+    }
+  }
+
+  /**
+   * Listens in real time for any blocks involving the current user (incoming or outgoing).
+   */
+  fun observeBlockedUserIds(myUserId: String): Flow<Set<String>> = callbackFlow {
+    val db = firestore
+    if (db == null || myUserId.isBlank()) {
+      trySend(emptySet())
+      close()
+      return@callbackFlow
+    }
+
+    var outgoingBlocked = setOf<String>()
+    var incomingBlocked = setOf<String>()
+
+    fun emitCombined() {
+      trySend(outgoingBlocked + incomingBlocked)
+    }
+
+    val reg1 = db.collection("blocks")
+      .whereEqualTo("fromUserId", myUserId)
+      .addSnapshotListener { snapshot, error ->
+        if (error == null && snapshot != null) {
+          outgoingBlocked = snapshot.documents.mapNotNull { it.getString("blockedUserId") }.toSet()
+          emitCombined()
+        }
+      }
+
+    val reg2 = db.collection("blocks")
+      .whereEqualTo("blockedUserId", myUserId)
+      .addSnapshotListener { snapshot, error ->
+        if (error == null && snapshot != null) {
+          incomingBlocked = snapshot.documents.mapNotNull { it.getString("fromUserId") }.toSet()
+          emitCombined()
+        }
+      }
+
+    awaitClose {
+      reg1.remove()
+      reg2.remove()
+    }
+  }
+
   // ==========================================
   // Discovery Profiles Real-Time Syncing
   // ==========================================
