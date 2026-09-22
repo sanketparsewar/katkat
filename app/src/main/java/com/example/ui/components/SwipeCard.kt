@@ -95,15 +95,23 @@ fun SwipeCard(
 ) {
   val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
-  val offset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
-  var currentPhotoIndex by remember { mutableIntStateOf(0) }
-  var lastThresholdZone by remember { mutableStateOf<String?>(null) }
-  var isDragging by remember { mutableStateOf(false) }
+  val offset = remember(profile.id) { Animatable(Offset.Zero, Offset.VectorConverter) }
+  var currentPhotoIndex by remember(profile.id) { mutableIntStateOf(0) }
+  var lastThresholdZone by remember(profile.id) { mutableStateOf<String?>(null) }
+  var isDragging by remember(profile.id) { mutableStateOf(false) }
   val photos = profile.photos.filter { it.isNotBlank() }
 
   val density = LocalDensity.current
   val swipeThresholdPx = with(density) { 120.dp.toPx() }
   val superlikeThresholdPx = with(density) { 140.dp.toPx() }
+
+  // Ensure offset and state are always centered whenever profile changes
+  LaunchedEffect(profile.id) {
+    offset.snapTo(Offset.Zero)
+    isDragging = false
+    lastThresholdZone = null
+    currentPhotoIndex = 0
+  }
 
   // Butter-smooth exit fling spring without bounce oscillation offscreen
   val exitSpringSpec = spring<Offset>(
@@ -141,33 +149,42 @@ fun SwipeCard(
   }
 
   // Handle programmatic button triggers with haptic confirmation and smooth exit physics
-  LaunchedEffect(programmaticSwipe) {
-    when (programmaticSwipe) {
-      CardSwipeDirection.RIGHT -> {
-        HapticHelper.triggerHaptic(context, "swipe_like")
-        offset.animateTo(
-          Offset(1800f, 140f),
-          animationSpec = exitSpringSpec
-        )
-        onSwipedRight()
+  LaunchedEffect(programmaticSwipe, profile.id) {
+    val dir = programmaticSwipe ?: return@LaunchedEffect
+    try {
+      when (dir) {
+        CardSwipeDirection.RIGHT -> {
+          HapticHelper.triggerHaptic(context, "swipe_like")
+          offset.animateTo(
+            Offset(1800f, 140f),
+            animationSpec = exitSpringSpec
+          )
+          onSwipedRight()
+        }
+        CardSwipeDirection.LEFT -> {
+          HapticHelper.triggerHaptic(context, "swipe_pass")
+          offset.animateTo(
+            Offset(-1800f, 140f),
+            animationSpec = exitSpringSpec
+          )
+          onSwipedLeft()
+        }
+        CardSwipeDirection.UP -> {
+          HapticHelper.triggerHaptic(context, "swipe_superlike")
+          offset.animateTo(
+            Offset(0f, -2000f),
+            animationSpec = exitSpringSpec
+          )
+          onSuperLiked()
+        }
       }
-      CardSwipeDirection.LEFT -> {
-        HapticHelper.triggerHaptic(context, "swipe_pass")
-        offset.animateTo(
-          Offset(-1800f, 140f),
-          animationSpec = exitSpringSpec
-        )
-        onSwipedLeft()
+    } catch (_: Exception) {
+      // If animation was interrupted or cancelled, still propagate swipe to advance deck
+      when (dir) {
+        CardSwipeDirection.RIGHT -> onSwipedRight()
+        CardSwipeDirection.LEFT -> onSwipedLeft()
+        CardSwipeDirection.UP -> onSuperLiked()
       }
-      CardSwipeDirection.UP -> {
-        HapticHelper.triggerHaptic(context, "swipe_superlike")
-        offset.animateTo(
-          Offset(0f, -2000f),
-          animationSpec = exitSpringSpec
-        )
-        onSuperLiked()
-      }
-      null -> Unit
     }
   }
 

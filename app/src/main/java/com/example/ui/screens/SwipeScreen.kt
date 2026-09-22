@@ -35,7 +35,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +62,7 @@ import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +85,37 @@ fun SwipeScreen(
   var programmaticSwipe by remember { mutableStateOf<CardSwipeDirection?>(null) }
   var topCardDragProgress by remember { mutableFloatStateOf(0f) }
   var topCardDragDirection by remember { mutableStateOf<CardSwipeDirection?>(null) }
+
+  val topProfile = profiles.firstOrNull()
+  val topProfileId = topProfile?.id
+
+  // Automatically reset card drag and programmatic state when the top card changes
+  LaunchedEffect(topProfileId) {
+    programmaticSwipe = null
+    topCardDragProgress = 0f
+    topCardDragDirection = null
+  }
+
+  // Safety fallback: ensure programmatic swipe lock is never stuck
+  LaunchedEffect(programmaticSwipe) {
+    if (programmaticSwipe != null) {
+      delay(400)
+      if (programmaticSwipe != null) {
+        val currentTop = topProfile
+        val dir = programmaticSwipe
+        programmaticSwipe = null
+        topCardDragProgress = 0f
+        topCardDragDirection = null
+        if (currentTop != null && dir != null) {
+          when (dir) {
+            CardSwipeDirection.LEFT -> onSwipeLeft(currentTop.id)
+            CardSwipeDirection.RIGHT -> onSwipeRight(currentTop.id)
+            CardSwipeDirection.UP -> onSuperLike(currentTop.id)
+          }
+        }
+      }
+    }
+  }
 
   PullToRefreshBox(
     isRefreshing = isRefreshing,
@@ -116,53 +150,55 @@ fun SwipeScreen(
         ) {
           // Render up to 2 cards for optimal performance & stack depth
           val visibleCards = profiles.take(2).reversed()
-          visibleCards.forEachIndexed { _, profile ->
-            val isTop = profile == profiles.first()
-            // Dynamically scale and lift background card as top card moves
-            val bgScale = if (isTop) 1f else 0.94f + (0.06f * topCardDragProgress)
-            val bgYOffset = if (isTop) 0.dp else 12.dp * (1f - topCardDragProgress)
-            val bgAlpha = if (isTop) 1f else 0.85f + (0.15f * topCardDragProgress)
+          visibleCards.forEach { profile ->
+            key(profile.id) {
+              val isTop = profile.id == topProfileId
+              // Dynamically scale and lift background card as top card moves
+              val bgScale = if (isTop) 1f else 0.94f + (0.06f * topCardDragProgress)
+              val bgYOffset = if (isTop) 0.dp else 12.dp * (1f - topCardDragProgress)
+              val bgAlpha = if (isTop) 1f else 0.85f + (0.15f * topCardDragProgress)
 
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                  scaleX = bgScale
-                  scaleY = bgScale
-                  translationY = bgYOffset.toPx()
-                  alpha = bgAlpha
-                }
-            ) {
-              SwipeCard(
-                profile = profile,
-                onSwipedLeft = {
-                  topCardDragProgress = 0f
-                  topCardDragDirection = null
-                  programmaticSwipe = null
-                  onSwipeLeft(profile.id)
-                },
-                onSwipedRight = {
-                  topCardDragProgress = 0f
-                  topCardDragDirection = null
-                  programmaticSwipe = null
-                  onSwipeRight(profile.id)
-                },
-                onSuperLiked = {
-                  topCardDragProgress = 0f
-                  topCardDragDirection = null
-                  programmaticSwipe = null
-                  onSuperLike(profile.id)
-                },
-                onDragProgress = { fraction, direction ->
-                  if (isTop) {
-                    topCardDragProgress = fraction
-                    topCardDragDirection = direction
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .graphicsLayer {
+                    scaleX = bgScale
+                    scaleY = bgScale
+                    translationY = bgYOffset.toPx()
+                    alpha = bgAlpha
                   }
-                },
-                onInspectProfile = { onInspectProfile(profile) },
-                isTopCard = isTop,
-                programmaticSwipe = if (isTop) programmaticSwipe else null
-              )
+              ) {
+                SwipeCard(
+                  profile = profile,
+                  onSwipedLeft = {
+                    topCardDragProgress = 0f
+                    topCardDragDirection = null
+                    programmaticSwipe = null
+                    onSwipeLeft(profile.id)
+                  },
+                  onSwipedRight = {
+                    topCardDragProgress = 0f
+                    topCardDragDirection = null
+                    programmaticSwipe = null
+                    onSwipeRight(profile.id)
+                  },
+                  onSuperLiked = {
+                    topCardDragProgress = 0f
+                    topCardDragDirection = null
+                    programmaticSwipe = null
+                    onSuperLike(profile.id)
+                  },
+                  onDragProgress = { fraction, direction ->
+                    if (isTop) {
+                      topCardDragProgress = fraction
+                      topCardDragDirection = direction
+                    }
+                  },
+                  onInspectProfile = { onInspectProfile(profile) },
+                  isTopCard = isTop,
+                  programmaticSwipe = if (isTop) programmaticSwipe else null
+                )
+              }
             }
           }
         }
