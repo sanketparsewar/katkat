@@ -362,7 +362,6 @@ fun MatchesChatScreen(
       // Empty Matches State
       EmptyMatchesView(
         onNavigateToDiscover = onNavigateToDiscover,
-        onCreateTestMatch = onCreateTestMatch,
         modifier = Modifier
           .fillMaxWidth()
           .weight(1f)
@@ -616,7 +615,6 @@ fun formatConversationTime(millis: Long): String {
 @Composable
 fun EmptyMatchesView(
   onNavigateToDiscover: () -> Unit,
-  onCreateTestMatch: (() -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   Box(
@@ -636,8 +634,8 @@ fun EmptyMatchesView(
         contentAlignment = Alignment.Center
       ) {
         Icon(
-          imageVector = Icons.Default.LocalFireDepartment,
-          contentDescription = "Matches",
+          imageVector = Icons.Default.Favorite,
+          contentDescription = "No matches yet",
           tint = CoralPrimary,
           modifier = Modifier.size(52.dp)
         )
@@ -646,17 +644,19 @@ fun EmptyMatchesView(
       Spacer(modifier = Modifier.height(20.dp))
 
       Text(
-        text = "No Matches Yet",
+        text = "No matches yet",
         style = MaterialTheme.typography.titleLarge.copy(
           fontWeight = FontWeight.ExtraBold,
-          color = TextPrimaryDark
-        )
+          color = TextPrimaryDark,
+          fontSize = 22.sp
+        ),
+        textAlign = TextAlign.Center
       )
 
       Spacer(modifier = Modifier.height(8.dp))
 
       Text(
-        text = "When you both like each other on Discover, they'll appear here and real-time chat unlocks! 💕",
+        text = "When you match with others on Discover, they'll appear here and conversations will begin. Start swiping to find new matches!",
         style = MaterialTheme.typography.bodyMedium.copy(
           color = TextSecondaryDark,
           lineHeight = 20.sp
@@ -672,7 +672,7 @@ fun EmptyMatchesView(
         colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier
-          .fillMaxWidth(0.8f)
+          .fillMaxWidth(0.75f)
           .height(48.dp)
           .testTag("btn_empty_start_swiping")
       ) {
@@ -682,28 +682,7 @@ fun EmptyMatchesView(
           modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text("Start Swiping on Discover", fontWeight = FontWeight.Bold)
-      }
-
-      if (onCreateTestMatch != null) {
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedButton(
-          onClick = onCreateTestMatch,
-          shape = RoundedCornerShape(24.dp),
-          colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralPrimary),
-          modifier = Modifier
-            .fillMaxWidth(0.8f)
-            .height(44.dp)
-            .testTag("btn_simulate_test_match")
-        ) {
-          Icon(
-            imageVector = Icons.Default.ChatBubbleOutline,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp)
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text("Simulate Instant Match 🎉", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-        }
+        Text("Start Swiping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
       }
     }
   }
