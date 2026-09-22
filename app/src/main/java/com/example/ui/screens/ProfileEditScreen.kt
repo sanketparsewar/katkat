@@ -47,11 +47,13 @@ import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -357,6 +359,8 @@ fun ProfileEditScreen(
   var showPhotoManagementSheet by remember { mutableStateOf(false) }
   var showPreferencesSheet by remember { mutableStateOf(false) }
   var showSettingsSheet by remember { mutableStateOf(false) }
+  var showDeleteAccountConfirmDialog by remember { mutableStateOf(false) }
+  var deleteAccountInputText by remember { mutableStateOf("") }
   var showNotificationsDialog by remember { mutableStateOf(false) }
   var showPhotoChoiceDialog by remember { mutableStateOf(false) }
 
@@ -2890,6 +2894,41 @@ fun ProfileEditScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
+        // Delete Account
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+              deleteAccountInputText = ""
+              showDeleteAccountConfirmDialog = true
+            }
+            .padding(vertical = 10.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(
+            imageVector = Icons.Outlined.DeleteForever,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(24.dp)
+          )
+          Spacer(modifier = Modifier.width(12.dp))
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = "Delete Account",
+              fontWeight = FontWeight.Bold,
+              fontSize = 14.sp,
+              color = MaterialTheme.colorScheme.error
+            )
+            Text(
+              text = "Permanently remove your profile and all associated data",
+              fontSize = 11.5.sp,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
         // Logout
         Row(
           modifier = Modifier
@@ -2914,6 +2953,90 @@ fun ProfileEditScreen(
         Spacer(modifier = Modifier.height(24.dp))
       }
     }
+  }
+
+  // Delete Account Confirmation Dialog with Text Field Verification
+  if (showDeleteAccountConfirmDialog) {
+    val isDeleteConfirmed = deleteAccountInputText.trim().equals("delete", ignoreCase = true)
+    AlertDialog(
+      onDismissRequest = {
+        showDeleteAccountConfirmDialog = false
+        deleteAccountInputText = ""
+      },
+      icon = {
+        Icon(
+          imageVector = Icons.Filled.WarningAmber,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.error,
+          modifier = Modifier.size(32.dp)
+        )
+      },
+      title = {
+        Text(
+          "Delete Account?",
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.error
+        )
+      },
+      text = {
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+          Text(
+            text = "Deleting your account is permanent. All your matches, chats, likes, and profile data will be permanently wiped from the database and you will no longer appear in Discover or Matches.",
+            fontSize = 13.5.sp,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            text = "To confirm deletion, please type \"delete\" below:",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          OutlinedTextField(
+            value = deleteAccountInputText,
+            onValueChange = { deleteAccountInputText = it },
+            placeholder = { Text("type 'delete'") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedBorderColor = MaterialTheme.colorScheme.error,
+              unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+          )
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            showDeleteAccountConfirmDialog = false
+            showSettingsSheet = false
+            deleteAccountInputText = ""
+            onDeleteAccount()
+          },
+          enabled = isDeleteConfirmed,
+          colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.error,
+            disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+            contentColor = Color.White,
+            disabledContentColor = Color.White.copy(alpha = 0.5f)
+          )
+        ) {
+          Text("Delete Profile", fontWeight = FontWeight.Bold)
+        }
+      },
+      dismissButton = {
+        TextButton(
+          onClick = {
+            showDeleteAccountConfirmDialog = false
+            deleteAccountInputText = ""
+          }
+        ) {
+          Text("Cancel")
+        }
+      }
+    )
   }
 
   // 11. Notifications Dialog

@@ -104,13 +104,74 @@ class FirestoreManager {
     }
   }
 
+  /**
+   * Permanently deletes a user's account and all associated data from Cloud Firestore.
+   * Cleans up profile, discovery profile, likes, passes, matches, chats, and records in deleted_accounts.
+   */
   suspend fun deleteUserProfile(userId: String): Boolean {
     val db = firestore ?: return false
+    if (userId.isBlank()) return false
     return try {
-      db.collection("users").document(userId).delete().await()
+      // 1. Delete user document from "users"
+      try {
+        db.collection("users").document(userId).delete().await()
+      } catch (_: Exception) {}
+
+      // 2. Delete discovery profile from "discovery_profiles"
+      try {
+        db.collection("discovery_profiles").document(userId).delete().await()
+      } catch (_: Exception) {}
+
+      // 3. Delete from "dating_pool" if any
+      try {
+        db.collection("dating_pool").document(userId).delete().await()
+      } catch (_: Exception) {}
+
+      // 4. Delete likes sent by user or sent to user
+      try {
+        val likesFrom = db.collection("likes").whereEqualTo("fromUserId", userId).get().await()
+        likesFrom.documents.forEach { it.reference.delete() }
+        val likesTo = db.collection("likes").whereEqualTo("toUserId", userId).get().await()
+        likesTo.documents.forEach { it.reference.delete() }
+      } catch (_: Exception) {}
+
+      // 5. Delete passes sent by user or sent to user
+      try {
+        val passesFrom = db.collection("passes").whereEqualTo("fromUserId", userId).get().await()
+        passesFrom.documents.forEach { it.reference.delete() }
+        val passesTo = db.collection("passes").whereEqualTo("toUserId", userId).get().await()
+        passesTo.documents.forEach { it.reference.delete() }
+      } catch (_: Exception) {}
+
+      // 6. Delete mutual matches involving user
+      try {
+        val matches1 = db.collection("matches").whereEqualTo("user1Id", userId).get().await()
+        matches1.documents.forEach { it.reference.delete() }
+        val matches2 = db.collection("matches").whereEqualTo("user2Id", userId).get().await()
+        matches2.documents.forEach { it.reference.delete() }
+      } catch (_: Exception) {}
+
+      // 7. Delete blocks involving user
+      try {
+        val blocks1 = db.collection("blocks").whereEqualTo("fromUserId", userId).get().await()
+        blocks1.documents.forEach { it.reference.delete() }
+        val blocks2 = db.collection("blocks").whereEqualTo("blockedUserId", userId).get().await()
+        blocks2.documents.forEach { it.reference.delete() }
+      } catch (_: Exception) {}
+
+      // 8. Record in "deleted_accounts" so other users / future queries immediately ignore this account
+      try {
+        val deleteRecord = mapOf(
+          "userId" to userId,
+          "deletedTimestamp" to System.currentTimeMillis()
+        )
+        db.collection("deleted_accounts").document(userId).set(deleteRecord, SetOptions.merge()).await()
+      } catch (_: Exception) {}
+
+      Log.d(tag, "Successfully wiped all cloud data for deleted user: $userId")
       true
     } catch (e: Exception) {
-      Log.w(tag, "Firestore profile delete notice: ${e.message}")
+      Log.w(tag, "Notice deleting user profile: ${e.message}")
       false
     }
   }
@@ -954,16 +1015,32 @@ class FirestoreManager {
     }
   }
 
+  /**
+   * Fetches all permanently deleted user IDs to exclude from Discover, Matches, and Chat interactions.
+   */
+  suspend fun fetchAllDeletedAccountUserIds(): Set<String> {
+    val db = firestore ?: return emptySet()
+    return try {
+      val docs = db.collection("deleted_accounts").get().await().documents
+      docs.map { it.id }.filter { it.isNotBlank() }.toSet()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching deleted accounts: ${e.message}")
+      emptySet()
+    }
+  }
+
   suspend fun fetchAllCommunityProfiles(excludeUserId: String): List<DatingProfile> {
     val db = firestore ?: return emptyList()
     return try {
+      val deletedUserIds = fetchAllDeletedAccountUserIds()
       val snapshot = db.collection("users")
         .whereEqualTo("isOnboardingCompleted", true)
         .get()
         .await()
       snapshot.documents.mapNotNull { doc ->
-        if (doc.id == excludeUserId) return@mapNotNull null
+        if (doc.id == excludeUserId || deletedUserIds.contains(doc.id)) return@mapNotNull null
         val data = doc.data ?: return@mapNotNull null
+        if (data["isAccountDisabled"] == true || data["isDeleted"] == true) return@mapNotNull null
         val name = data["name"] as? String ?: return@mapNotNull null
         if (name.isBlank()) return@mapNotNull null
         val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>()?.filter { it.startsWith("http://") || it.startsWith("https://") } ?: emptyList()

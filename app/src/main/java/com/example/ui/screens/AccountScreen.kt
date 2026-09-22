@@ -58,6 +58,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
@@ -669,6 +671,7 @@ private fun SettingsPage(
 
   var showDisableDialog by remember { mutableStateOf(false) }
   var showDeleteDialog by remember { mutableStateOf(false) }
+  var deleteConfirmationText by remember { mutableStateOf("") }
 
   Scaffold(
     topBar = {
@@ -821,7 +824,10 @@ private fun SettingsPage(
           Spacer(modifier = Modifier.height(14.dp))
 
           Button(
-            onClick = { showDeleteDialog = true },
+            onClick = {
+              deleteConfirmationText = ""
+              showDeleteDialog = true
+            },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
               containerColor = MaterialTheme.colorScheme.error,
@@ -886,27 +892,58 @@ private fun SettingsPage(
 
   // 2. Delete Account Confirmation Dialog
   if (showDeleteDialog) {
+    val isConfirmed = deleteConfirmationText.trim().equals("delete", ignoreCase = true)
     AlertDialog(
-      onDismissRequest = { showDeleteDialog = false },
+      onDismissRequest = {
+        showDeleteDialog = false
+        deleteConfirmationText = ""
+      },
       icon = { Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-      title = { Text("Permanently Delete Account?", color = MaterialTheme.colorScheme.error) },
+      title = { Text("Permanently Delete Account?", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
       text = {
-        Text("Are you sure you want to delete your Katkat account? All your matches, chat conversations, and profile details will be permanently removed from the database.")
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+          Text("Are you sure you want to delete your Katkat account? All your matches, chat conversations, and profile details will be permanently removed from the database.")
+          Text("To confirm deletion, please type \"delete\" below:", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+          OutlinedTextField(
+            value = deleteConfirmationText,
+            onValueChange = { deleteConfirmationText = it },
+            placeholder = { Text("type 'delete'") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedBorderColor = MaterialTheme.colorScheme.error,
+              unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+          )
+        }
       },
       confirmButton = {
         Button(
           onClick = {
             showDeleteDialog = false
+            deleteConfirmationText = ""
             onDeleteAccount()
           },
-          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+          enabled = isConfirmed,
+          colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.error,
+            disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+            contentColor = Color.White,
+            disabledContentColor = Color.White.copy(alpha = 0.5f)
+          )
         ) {
-          Text("Yes, Delete Everything")
+          Text("Delete Profile", fontWeight = FontWeight.Bold)
         }
       },
       dismissButton = {
-        TextButton(onClick = { showDeleteDialog = false }) {
-          Text("Keep Account")
+        TextButton(onClick = {
+          showDeleteDialog = false
+          deleteConfirmationText = ""
+        }) {
+          Text("Cancel")
         }
       }
     )

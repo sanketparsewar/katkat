@@ -906,14 +906,16 @@ class KatkatRepository(
       val mutualMatchedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchMutualMatchedUserIds(currentUserId) else emptySet()
       val outgoingPassedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingPassedUserIds(currentUserId) else emptySet()
       val blockedOrBlockingIds = if (currentUserId.isNotBlank()) firestoreManager.fetchAllBlockedOrBlockingUserIds(currentUserId) else emptySet()
+      val deletedAccountIds = if (firestoreManager.isAvailable) firestoreManager.fetchAllDeletedAccountUserIds() else emptySet()
 
-      // Purge any local profiles or messages for blocked users (two-way)
-      blockedOrBlockingIds.forEach { bId ->
+      // Purge any local profiles or messages for blocked users (two-way) or deleted accounts
+      val invalidUserIds = blockedOrBlockingIds + deletedAccountIds
+      invalidUserIds.forEach { bId ->
         dao.deleteProfileById(bId)
         dao.deleteMessagesForMatch(bId)
       }
 
-      val unblockedCommunity = community.filter { !blockedOrBlockingIds.contains(it.id) }
+      val unblockedCommunity = community.filter { !invalidUserIds.contains(it.id) }
 
       if (unblockedCommunity.isNotEmpty()) {
         val entities = unblockedCommunity.map { profile ->
@@ -1025,9 +1027,11 @@ class KatkatRepository(
 
   suspend fun deleteAccount(): Boolean {
     val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
+    phoneAuthManager.signOut()
     dao.deleteUserProfile()
     dao.deleteAllMessages()
     dao.deleteAllSwipeRecords()
+    dao.deleteAllProfiles()
     if (current != null && firestoreManager.isAvailable) {
       appScope.launch {
         firestoreManager.deleteUserProfile(current.id)
