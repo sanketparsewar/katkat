@@ -62,6 +62,9 @@ interface DatingDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertSwipeRecord(record: SwipeRecordEntity)
 
+  @Query("SELECT * FROM swipe_records WHERE profileId = :profileId AND monthKey = :monthKey LIMIT 1")
+  suspend fun getSwipeRecordForProfile(profileId: String, monthKey: String = "2026-09"): SwipeRecordEntity?
+
   @Query("SELECT COUNT(*) FROM swipe_records WHERE monthKey = :monthKey")
   fun getMonthlySwipeCountFlow(monthKey: String): Flow<Int>
 

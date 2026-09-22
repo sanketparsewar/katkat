@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
 
 class KatkatRepository(
@@ -41,6 +43,9 @@ class KatkatRepository(
   val phoneAuthManager: PhoneAuthManager = PhoneAuthManager(),
   val firebaseStorageManager: FirebaseStorageManager = FirebaseStorageManager()
 ) {
+
+  // Concurrency guard to ensure duplicate taps on the same profile don't execute simultaneously
+  private val pendingSwipeIds = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
   // Event stream for real-time mutual matches (emitted to show celebration dialog on both devices)
   private val _realtimeMatchEvent = MutableSharedFlow<DatingProfile>(extraBufferCapacity = 5)
@@ -518,101 +523,134 @@ class KatkatRepository(
     profileId: String,
     action: SwipeAction
   ): SwipeResult {
-    val sub = dao.getSubscriptionFlow().firstOrNull()
-    val tier = try {
-      SubscriptionTier.valueOf(sub?.tierName ?: SubscriptionTier.FREE.name)
-    } catch (_: Exception) {
-      SubscriptionTier.FREE
-    }
-    val currentSwipes = sub?.swipesUsedThisMonth ?: 0
+    if (profileId.isBlank()) return SwipeResult.Error("Invalid profile ID")
 
-    if (currentSwipes >= tier.monthlySwipes) {
-      return SwipeResult.LimitReached(tier, currentSwipes)
-    }
-
-    val profile = dao.getProfileById(profileId) ?: return SwipeResult.Error("Profile not found")
-    val newSwipeCount = currentSwipes + 1
-
-    // Record swipe
-    dao.insertSwipeRecord(
-      SwipeRecordEntity(
-        profileId = profileId,
-        actionType = action.name,
-        monthKey = "2026-09"
-      )
-    )
-
-    // Update subscription record
-    dao.saveSubscription(
-      SubscriptionEntity(
-        id = "current_sub",
-        tierName = tier.name,
-        swipesUsedThisMonth = newSwipeCount,
-        currentMonthKey = "2026-09",
-        isAnnualBilling = sub?.isAnnualBilling ?: false,
-        subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: "Renews Oct 16, 2026"
-      )
-    )
-
-    val now = System.currentTimeMillis()
-    var isMutual = false
-
-    when (action) {
-      SwipeAction.LIKE -> {
-        isMutual = profile.likedMe
-        dao.markLiked(profileId, isMutual = isMutual, matchedTimestamp = if (isMutual) now else null)
+    // 1. Concurrency guard: Prevent duplicate simultaneous taps on the same profile
+    if (!pendingSwipeIds.add(profileId)) {
+      Log.d("KatkatRepository", "Concurrent swipe ignored for profile: $profileId")
+      val existingProfile = dao.getProfileById(profileId)
+      return if (existingProfile != null && existingProfile.isMutualMatch) {
+        SwipeResult.MutualMatch(existingProfile.toDomain())
+      } else {
+        SwipeResult.Success(action)
       }
-      SwipeAction.PASS -> {
-        dao.markPassed(profileId)
-        if (firestoreManager.isAvailable) {
-          val myUserId = getEffectiveCurrentUserId()
-          if (myUserId.isNotBlank()) {
-            appScope.launch {
-              firestoreManager.sendPass(myUserId, profileId)
-            }
-          }
+    }
+
+    try {
+      val profile = dao.getProfileById(profileId) ?: return SwipeResult.Error("Profile not found")
+
+      // 2. Idempotency check: If profile was already liked/passed/superliked, do not create duplicate records
+      if (profile.isLikedByMe || profile.isPassedByMe || profile.isSuperLikedByMe) {
+        Log.d("KatkatRepository", "Idempotent swipe: Profile $profileId was already processed (liked=${profile.isLikedByMe}, passed=${profile.isPassedByMe})")
+        return if (profile.isMutualMatch) {
+          SwipeResult.MutualMatch(profile.toDomain())
+        } else {
+          SwipeResult.Success(action)
         }
       }
-      SwipeAction.SUPERLIKE -> {
-        isMutual = true
-        dao.markSuperLiked(profileId, matchedTimestamp = now)
+
+      val sub = dao.getSubscriptionFlow().firstOrNull()
+      val tier = try {
+        SubscriptionTier.valueOf(sub?.tierName ?: SubscriptionTier.FREE.name)
+      } catch (_: Exception) {
+        SubscriptionTier.FREE
       }
-    }
+      val currentSwipes = sub?.swipesUsedThisMonth ?: 0
 
-    // Push like to Cloud Firestore for real-time cross-device match synchronization
-    if ((action == SwipeAction.LIKE || action == SwipeAction.SUPERLIKE) && firestoreManager.isAvailable) {
-      val myUserId = getEffectiveCurrentUserId()
-      if (myUserId.isNotBlank()) {
-        appScope.launch {
-          val isSuper = action == SwipeAction.SUPERLIKE
-          firestoreManager.sendLike(myUserId, profileId, isSuper)
+      if (currentSwipes >= tier.monthlySwipes) {
+        return SwipeResult.LimitReached(tier, currentSwipes)
+      }
 
-          // Double check if other user already liked me in Cloud Firestore
-          if (!isMutual) {
-            val otherLikedMeCloud = firestoreManager.checkMutualLike(myUserId, profileId)
-            if (otherLikedMeCloud || isSuper) {
-              val matchTime = System.currentTimeMillis()
-              dao.markMutualMatch(profileId, matchTime)
-              firestoreManager.registerMutualMatch(myUserId, profileId)
+      val monthKey = "2026-09"
+      val existingSwipeRecord = dao.getSwipeRecordForProfile(profileId, monthKey)
 
-              val updatedProfile = dao.getProfileById(profileId)?.toDomain()
-              if (updatedProfile != null) {
-                _realtimeMatchEvent.emit(updatedProfile)
+      // Only increment monthly quota and create a swipe record if not already recorded
+      if (existingSwipeRecord == null) {
+        val newSwipeCount = currentSwipes + 1
+        dao.insertSwipeRecord(
+          SwipeRecordEntity(
+            profileId = profileId,
+            actionType = action.name,
+            monthKey = monthKey
+          )
+        )
+
+        dao.saveSubscription(
+          SubscriptionEntity(
+            id = "current_sub",
+            tierName = tier.name,
+            swipesUsedThisMonth = newSwipeCount,
+            currentMonthKey = monthKey,
+            isAnnualBilling = sub?.isAnnualBilling ?: false,
+            subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: "Renews Oct 16, 2026"
+          )
+        )
+      }
+
+      val now = System.currentTimeMillis()
+      var isMutual = false
+
+      when (action) {
+        SwipeAction.LIKE -> {
+          isMutual = profile.likedMe
+          dao.markLiked(profileId, isMutual = isMutual, matchedTimestamp = if (isMutual) now else null)
+        }
+        SwipeAction.PASS -> {
+          dao.markPassed(profileId)
+          if (firestoreManager.isAvailable) {
+            val myUserId = getEffectiveCurrentUserId()
+            if (myUserId.isNotBlank()) {
+              appScope.launch {
+                firestoreManager.sendPass(myUserId, profileId)
               }
             }
-          } else {
-            // It was mutual locally, register in cloud
-            firestoreManager.registerMutualMatch(myUserId, profileId)
+          }
+        }
+        SwipeAction.SUPERLIKE -> {
+          isMutual = true
+          dao.markSuperLiked(profileId, matchedTimestamp = now)
+        }
+      }
+
+      // Push like to Cloud Firestore for real-time cross-device match synchronization
+      // Cloud Firestore uses deterministic docId "${fromUserId}_$toUserId" with SetOptions.merge()
+      // to strictly guarantee single idempotent records in the cloud as well.
+      if ((action == SwipeAction.LIKE || action == SwipeAction.SUPERLIKE) && firestoreManager.isAvailable) {
+        val myUserId = getEffectiveCurrentUserId()
+        if (myUserId.isNotBlank()) {
+          appScope.launch {
+            val isSuper = action == SwipeAction.SUPERLIKE
+            firestoreManager.sendLike(myUserId, profileId, isSuper)
+
+            // Double check if other user already liked me in Cloud Firestore
+            if (!isMutual) {
+              val otherLikedMeCloud = firestoreManager.checkMutualLike(myUserId, profileId)
+              if (otherLikedMeCloud || isSuper) {
+                val matchTime = System.currentTimeMillis()
+                dao.markMutualMatch(profileId, matchTime)
+                firestoreManager.registerMutualMatch(myUserId, profileId)
+
+                val updatedProfile = dao.getProfileById(profileId)?.toDomain()
+                if (updatedProfile != null) {
+                  _realtimeMatchEvent.emit(updatedProfile)
+                }
+              }
+            } else {
+              // It was mutual locally, register in cloud
+              firestoreManager.registerMutualMatch(myUserId, profileId)
+            }
           }
         }
       }
-    }
 
-    if (isMutual) {
-      return SwipeResult.MutualMatch(profile.toDomain())
-    }
+      if (isMutual) {
+        return SwipeResult.MutualMatch(profile.toDomain())
+      }
 
-    return SwipeResult.Success(action)
+      return SwipeResult.Success(action)
+    } finally {
+      pendingSwipeIds.remove(profileId)
+    }
   }
 
   suspend fun rewindLastSwipe(): Boolean {
