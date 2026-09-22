@@ -136,9 +136,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.data.model.KatkatNotification
+import com.example.data.model.KatkatNotificationType
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
+import com.example.ui.components.NotificationsBottomSheet
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
@@ -331,6 +334,8 @@ fun ProfileEditScreen(
   matchesCount: Int = 0,
   chatsCount: Int = 0,
   isUploadingPhoto: Boolean = false,
+  notifications: List<KatkatNotification> = emptyList(),
+  unreadNotificationCount: Int = 0,
   onThemeModeChange: (AppThemeMode) -> Unit = {},
   onSaveProfile: (UserProfile) -> Unit,
   onAddPhoto: (String) -> Unit,
@@ -343,6 +348,12 @@ fun ProfileEditScreen(
   onDisableAccount: (Boolean) -> Unit = {},
   onDeleteAccount: () -> Unit = {},
   onLogout: () -> Unit = {},
+  onMarkNotificationRead: (String) -> Unit = {},
+  onMarkAllNotificationsRead: () -> Unit = {},
+  onDeleteNotification: (String) -> Unit = {},
+  onClearAllNotifications: () -> Unit = {},
+  onTriggerTestNotification: (KatkatNotificationType) -> Unit = {},
+  onNavigateToChat: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val context = LocalContext.current
@@ -469,7 +480,7 @@ fun ProfileEditScreen(
         ) {
           IconButton(
             onClick = { showNotificationsDialog = true },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().testTag("btn_profile_notifications")
           ) {
             Icon(
               imageVector = Icons.Outlined.Notifications,
@@ -479,14 +490,17 @@ fun ProfileEditScreen(
             )
           }
           // Notification Dot Badge
-          Box(
-            modifier = Modifier
-              .size(8.dp)
-              .align(Alignment.TopEnd)
-              .padding(top = 6.dp, end = 6.dp)
-              .clip(CircleShape)
-              .background(CoralPrimary)
-          )
+          if (unreadNotificationCount > 0) {
+            Box(
+              modifier = Modifier
+                .size(10.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = (-2).dp, y = 2.dp)
+                .clip(CircleShape)
+                .background(CoralPrimary)
+                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+            )
+          }
         }
       }
     }
@@ -3122,29 +3136,21 @@ fun ProfileEditScreen(
     )
   }
 
-  // 11. Notifications Dialog
+  // 11. Dynamic Notifications Bottom Sheet
   if (showNotificationsDialog) {
-    AlertDialog(
-      onDismissRequest = { showNotificationsDialog = false },
-      title = {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Icon(Icons.Outlined.Notifications, contentDescription = null, tint = CoralPrimary)
-          Spacer(modifier = Modifier.width(8.dp))
-          Text("Notifications", fontWeight = FontWeight.Bold)
-        }
-      },
-      text = {
-        Column(modifier = Modifier.fillMaxWidth()) {
-          Text(
-            text = "No new notifications right now. Real-time updates and matches will appear here.",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-      },
-      confirmButton = {
-        TextButton(onClick = { showNotificationsDialog = false }) {
-          Text("Close", color = CoralPrimary, fontWeight = FontWeight.Bold)
+    NotificationsBottomSheet(
+      notifications = notifications,
+      unreadCount = unreadNotificationCount,
+      onDismiss = { showNotificationsDialog = false },
+      onMarkRead = onMarkNotificationRead,
+      onMarkAllRead = onMarkAllNotificationsRead,
+      onDelete = onDeleteNotification,
+      onClearAll = onClearAllNotifications,
+      onTriggerTestNotification = onTriggerTestNotification,
+      onNavigateToTarget = { target ->
+        showNotificationsDialog = false
+        if (target.startsWith("chat")) {
+          onNavigateToChat()
         }
       }
     )

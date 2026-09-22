@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import com.example.data.local.AppNotificationEntity
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.Converters
 import com.example.data.local.DatingDao
@@ -11,6 +12,8 @@ import com.example.data.local.toDomain
 import com.example.data.local.toEntity
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
+import com.example.data.model.KatkatNotification
+import com.example.data.model.KatkatNotificationType
 import com.example.data.model.MatchConversation
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
@@ -117,7 +120,25 @@ class KatkatRepository(
               val wasAlreadyMutual = profileEntity.isMutualMatch
 
               // Update local state: sender liked me
+              val isFirstLikeNotice = !profileEntity.likedMe
               dao.markIncomingLike(senderId)
+
+              if (isFirstLikeNotice && !wasAlreadyMutual) {
+                // Rule: Profile 2 likes Profile 1 -> Profile 1 receives notification "Someone liked you"
+                val likeNotif = KatkatNotification(
+                  id = "like_${senderId}_${System.currentTimeMillis()}",
+                  userId = currentUserId,
+                  type = KatkatNotificationType.PROFILE_ACTIVITY,
+                  title = "New Like! ✨",
+                  message = "Someone liked you",
+                  timestamp = System.currentTimeMillis(),
+                  senderProfileId = senderId,
+                  senderProfileName = profileEntity.name,
+                  senderAvatarUrl = profileEntity.photosJoined.split("|||").firstOrNull(),
+                  deepLinkTarget = "likes_you"
+                )
+                dao.insertNotification(likeNotif.toEntity())
+              }
 
               // If I already liked this profile and we weren't marked mutual yet -> MATCH!
               if (wasAlreadyLikedByMe && !wasAlreadyMutual) {
@@ -126,6 +147,21 @@ class KatkatRepository(
 
                 // Register mutual match in Firestore so both users share the match record
                 firestoreManager.registerMutualMatch(currentUserId, senderId)
+
+                // Rule: If it becomes mutual: "Yaaa! You have a new match!"
+                val matchNotif = KatkatNotification(
+                  id = "match_${senderId}_$matchTime",
+                  userId = currentUserId,
+                  type = KatkatNotificationType.NEW_MATCH,
+                  title = "It's a Match! 🎉",
+                  message = "Yaaa! You have a new match!",
+                  timestamp = matchTime,
+                  senderProfileId = senderId,
+                  senderProfileName = profileEntity.name,
+                  senderAvatarUrl = profileEntity.photosJoined.split("|||").firstOrNull(),
+                  deepLinkTarget = "chat/$senderId"
+                )
+                dao.insertNotification(matchNotif.toEntity())
 
                 // Trigger celebratory match popup on this device
                 val updatedProfile = dao.getProfileById(senderId)?.toDomain()
@@ -154,6 +190,21 @@ class KatkatRepository(
             if (profileEntity != null && !profileEntity.isMutualMatch) {
               dao.markMutualMatch(otherUserId, cm.matchedTimestamp)
 
+              // Rule: "Yaaa! You have a new match!"
+              val matchNotif = KatkatNotification(
+                id = "match_${otherUserId}_${cm.matchedTimestamp}",
+                userId = currentUserId,
+                type = KatkatNotificationType.NEW_MATCH,
+                title = "It's a Match! 🎉",
+                message = "Yaaa! You have a new match!",
+                timestamp = cm.matchedTimestamp,
+                senderProfileId = otherUserId,
+                senderProfileName = profileEntity.name,
+                senderAvatarUrl = profileEntity.photosJoined.split("|||").firstOrNull(),
+                deepLinkTarget = "chat/$otherUserId"
+              )
+              dao.insertNotification(matchNotif.toEntity())
+
               val updatedProfile = dao.getProfileById(otherUserId)?.toDomain()
               if (updatedProfile != null) {
                 _realtimeMatchEvent.emit(updatedProfile)
@@ -163,14 +214,31 @@ class KatkatRepository(
         }
       }
 
-      // 3. Observe background chat messages for all mutual matches to update unread counts in real time
+      // 3. Observe background chat messages for all mutual matches to update unread counts and notifications in real time
       launch {
         dao.getMutualMatches().collect { mutualList ->
           mutualList.forEach { matchProfile ->
             launch {
               firestoreManager.observeChatMessages(matchProfile.id, currentUserId).collect { remoteMsgs ->
+                val existingLatest = dao.getLatestMessage(matchProfile.id)
                 remoteMsgs.forEach { msg ->
                   dao.insertMessage(msg.toEntity())
+                  // Rule: If a match sends a message: "Profile 2 sent you a message"
+                  if (msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
+                    val notif = KatkatNotification(
+                      id = "msg_${msg.id}",
+                      userId = currentUserId,
+                      type = KatkatNotificationType.NEW_MESSAGE,
+                      title = "New Message 💬",
+                      message = "${msg.senderName.takeIf { it.isNotBlank() } ?: matchProfile.name} sent you a message",
+                      timestamp = msg.timestamp,
+                      senderProfileId = msg.senderId,
+                      senderProfileName = msg.senderName.takeIf { it.isNotBlank() } ?: matchProfile.name,
+                      senderAvatarUrl = matchProfile.photosJoined.split("|||").firstOrNull(),
+                      deepLinkTarget = "chat/${matchProfile.id}"
+                    )
+                    dao.insertNotification(notif.toEntity())
+                  }
                 }
               }
             }
@@ -218,6 +286,15 @@ class KatkatRepository(
             if (localProfile == null || localProfile.name != remoteUserProfile.name || localProfile.bio != remoteUserProfile.bio || localProfile.photosJoined != remoteUserProfile.photos.joinToString("|||")) {
               dao.saveUserProfile(remoteUserProfile.toEntity())
             }
+          }
+        }
+      }
+
+      // 7. Observe real-time cloud notifications sent from other users or system
+      launch {
+        firestoreManager.observeNotifications(currentUserId).collect { remoteNotifications ->
+          remoteNotifications.forEach { notif ->
+            dao.insertNotification(notif.toEntity())
           }
         }
       }
@@ -768,6 +845,10 @@ class KatkatRepository(
       // to strictly guarantee single idempotent records in the cloud as well.
       if ((action == SwipeAction.LIKE || action == SwipeAction.SUPERLIKE) && firestoreManager.isAvailable) {
         val myUserId = getEffectiveCurrentUserId()
+        val localUser = dao.getUserProfileFlow().firstOrNull()
+        val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
+        val myAvatar = localUser?.photosJoined?.split("|||")?.firstOrNull()
+
         if (myUserId.isNotBlank()) {
           appScope.launch {
             val isSuper = action == SwipeAction.SUPERLIKE
@@ -781,14 +862,88 @@ class KatkatRepository(
                 dao.markMutualMatch(profileId, matchTime)
                 firestoreManager.registerMutualMatch(myUserId, profileId)
 
+                // Rule: If it becomes mutual: "Yaaa! You have a new match!"
+                val matchNotifForPartner = KatkatNotification(
+                  id = "match_${myUserId}_$matchTime",
+                  userId = profileId,
+                  type = KatkatNotificationType.NEW_MATCH,
+                  title = "It's a Match! 🎉",
+                  message = "Yaaa! You have a new match!",
+                  timestamp = matchTime,
+                  senderProfileId = myUserId,
+                  senderProfileName = myName,
+                  senderAvatarUrl = myAvatar,
+                  deepLinkTarget = "chat/$myUserId"
+                )
+                firestoreManager.sendNotification(profileId, matchNotifForPartner)
+
+                val matchNotifForMe = KatkatNotification(
+                  id = "match_${profileId}_$matchTime",
+                  userId = myUserId,
+                  type = KatkatNotificationType.NEW_MATCH,
+                  title = "It's a Match! 🎉",
+                  message = "Yaaa! You have a new match!",
+                  timestamp = matchTime,
+                  senderProfileId = profileId,
+                  senderProfileName = profile.name,
+                  senderAvatarUrl = profile.photosJoined.split("|||").firstOrNull(),
+                  deepLinkTarget = "chat/$profileId"
+                )
+                dao.insertNotification(matchNotifForMe.toEntity())
+
                 val updatedProfile = dao.getProfileById(profileId)?.toDomain()
                 if (updatedProfile != null) {
                   _realtimeMatchEvent.emit(updatedProfile)
                 }
+              } else {
+                // Rule: Profile 2 likes Profile 1 -> Profile 1 receives notification "Someone liked you"
+                val likeNotif = KatkatNotification(
+                  id = "like_${myUserId}_${System.currentTimeMillis()}",
+                  userId = profileId,
+                  type = KatkatNotificationType.PROFILE_ACTIVITY,
+                  title = "New Like! ✨",
+                  message = "Someone liked you",
+                  timestamp = System.currentTimeMillis(),
+                  senderProfileId = myUserId,
+                  senderProfileName = myName,
+                  senderAvatarUrl = myAvatar,
+                  deepLinkTarget = "likes_you"
+                )
+                firestoreManager.sendNotification(profileId, likeNotif)
               }
             } else {
               // It was mutual locally, register in cloud
+              val matchTime = System.currentTimeMillis()
               firestoreManager.registerMutualMatch(myUserId, profileId)
+
+              // Push match notification to both
+              val matchNotifForPartner = KatkatNotification(
+                id = "match_${myUserId}_$matchTime",
+                userId = profileId,
+                type = KatkatNotificationType.NEW_MATCH,
+                title = "It's a Match! 🎉",
+                message = "Yaaa! You have a new match!",
+                timestamp = matchTime,
+                senderProfileId = myUserId,
+                senderProfileName = myName,
+                senderAvatarUrl = myAvatar,
+                deepLinkTarget = "chat/$myUserId"
+              )
+              firestoreManager.sendNotification(profileId, matchNotifForPartner)
+
+              val matchNotifForMe = KatkatNotification(
+                id = "match_${profileId}_$matchTime",
+                userId = myUserId,
+                type = KatkatNotificationType.NEW_MATCH,
+                title = "It's a Match! 🎉",
+                message = "Yaaa! You have a new match!",
+                timestamp = matchTime,
+                senderProfileId = profileId,
+                senderProfileName = profile.name,
+                senderAvatarUrl = profile.photosJoined.split("|||").firstOrNull(),
+                deepLinkTarget = "chat/$profileId"
+              )
+              dao.insertNotification(matchNotifForMe.toEntity())
             }
           }
         }
@@ -897,6 +1052,21 @@ class KatkatRepository(
     if (firestoreManager.isAvailable) {
       appScope.launch {
         firestoreManager.sendChatMessage(matchId, myMessage.toDomain(), myUserId)
+
+        // Push notification to recipient: "Profile 2 sent you a message"
+        val msgNotif = KatkatNotification(
+          id = "msg_${myMessage.id}",
+          userId = matchId,
+          type = KatkatNotificationType.NEW_MESSAGE,
+          title = "New Message 💬",
+          message = "$myName sent you a message",
+          timestamp = myMessage.timestamp,
+          senderProfileId = myUserId,
+          senderProfileName = myName,
+          senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
+          deepLinkTarget = "chat/$myUserId"
+        )
+        firestoreManager.sendNotification(matchId, msgNotif)
       }
     }
   }
@@ -905,9 +1075,27 @@ class KatkatRepository(
     dao.markMessagesAsRead(matchId)
     if (firestoreManager.isAvailable) {
       val myUserId = getEffectiveCurrentUserId()
+      val localUser = dao.getUserProfileFlow().firstOrNull()
+      val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
+
       if (myUserId.isNotBlank()) {
         appScope.launch {
           firestoreManager.markChatMessagesAsRead(matchId, myUserId)
+
+          // Rule: MESSAGE_READ notification sent to original sender
+          val readNotif = KatkatNotification(
+            id = "read_${myUserId}_${System.currentTimeMillis()}",
+            userId = matchId,
+            type = KatkatNotificationType.MESSAGE_READ,
+            title = "Message Read 👀",
+            message = "$myName read your message",
+            timestamp = System.currentTimeMillis(),
+            senderProfileId = myUserId,
+            senderProfileName = myName,
+            senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
+            deepLinkTarget = "chat/$myUserId"
+          )
+          firestoreManager.sendNotification(matchId, readNotif)
         }
       }
     }
@@ -1314,6 +1502,76 @@ class KatkatRepository(
     val cleanPhone = localUser?.phoneNumber?.filter { it.isDigit() }.orEmpty()
     if (cleanPhone.isNotBlank()) return "user_$cleanPhone"
     return localUser?.id ?: "my_profile"
+  }
+
+  // --- Notification Operations ---
+  fun getNotificationsFlow(userId: String): Flow<List<KatkatNotification>> {
+    return dao.getNotificationsFlow(userId).map { list ->
+      list.map { it.toDomain() }
+    }
+  }
+
+  fun getUnreadNotificationsCountFlow(userId: String): Flow<Int> {
+    return dao.getUnreadNotificationsCountFlow(userId)
+  }
+
+  suspend fun markNotificationAsRead(id: String) {
+    dao.markNotificationAsRead(id)
+    val myUserId = getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      appScope.launch {
+        firestoreManager.markNotificationReadInCloud(myUserId, id)
+      }
+    }
+  }
+
+  suspend fun markAllNotificationsAsRead(userId: String) {
+    dao.markAllNotificationsAsRead(userId)
+    if (firestoreManager.isAvailable && userId.isNotBlank()) {
+      appScope.launch {
+        firestoreManager.markAllNotificationsReadInCloud(userId)
+      }
+    }
+  }
+
+  suspend fun deleteNotification(id: String) {
+    dao.deleteNotification(id)
+    val myUserId = getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      appScope.launch {
+        firestoreManager.deleteNotificationInCloud(myUserId, id)
+      }
+    }
+  }
+
+  suspend fun clearAllNotifications(userId: String) {
+    dao.deleteAllNotifications(userId)
+    if (firestoreManager.isAvailable && userId.isNotBlank()) {
+      appScope.launch {
+        firestoreManager.clearAllNotificationsInCloud(userId)
+      }
+    }
+  }
+
+  suspend fun postLocalNotification(notification: KatkatNotification) {
+    dao.insertNotification(notification.toEntity())
+  }
+
+  suspend fun postSystemNotification(title: String, message: String, userId: String) {
+    val notif = KatkatNotification(
+      id = "sys_${System.currentTimeMillis()}",
+      userId = userId,
+      type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+      title = title,
+      message = message,
+      timestamp = System.currentTimeMillis()
+    )
+    dao.insertNotification(notif.toEntity())
+    if (firestoreManager.isAvailable && userId.isNotBlank()) {
+      appScope.launch {
+        firestoreManager.sendNotification(userId, notif)
+      }
+    }
   }
 }
 

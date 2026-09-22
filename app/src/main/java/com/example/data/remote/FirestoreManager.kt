@@ -3,6 +3,8 @@ package com.example.data.remote
 import android.util.Log
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
+import com.example.data.model.KatkatNotification
+import com.example.data.model.KatkatNotificationType
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
@@ -1278,6 +1280,172 @@ class FirestoreManager {
 
     awaitClose {
       listener.remove()
+    }
+  }
+
+  /**
+   * Pushes a notification to a specific user's notifications collection in Firestore.
+   */
+  suspend fun sendNotification(targetUserId: String, notification: KatkatNotification): Boolean {
+    val db = firestore ?: return false
+    if (targetUserId.isBlank()) return false
+    return try {
+      val data = mapOf(
+        "id" to notification.id,
+        "userId" to targetUserId,
+        "type" to notification.type.name,
+        "title" to notification.title,
+        "message" to notification.message,
+        "timestamp" to notification.timestamp,
+        "isRead" to notification.isRead,
+        "senderProfileId" to notification.senderProfileId,
+        "senderProfileName" to notification.senderProfileName,
+        "senderAvatarUrl" to notification.senderAvatarUrl,
+        "deepLinkTarget" to notification.deepLinkTarget
+      )
+      db.collection("users")
+        .document(targetUserId)
+        .collection("notifications")
+        .document(notification.id)
+        .set(data, SetOptions.merge())
+        .await()
+      Log.d(tag, "Notification sent to $targetUserId: ${notification.title}")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Failed to send notification to $targetUserId: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Observes incoming notifications for the current user in real time.
+   */
+  fun observeNotifications(userId: String): Flow<List<KatkatNotification>> = callbackFlow {
+    val db = firestore
+    if (db == null || userId.isBlank()) {
+      trySend(emptyList())
+      close()
+      return@callbackFlow
+    }
+
+    val listener = db.collection("users")
+      .document(userId)
+      .collection("notifications")
+      .orderBy("timestamp", Query.Direction.DESCENDING)
+      .limit(50)
+      .addSnapshotListener { snapshot, error ->
+        if (error != null) {
+          Log.w(tag, "Notification observation notice: ${error.message}")
+          return@addSnapshotListener
+        }
+        if (snapshot != null) {
+          val list = snapshot.documents.mapNotNull { doc ->
+            try {
+              val d = doc.data ?: return@mapNotNull null
+              KatkatNotification(
+                id = doc.id,
+                userId = d["userId"] as? String ?: userId,
+                type = try {
+                  KatkatNotificationType.valueOf(d["type"] as? String ?: "")
+                } catch (_: Exception) {
+                  KatkatNotificationType.SYSTEM_NOTIFICATION
+                },
+                title = d["title"] as? String ?: "",
+                message = d["message"] as? String ?: "",
+                timestamp = (d["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                isRead = d["isRead"] as? Boolean ?: false,
+                senderProfileId = d["senderProfileId"] as? String,
+                senderProfileName = d["senderProfileName"] as? String,
+                senderAvatarUrl = d["senderAvatarUrl"] as? String,
+                deepLinkTarget = d["deepLinkTarget"] as? String
+              )
+            } catch (e: Exception) {
+              null
+            }
+          }
+          trySend(list)
+        }
+      }
+
+    awaitClose {
+      listener.remove()
+    }
+  }
+
+  /**
+   * Marks a single notification as read in Firestore.
+   */
+  suspend fun markNotificationReadInCloud(userId: String, notificationId: String) {
+    val db = firestore ?: return
+    if (userId.isBlank() || notificationId.isBlank()) return
+    try {
+      db.collection("users")
+        .document(userId)
+        .collection("notifications")
+        .document(notificationId)
+        .update("isRead", true)
+        .await()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice marking notification read in cloud: ${e.message}")
+    }
+  }
+
+  /**
+   * Marks all notifications as read in Firestore.
+   */
+  suspend fun markAllNotificationsReadInCloud(userId: String) {
+    val db = firestore ?: return
+    if (userId.isBlank()) return
+    try {
+      val docs = db.collection("users")
+        .document(userId)
+        .collection("notifications")
+        .whereEqualTo("isRead", false)
+        .get()
+        .await()
+      for (doc in docs.documents) {
+        doc.reference.update("isRead", true).await()
+      }
+    } catch (e: Exception) {
+      Log.w(tag, "Notice marking all notifications read in cloud: ${e.message}")
+    }
+  }
+
+  /**
+   * Deletes a notification from Firestore.
+   */
+  suspend fun deleteNotificationInCloud(userId: String, notificationId: String) {
+    val db = firestore ?: return
+    if (userId.isBlank() || notificationId.isBlank()) return
+    try {
+      db.collection("users")
+        .document(userId)
+        .collection("notifications")
+        .document(notificationId)
+        .delete()
+        .await()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice deleting notification in cloud: ${e.message}")
+    }
+  }
+
+  /**
+   * Clears all notifications for a user in Firestore.
+   */
+  suspend fun clearAllNotificationsInCloud(userId: String) {
+    val db = firestore ?: return
+    if (userId.isBlank()) return
+    try {
+      val docs = db.collection("users")
+        .document(userId)
+        .collection("notifications")
+        .get()
+        .await()
+      for (doc in docs.documents) {
+        doc.reference.delete().await()
+      }
+    } catch (e: Exception) {
+      Log.w(tag, "Notice clearing all notifications in cloud: ${e.message}")
     }
   }
 }

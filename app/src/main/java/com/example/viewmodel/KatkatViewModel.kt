@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.KatkatDatabase
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
+import com.example.data.model.KatkatNotification
+import com.example.data.model.KatkatNotificationType
 import com.example.data.model.MatchConversation
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
@@ -58,6 +60,22 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = UserProfile()
+  )
+
+  val notifications: StateFlow<List<KatkatNotification>> = userProfile.flatMapLatest { profile ->
+    repository.getNotificationsFlow(profile.id)
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = emptyList()
+  )
+
+  val unreadNotificationCount: StateFlow<Int> = userProfile.flatMapLatest { profile ->
+    repository.getUnreadNotificationsCountFlow(profile.id)
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = 0
   )
 
   // Session loaded state from SQLite database
@@ -607,6 +625,91 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   fun refreshDeck() {
     resetDeck()
+  }
+
+  // --- Notification Actions ---
+  fun markNotificationAsRead(notificationId: String) {
+    viewModelScope.launch {
+      repository.markNotificationAsRead(notificationId)
+    }
+  }
+
+  fun markAllNotificationsAsRead() {
+    viewModelScope.launch {
+      val userId = getEffectiveUserId()
+      repository.markAllNotificationsAsRead(userId)
+      _uiEvents.emit(UiEvent.ShowToast("All notifications marked as read"))
+    }
+  }
+
+  fun deleteNotification(notificationId: String) {
+    viewModelScope.launch {
+      repository.deleteNotification(notificationId)
+    }
+  }
+
+  fun clearAllNotifications() {
+    viewModelScope.launch {
+      val userId = getEffectiveUserId()
+      repository.clearAllNotifications(userId)
+      _uiEvents.emit(UiEvent.ShowToast("All notifications cleared"))
+    }
+  }
+
+  fun postSystemNotification(title: String, message: String) {
+    viewModelScope.launch {
+      val userId = getEffectiveUserId()
+      repository.postSystemNotification(title, message, userId)
+    }
+  }
+
+  fun triggerSimulatedNotification(type: KatkatNotificationType) {
+    viewModelScope.launch {
+      val userId = getEffectiveUserId()
+      val notif = when (type) {
+        KatkatNotificationType.NEW_MATCH -> KatkatNotification(
+          userId = userId,
+          type = KatkatNotificationType.NEW_MATCH,
+          title = "It's a Match! 🎉",
+          message = "Yaaa! You have a new match!",
+          senderProfileName = "Sarah Chen",
+          deepLinkTarget = "chat"
+        )
+        KatkatNotificationType.NEW_MESSAGE -> KatkatNotification(
+          userId = userId,
+          type = KatkatNotificationType.NEW_MESSAGE,
+          title = "New Message 💬",
+          message = "Sarah Chen sent you a message",
+          senderProfileName = "Sarah Chen",
+          deepLinkTarget = "chat"
+        )
+        KatkatNotificationType.MESSAGE_READ -> KatkatNotification(
+          userId = userId,
+          type = KatkatNotificationType.MESSAGE_READ,
+          title = "Message Read 👀",
+          message = "Sarah Chen read your message",
+          senderProfileName = "Sarah Chen",
+          deepLinkTarget = "chat"
+        )
+        KatkatNotificationType.PROFILE_ACTIVITY -> KatkatNotification(
+          userId = userId,
+          type = KatkatNotificationType.PROFILE_ACTIVITY,
+          title = "New Like! ✨",
+          message = "Someone liked you",
+          senderProfileName = "Aarav Sharma",
+          deepLinkTarget = "likes_you"
+        )
+        KatkatNotificationType.SYSTEM_NOTIFICATION -> KatkatNotification(
+          userId = userId,
+          type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+          title = "Welcome to Katkat Dating",
+          message = "Explore eligible matches near your location and start connecting!"
+        )
+      }
+      repository.postLocalNotification(notif)
+      _uiEvents.emit(UiEvent.ShowToast("Notification generated: ${notif.title}"))
+      _uiEvents.emit(UiEvent.VibrateFeedback("tap"))
+    }
   }
 }
 

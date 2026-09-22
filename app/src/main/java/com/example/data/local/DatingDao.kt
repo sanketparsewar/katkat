@@ -133,4 +133,29 @@ interface DatingDao {
 
   @Query("SELECT COUNT(*) FROM dating_profiles")
   suspend fun getProfilesCount(): Int
+
+  // App Notifications
+  @Query("SELECT * FROM app_notifications WHERE userId = :userId OR userId = '' ORDER BY timestamp DESC")
+  fun getNotificationsFlow(userId: String): Flow<List<AppNotificationEntity>>
+
+  @Query("SELECT COUNT(*) FROM app_notifications WHERE (userId = :userId OR userId = '') AND isRead = 0")
+  fun getUnreadNotificationsCountFlow(userId: String): Flow<Int>
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertNotification(notification: AppNotificationEntity)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertNotifications(notifications: List<AppNotificationEntity>)
+
+  @Query("UPDATE app_notifications SET isRead = 1 WHERE id = :id")
+  suspend fun markNotificationAsRead(id: String)
+
+  @Query("UPDATE app_notifications SET isRead = 1 WHERE userId = :userId OR userId = ''")
+  suspend fun markAllNotificationsAsRead(userId: String)
+
+  @Query("DELETE FROM app_notifications WHERE id = :id")
+  suspend fun deleteNotification(id: String)
+
+  @Query("DELETE FROM app_notifications WHERE userId = :userId OR userId = ''")
+  suspend fun deleteAllNotifications(userId: String)
 }

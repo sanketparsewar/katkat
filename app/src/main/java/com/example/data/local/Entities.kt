@@ -256,6 +256,55 @@ data class SubscriptionEntity(
   val subscriptionExpiryDate: String
 )
 
+@Entity(tableName = "app_notifications")
+data class AppNotificationEntity(
+  @PrimaryKey val id: String,
+  val userId: String,
+  val type: String, // NEW_MATCH, NEW_MESSAGE, MESSAGE_READ, PROFILE_ACTIVITY, SYSTEM_NOTIFICATION
+  val title: String,
+  val message: String,
+  val timestamp: Long,
+  val isRead: Boolean,
+  val senderProfileId: String?,
+  val senderProfileName: String?,
+  val senderAvatarUrl: String?,
+  val deepLinkTarget: String?
+)
+
+fun AppNotificationEntity.toDomain(): com.example.data.model.KatkatNotification =
+  com.example.data.model.KatkatNotification(
+    id = id,
+    userId = userId,
+    type = try {
+      com.example.data.model.KatkatNotificationType.valueOf(type)
+    } catch (_: Exception) {
+      com.example.data.model.KatkatNotificationType.SYSTEM_NOTIFICATION
+    },
+    title = title,
+    message = message,
+    timestamp = timestamp,
+    isRead = isRead,
+    senderProfileId = senderProfileId,
+    senderProfileName = senderProfileName,
+    senderAvatarUrl = senderAvatarUrl,
+    deepLinkTarget = deepLinkTarget
+  )
+
+fun com.example.data.model.KatkatNotification.toEntity(): AppNotificationEntity =
+  AppNotificationEntity(
+    id = id,
+    userId = userId,
+    type = type.name,
+    title = title,
+    message = message,
+    timestamp = timestamp,
+    isRead = isRead,
+    senderProfileId = senderProfileId,
+    senderProfileName = senderProfileName,
+    senderAvatarUrl = senderAvatarUrl,
+    deepLinkTarget = deepLinkTarget
+  )
+
 class Converters {
   companion object {
     fun listToString(list: List<String>): String = list.filter { it.isNotBlank() }.joinToString("|||")

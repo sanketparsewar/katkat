@@ -61,6 +61,8 @@ fun MainScreen(
   val conversations by viewModel.conversations.collectAsStateWithLifecycle()
   val typingMatchIds by viewModel.typingMatchIds.collectAsStateWithLifecycle()
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+  val notifications by viewModel.notifications.collectAsStateWithLifecycle()
+  val unreadNotificationCount by viewModel.unreadNotificationCount.collectAsStateWithLifecycle()
 
   // Calculate actual unread conversation count for bottom navigation badge
   val unreadConversationsCount = remember(conversations) {
@@ -228,6 +230,8 @@ fun MainScreen(
               matchesCount = mutualMatches.size,
               chatsCount = mutualMatches.size,
               isUploadingPhoto = isUploadingPhoto,
+              notifications = notifications,
+              unreadNotificationCount = unreadNotificationCount,
               onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
               onSaveProfile = { updated -> viewModel.autoSaveProfile(updated) },
               onAddPhoto = { uriString ->
@@ -255,7 +259,13 @@ fun MainScreen(
               onRestartOnboarding = { viewModel.restartOnboarding() },
               onDisableAccount = { disabled -> viewModel.disableAccount(disabled) },
               onDeleteAccount = { viewModel.deleteAccount() },
-              onLogout = { viewModel.logout() }
+              onLogout = { viewModel.logout() },
+              onMarkNotificationRead = { id -> viewModel.markNotificationAsRead(id) },
+              onMarkAllNotificationsRead = { viewModel.markAllNotificationsAsRead() },
+              onDeleteNotification = { id -> viewModel.deleteNotification(id) },
+              onClearAllNotifications = { viewModel.clearAllNotifications() },
+              onTriggerTestNotification = { type -> viewModel.triggerSimulatedNotification(type) },
+              onNavigateToChat = { currentTab = KatkatTab.MATCHES }
             )
           }
 
