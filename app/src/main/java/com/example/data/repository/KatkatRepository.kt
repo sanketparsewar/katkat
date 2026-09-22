@@ -997,9 +997,11 @@ class KatkatRepository(
   }
 
   suspend fun resetDeckForTesting(currentUserId: String? = null) {
-    dao.deleteAllProfiles()
-    if (firestoreManager.isAvailable && !currentUserId.isNullOrBlank()) {
-      syncCommunityRegisteredUsers(currentUserId)
+    // Only reset passed cards for non-matched profiles so matches remain in Chats
+    dao.resetPassedProfiles()
+    val uid = currentUserId ?: getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable && uid.isNotBlank()) {
+      syncCommunityRegisteredUsers(uid)
     }
   }
 

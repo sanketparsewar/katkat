@@ -55,6 +55,9 @@ interface DatingDao {
   @Query("UPDATE dating_profiles SET isLikedByMe = 0, isPassedByMe = 0, isSuperLikedByMe = 0, isMutualMatch = 0, matchedTimestamp = NULL WHERE id = :id")
   suspend fun rewindSwipe(id: String)
 
+  @Query("UPDATE dating_profiles SET isPassedByMe = 0 WHERE isMutualMatch = 0 AND isLikedByMe = 0 AND isSuperLikedByMe = 0")
+  suspend fun resetPassedProfiles()
+
   // Swipes and Tier tracking
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertSwipeRecord(record: SwipeRecordEntity)
