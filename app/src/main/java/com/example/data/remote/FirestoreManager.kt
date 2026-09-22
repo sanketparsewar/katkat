@@ -643,6 +643,46 @@ class FirestoreManager {
     }
   }
 
+  /**
+   * Fetches the set of user IDs that the current user has already liked in Firestore.
+   */
+  suspend fun fetchOutgoingLikedUserIds(myUserId: String): Set<String> {
+    val db = firestore ?: return emptySet()
+    if (myUserId.isBlank()) return emptySet()
+    return try {
+      val querySnapshot = db.collection("likes")
+        .whereEqualTo("fromUserId", myUserId)
+        .get()
+        .await()
+      querySnapshot.documents.mapNotNull { it.getString("toUserId") }.toSet()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching outgoing likes: ${e.message}")
+      emptySet()
+    }
+  }
+
+  /**
+   * Fetches the set of user IDs with whom the current user already has a mutual match in Firestore.
+   */
+  suspend fun fetchMutualMatchedUserIds(myUserId: String): Set<String> {
+    val db = firestore ?: return emptySet()
+    if (myUserId.isBlank()) return emptySet()
+    return try {
+      val querySnapshot = db.collection("matches")
+        .whereArrayContains("users", myUserId)
+        .get()
+        .await()
+      querySnapshot.documents.mapNotNull { doc ->
+        val u1 = doc.getString("user1Id")
+        val u2 = doc.getString("user2Id")
+        if (u1 == myUserId) u2 else u1
+      }.filter { it.isNotBlank() }.toSet()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching mutual matched IDs: ${e.message}")
+      emptySet()
+    }
+  }
+
   // ==========================================
   // Discovery Profiles Real-Time Syncing
   // ==========================================

@@ -845,9 +845,15 @@ class KatkatRepository(
         dao.deleteProfileById(currentUserId)
       }
       val community = firestoreManager.fetchAllCommunityProfiles(currentUserId)
+      val outgoingLikedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingLikedUserIds(currentUserId) else emptySet()
+      val mutualMatchedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchMutualMatchedUserIds(currentUserId) else emptySet()
+
       if (community.isNotEmpty()) {
         val entities = community.map { profile ->
           val existing = dao.getProfileById(profile.id)
+          val isAlreadyLiked = existing?.isLikedByMe == true || existing?.isSuperLikedByMe == true || outgoingLikedIds.contains(profile.id) || mutualMatchedIds.contains(profile.id)
+          val isAlreadyMutual = existing?.isMutualMatch == true || mutualMatchedIds.contains(profile.id)
+
           ProfileEntity(
             id = profile.id,
             name = profile.name,
@@ -874,15 +880,15 @@ class KatkatRepository(
             anthemArtist = profile.anthemArtist,
             isVerified = profile.isVerified,
             likedMe = existing?.likedMe ?: false,
-            isLikedByMe = existing?.isLikedByMe ?: false,
+            isLikedByMe = isAlreadyLiked,
             isPassedByMe = existing?.isPassedByMe ?: false,
             isSuperLikedByMe = existing?.isSuperLikedByMe ?: false,
-            isMutualMatch = existing?.isMutualMatch ?: false,
+            isMutualMatch = isAlreadyMutual,
             matchedTimestamp = existing?.matchedTimestamp
           )
         }
         dao.insertProfiles(entities)
-        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles preserving match states.")
+        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles preserving liked and match states.")
       }
     } catch (e: Exception) {
       Log.w("KatkatRepository", "Notice syncing community users: ${e.message}")
