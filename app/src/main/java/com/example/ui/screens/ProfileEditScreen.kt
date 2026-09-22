@@ -352,7 +352,6 @@ fun ProfileEditScreen(
   onMarkAllNotificationsRead: () -> Unit = {},
   onDeleteNotification: (String) -> Unit = {},
   onClearAllNotifications: () -> Unit = {},
-  onTriggerTestNotification: (KatkatNotificationType) -> Unit = {},
   onNavigateToChat: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
@@ -3146,7 +3145,6 @@ fun ProfileEditScreen(
       onMarkAllRead = onMarkAllNotificationsRead,
       onDelete = onDeleteNotification,
       onClearAll = onClearAllNotifications,
-      onTriggerTestNotification = onTriggerTestNotification,
       onNavigateToTarget = { target ->
         showNotificationsDialog = false
         if (target.startsWith("chat")) {

@@ -19,6 +19,8 @@ import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
 import android.util.Log
+import com.example.KatkatApplication
+import com.example.util.PushNotificationHelper
 import com.example.data.remote.FirebaseStorageManager
 import com.example.data.remote.FirestoreManager
 import com.example.data.remote.PhoneAuthManager
@@ -46,6 +48,13 @@ class KatkatRepository(
   val phoneAuthManager: PhoneAuthManager = PhoneAuthManager(),
   val firebaseStorageManager: FirebaseStorageManager = FirebaseStorageManager()
 ) {
+
+  private suspend fun saveAndPushNotification(notif: KatkatNotification) {
+    dao.insertNotification(notif.toEntity())
+    try {
+      PushNotificationHelper.postPushNotification(KatkatApplication.appContext, notif)
+    } catch (_: Exception) {}
+  }
 
   // Concurrency guard to ensure duplicate taps on the same profile don't execute simultaneously
   private val pendingSwipeIds = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
@@ -137,7 +146,7 @@ class KatkatRepository(
                   senderAvatarUrl = profileEntity.photosJoined.split("|||").firstOrNull(),
                   deepLinkTarget = "likes_you"
                 )
-                dao.insertNotification(likeNotif.toEntity())
+                saveAndPushNotification(likeNotif)
               }
 
               // If I already liked this profile and we weren't marked mutual yet -> MATCH!
@@ -161,7 +170,7 @@ class KatkatRepository(
                   senderAvatarUrl = profileEntity.photosJoined.split("|||").firstOrNull(),
                   deepLinkTarget = "chat/$senderId"
                 )
-                dao.insertNotification(matchNotif.toEntity())
+                saveAndPushNotification(matchNotif)
 
                 // Trigger celebratory match popup on this device
                 val updatedProfile = dao.getProfileById(senderId)?.toDomain()
@@ -203,7 +212,7 @@ class KatkatRepository(
                 senderAvatarUrl = profileEntity.photosJoined.split("|||").firstOrNull(),
                 deepLinkTarget = "chat/$otherUserId"
               )
-              dao.insertNotification(matchNotif.toEntity())
+              saveAndPushNotification(matchNotif)
 
               val updatedProfile = dao.getProfileById(otherUserId)?.toDomain()
               if (updatedProfile != null) {
@@ -237,7 +246,7 @@ class KatkatRepository(
                       senderAvatarUrl = matchProfile.photosJoined.split("|||").firstOrNull(),
                       deepLinkTarget = "chat/${matchProfile.id}"
                     )
-                    dao.insertNotification(notif.toEntity())
+                    saveAndPushNotification(notif)
                   }
                 }
               }
@@ -294,7 +303,7 @@ class KatkatRepository(
       launch {
         firestoreManager.observeNotifications(currentUserId).collect { remoteNotifications ->
           remoteNotifications.forEach { notif ->
-            dao.insertNotification(notif.toEntity())
+            saveAndPushNotification(notif)
           }
         }
       }
@@ -889,7 +898,7 @@ class KatkatRepository(
                   senderAvatarUrl = profile.photosJoined.split("|||").firstOrNull(),
                   deepLinkTarget = "chat/$profileId"
                 )
-                dao.insertNotification(matchNotifForMe.toEntity())
+                saveAndPushNotification(matchNotifForMe)
 
                 val updatedProfile = dao.getProfileById(profileId)?.toDomain()
                 if (updatedProfile != null) {
@@ -943,7 +952,7 @@ class KatkatRepository(
                 senderAvatarUrl = profile.photosJoined.split("|||").firstOrNull(),
                 deepLinkTarget = "chat/$profileId"
               )
-              dao.insertNotification(matchNotifForMe.toEntity())
+              saveAndPushNotification(matchNotifForMe)
             }
           }
         }
@@ -1554,7 +1563,7 @@ class KatkatRepository(
   }
 
   suspend fun postLocalNotification(notification: KatkatNotification) {
-    dao.insertNotification(notification.toEntity())
+    saveAndPushNotification(notification)
   }
 
   suspend fun postSystemNotification(title: String, message: String, userId: String) {
@@ -1566,7 +1575,7 @@ class KatkatRepository(
       message = message,
       timestamp = System.currentTimeMillis()
     )
-    dao.insertNotification(notif.toEntity())
+    saveAndPushNotification(notif)
     if (firestoreManager.isAvailable && userId.isNotBlank()) {
       appScope.launch {
         firestoreManager.sendNotification(userId, notif)

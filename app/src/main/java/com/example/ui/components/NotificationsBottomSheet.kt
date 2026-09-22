@@ -1,17 +1,11 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,29 +31,19 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsNone
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,20 +60,11 @@ import coil.compose.AsyncImage
 import com.example.data.model.KatkatNotification
 import com.example.data.model.KatkatNotificationType
 import com.example.ui.theme.CoralPrimary
-import com.example.ui.theme.PeachSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-enum class NotificationFilter(val label: String, val type: KatkatNotificationType?) {
-  ALL("All", null),
-  MATCHES("Matches", KatkatNotificationType.NEW_MATCH),
-  MESSAGES("Messages", KatkatNotificationType.NEW_MESSAGE),
-  ACTIVITY("Likes & Activity", KatkatNotificationType.PROFILE_ACTIVITY),
-  SYSTEM("System", KatkatNotificationType.SYSTEM_NOTIFICATION)
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsBottomSheet(
   notifications: List<KatkatNotification>,
@@ -100,31 +74,17 @@ fun NotificationsBottomSheet(
   onMarkAllRead: () -> Unit,
   onDelete: (String) -> Unit,
   onClearAll: () -> Unit,
-  onTriggerTestNotification: (KatkatNotificationType) -> Unit,
   onNavigateToTarget: (String) -> Unit = {},
   sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
-  var selectedFilter by remember { mutableStateOf(NotificationFilter.ALL) }
-  var showTestActions by remember { mutableStateOf(false) }
-
-  val filteredNotifications = remember(notifications, selectedFilter) {
-    when (selectedFilter) {
-      NotificationFilter.ALL -> notifications
-      NotificationFilter.MATCHES -> notifications.filter { it.type == KatkatNotificationType.NEW_MATCH }
-      NotificationFilter.MESSAGES -> notifications.filter {
-        it.type == KatkatNotificationType.NEW_MESSAGE || it.type == KatkatNotificationType.MESSAGE_READ
-      }
-      NotificationFilter.ACTIVITY -> notifications.filter { it.type == KatkatNotificationType.PROFILE_ACTIVITY }
-      NotificationFilter.SYSTEM -> notifications.filter { it.type == KatkatNotificationType.SYSTEM_NOTIFICATION }
-    }
-  }
-
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
     containerColor = MaterialTheme.colorScheme.surface,
     shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-    modifier = Modifier.fillMaxHeight(0.88f).testTag("notifications_sheet")
+    modifier = Modifier
+      .fillMaxHeight(0.85f)
+      .testTag("notifications_sheet")
   ) {
     Column(
       modifier = Modifier
@@ -178,144 +138,70 @@ fun NotificationsBottomSheet(
           }
         }
 
-        IconButton(onClick = onDismiss) {
+        IconButton(
+          onClick = onDismiss,
+          modifier = Modifier.testTag("btn_close_notifications")
+        ) {
           Icon(Icons.Default.Close, contentDescription = "Close")
         }
       }
 
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(6.dp))
 
-      // Action Row: Mark All Read, Clear All, Test Simulator
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          if (unreadCount > 0) {
-            TextButton(
-              onClick = onMarkAllRead,
-              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-              modifier = Modifier.testTag("btn_mark_all_read")
-            ) {
-              Icon(Icons.Default.DoneAll, contentDescription = null, modifier = Modifier.size(16.dp), tint = CoralPrimary)
-              Spacer(modifier = Modifier.width(4.dp))
-              Text("Read all", fontSize = 12.sp, color = CoralPrimary, fontWeight = FontWeight.SemiBold)
+      // Action Row: Mark All Read & Clear All
+      if (notifications.isNotEmpty()) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "${notifications.size} total",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (unreadCount > 0) {
+              TextButton(
+                onClick = onMarkAllRead,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.testTag("btn_mark_all_read")
+              ) {
+                Icon(
+                  imageVector = Icons.Default.DoneAll,
+                  contentDescription = null,
+                  modifier = Modifier.size(16.dp),
+                  tint = CoralPrimary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Mark all read", fontSize = 12.sp, color = CoralPrimary, fontWeight = FontWeight.SemiBold)
+              }
             }
-          }
-          if (notifications.isNotEmpty()) {
             TextButton(
               onClick = onClearAll,
               contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
               modifier = Modifier.testTag("btn_clear_all_notifications")
             ) {
-              Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+              Icon(
+                imageVector = Icons.Default.DeleteOutline,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+              )
               Spacer(modifier = Modifier.width(4.dp))
-              Text("Clear", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-          }
-        }
-
-        // Test Rules Demo Toggle
-        TextButton(
-          onClick = { showTestActions = !showTestActions },
-          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-          Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp), tint = PeachSecondary)
-          Spacer(modifier = Modifier.width(4.dp))
-          Text(if (showTestActions) "Hide Test Tools" else "Simulate Rules", fontSize = 11.sp, color = PeachSecondary, fontWeight = FontWeight.SemiBold)
-        }
-      }
-
-      // Test actions collapsible bar
-      AnimatedVisibility(visible = showTestActions) {
-        Surface(
-          shape = RoundedCornerShape(16.dp),
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-        ) {
-          Column(modifier = Modifier.padding(10.dp)) {
-            Text(
-              text = "Simulate Notification Event Rules:",
-              fontSize = 11.sp,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            FlowRow(
-              horizontalArrangement = Arrangement.spacedBy(6.dp),
-              verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-              OutlinedButton(
-                onClick = { onTriggerTestNotification(KatkatNotificationType.PROFILE_ACTIVITY) },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Text("1. Someone liked you", fontSize = 11.sp)
-              }
-              OutlinedButton(
-                onClick = { onTriggerTestNotification(KatkatNotificationType.NEW_MATCH) },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Text("2. Mutual Match", fontSize = 11.sp)
-              }
-              OutlinedButton(
-                onClick = { onTriggerTestNotification(KatkatNotificationType.NEW_MESSAGE) },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Text("3. New Message", fontSize = 11.sp)
-              }
-              OutlinedButton(
-                onClick = { onTriggerTestNotification(KatkatNotificationType.MESSAGE_READ) },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Text("4. Message Read", fontSize = 11.sp)
-              }
-              OutlinedButton(
-                onClick = { onTriggerTestNotification(KatkatNotificationType.SYSTEM_NOTIFICATION) },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Text("5. System Notice", fontSize = 11.sp)
-              }
+              Text("Clear all", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
           }
         }
       }
 
       Spacer(modifier = Modifier.height(6.dp))
-
-      // Filter Chips
-      LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 4.dp)
-      ) {
-        items(NotificationFilter.values()) { filter ->
-          val selected = selectedFilter == filter
-          FilterChip(
-            selected = selected,
-            onClick = { selectedFilter = filter },
-            label = { Text(filter.label, fontSize = 12.sp) },
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = CoralPrimary,
-              selectedLabelColor = Color.White
-            ),
-            shape = RoundedCornerShape(20.dp)
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(10.dp))
       HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
       Spacer(modifier = Modifier.height(10.dp))
 
       // Notifications List or Empty State
-      if (filteredNotifications.isEmpty()) {
+      if (notifications.isEmpty()) {
         Box(
           modifier = Modifier
             .fillMaxWidth()
@@ -351,13 +237,7 @@ fun NotificationsBottomSheet(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-              text = when (selectedFilter) {
-                NotificationFilter.ALL -> "Likes, new matches, and messages will appear right here in real time."
-                NotificationFilter.MATCHES -> "When someone you liked likes you back, your match will appear here!"
-                NotificationFilter.MESSAGES -> "New chat messages and read receipts from matches will appear here."
-                NotificationFilter.ACTIVITY -> "When someone likes or superlikes your profile, you'll be notified here."
-                NotificationFilter.SYSTEM -> "System updates and account alerts will be shown here."
-              },
+              text = "Likes, new matches, and messages will appear right here in real time.",
               style = MaterialTheme.typography.bodySmall.copy(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 18.sp
@@ -374,7 +254,7 @@ fun NotificationsBottomSheet(
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-          items(filteredNotifications, key = { it.id }) { notif ->
+          items(notifications, key = { it.id }) { notif ->
             NotificationItemCard(
               notification = notif,
               onItemClick = {

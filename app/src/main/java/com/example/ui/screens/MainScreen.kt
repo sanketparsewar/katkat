@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
@@ -7,6 +8,8 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +34,7 @@ import com.example.ui.components.MatchCelebrationDialog
 import com.example.ui.components.PaywallBottomSheet
 import com.example.ui.components.ProfileDetailBottomSheet
 import com.example.util.HapticHelper
+import com.example.util.PushNotificationHelper
 import com.example.viewmodel.KatkatViewModel
 import com.example.viewmodel.UiEvent
 
@@ -40,6 +44,22 @@ fun MainScreen(
   modifier: Modifier = Modifier
 ) {
   val context = LocalContext.current
+
+  // Push Notifications Permission Launcher for Android 13+ (Tiramisu)
+  val notificationPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted ->
+    // Notification permission granted or declined
+  }
+
+  LaunchedEffect(Unit) {
+    PushNotificationHelper.createNotificationChannel(context)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (!PushNotificationHelper.hasNotificationPermission(context)) {
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+      }
+    }
+  }
 
   var currentTab by remember { mutableStateOf(KatkatTab.DISCOVER) }
 
@@ -264,7 +284,6 @@ fun MainScreen(
               onMarkAllNotificationsRead = { viewModel.markAllNotificationsAsRead() },
               onDeleteNotification = { id -> viewModel.deleteNotification(id) },
               onClearAllNotifications = { viewModel.clearAllNotifications() },
-              onTriggerTestNotification = { type -> viewModel.triggerSimulatedNotification(type) },
               onNavigateToChat = { currentTab = KatkatTab.MATCHES }
             )
           }

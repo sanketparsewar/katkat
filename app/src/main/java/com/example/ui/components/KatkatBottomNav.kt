@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -67,9 +68,10 @@ fun KatkatBottomNav(
   NavigationBar(
     modifier = modifier
       .fillMaxWidth()
-      .navigationBarsPadding(),
+      .navigationBarsPadding()
+      .height(56.dp),
     containerColor = MaterialTheme.colorScheme.surface,
-    tonalElevation = 8.dp
+    tonalElevation = 6.dp
   ) {
     primaryTabs.forEach { tab ->
       val isSelected = currentTab == tab
@@ -84,14 +86,14 @@ fun KatkatBottomNav(
                   containerColor = CoralPrimary,
                   contentColor = Color.White
                 ) {
-                  Text(text = "$likesCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                  Text(text = "$likesCount", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
               } else if (tab == KatkatTab.MATCHES && unreadMatchesCount > 0) {
                 Badge(
                   containerColor = CoralPrimary,
                   contentColor = Color.White
                 ) {
-                  Text(text = "$unreadMatchesCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                  Text(text = "$unreadMatchesCount", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
               }
             }
@@ -99,7 +101,7 @@ fun KatkatBottomNav(
             Icon(
               imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
               contentDescription = tab.title,
-              modifier = Modifier.size(24.dp)
+              modifier = Modifier.size(21.dp)
             )
           }
         },
@@ -108,7 +110,7 @@ fun KatkatBottomNav(
             text = tab.title,
             style = MaterialTheme.typography.labelSmall.copy(
               fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-              fontSize = 11.sp
+              fontSize = 10.sp
             )
           )
         },
@@ -117,7 +119,7 @@ fun KatkatBottomNav(
           selectedTextColor = CoralPrimary,
           unselectedIconColor = TextSecondaryDark,
           unselectedTextColor = TextSecondaryDark,
-          indicatorColor = PeachBlush
+          indicatorColor = PeachBlush.copy(alpha = 0.8f)
         ),
         modifier = Modifier.testTag(tab.testTag)
       )
