@@ -507,6 +507,29 @@ class FirestoreManager {
   }
 
   /**
+   * Pushes a pass event to Cloud Firestore.
+   * Stored under "passes/{fromUserId}_{toUserId}".
+   */
+  suspend fun sendPass(fromUserId: String, toUserId: String): Boolean {
+    val db = firestore ?: return false
+    if (fromUserId.isBlank() || toUserId.isBlank()) return false
+    return try {
+      val docId = "${fromUserId}_$toUserId"
+      val data = mapOf(
+        "fromUserId" to fromUserId,
+        "toUserId" to toUserId,
+        "timestamp" to System.currentTimeMillis()
+      )
+      db.collection("passes").document(docId).set(data, SetOptions.merge()).await()
+      Log.d(tag, "Cloud pass recorded: $fromUserId -> $toUserId")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice recording cloud pass: ${e.message}")
+      false
+    }
+  }
+
+  /**
    * Checks if the other user already liked this user in Firestore.
    */
   suspend fun checkMutualLike(fromUserId: String, targetUserId: String): Boolean {
@@ -640,6 +663,24 @@ class FirestoreManager {
 
     awaitClose {
       listenerRegistration.remove()
+    }
+  }
+
+  /**
+   * Fetches the set of user IDs that the current user has already passed in Firestore.
+   */
+  suspend fun fetchOutgoingPassedUserIds(myUserId: String): Set<String> {
+    val db = firestore ?: return emptySet()
+    if (myUserId.isBlank()) return emptySet()
+    return try {
+      val querySnapshot = db.collection("passes")
+        .whereEqualTo("fromUserId", myUserId)
+        .get()
+        .await()
+      querySnapshot.documents.mapNotNull { it.getString("toUserId") }.toSet()
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching outgoing passes: ${e.message}")
+      emptySet()
     }
   }
 

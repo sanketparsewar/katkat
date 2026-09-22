@@ -534,6 +534,14 @@ class KatkatRepository(
       }
       SwipeAction.PASS -> {
         dao.markPassed(profileId)
+        if (firestoreManager.isAvailable) {
+          val myUserId = getEffectiveCurrentUserId()
+          if (myUserId.isNotBlank()) {
+            appScope.launch {
+              firestoreManager.sendPass(myUserId, profileId)
+            }
+          }
+        }
       }
       SwipeAction.SUPERLIKE -> {
         isMutual = true
@@ -847,12 +855,14 @@ class KatkatRepository(
       val community = firestoreManager.fetchAllCommunityProfiles(currentUserId)
       val outgoingLikedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingLikedUserIds(currentUserId) else emptySet()
       val mutualMatchedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchMutualMatchedUserIds(currentUserId) else emptySet()
+      val outgoingPassedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingPassedUserIds(currentUserId) else emptySet()
 
       if (community.isNotEmpty()) {
         val entities = community.map { profile ->
           val existing = dao.getProfileById(profile.id)
           val isAlreadyLiked = existing?.isLikedByMe == true || existing?.isSuperLikedByMe == true || outgoingLikedIds.contains(profile.id) || mutualMatchedIds.contains(profile.id)
           val isAlreadyMutual = existing?.isMutualMatch == true || mutualMatchedIds.contains(profile.id)
+          val isAlreadyPassed = existing?.isPassedByMe == true || outgoingPassedIds.contains(profile.id)
 
           ProfileEntity(
             id = profile.id,
@@ -881,14 +891,14 @@ class KatkatRepository(
             isVerified = profile.isVerified,
             likedMe = existing?.likedMe ?: false,
             isLikedByMe = isAlreadyLiked,
-            isPassedByMe = existing?.isPassedByMe ?: false,
+            isPassedByMe = isAlreadyPassed,
             isSuperLikedByMe = existing?.isSuperLikedByMe ?: false,
             isMutualMatch = isAlreadyMutual,
             matchedTimestamp = existing?.matchedTimestamp
           )
         }
         dao.insertProfiles(entities)
-        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles preserving liked and match states.")
+        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles preserving liked, passed, and match states.")
       }
     } catch (e: Exception) {
       Log.w("KatkatRepository", "Notice syncing community users: ${e.message}")
@@ -1003,8 +1013,7 @@ class KatkatRepository(
   }
 
   suspend fun resetDeckForTesting(currentUserId: String? = null) {
-    // Only reset passed cards for non-matched profiles so matches remain in Chats
-    dao.resetPassedProfiles()
+    // Sync newly discovered community profiles while keeping all passed and liked profiles filtered
     val uid = currentUserId ?: getEffectiveCurrentUserId()
     if (firestoreManager.isAvailable && uid.isNotBlank()) {
       syncCommunityRegisteredUsers(uid)
