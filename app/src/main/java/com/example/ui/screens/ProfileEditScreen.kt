@@ -428,15 +428,14 @@ fun ProfileEditScreen(
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .statusBarsPadding()
-        .padding(horizontal = 20.dp, vertical = 12.dp),
+        .padding(horizontal = 20.dp, vertical = 6.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {
       Column {
         Text(
           text = "Katkat",
-          fontSize = 28.sp,
+          fontSize = 26.sp,
           fontWeight = FontWeight.Bold,
           fontStyle = FontStyle.Italic,
           color = CoralPrimary,
@@ -444,7 +443,7 @@ fun ProfileEditScreen(
         )
         Text(
           text = "Better People. Brighter Connections.",
-          fontSize = 11.5.sp,
+          fontSize = 11.sp,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           fontWeight = FontWeight.Normal,
           modifier = Modifier.padding(top = 1.dp)
@@ -454,18 +453,18 @@ fun ProfileEditScreen(
       Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(
           onClick = { showSettingsSheet = true },
-          modifier = Modifier.size(40.dp)
+          modifier = Modifier.size(38.dp)
         ) {
           Icon(
             imageVector = Icons.Outlined.Settings,
             contentDescription = "Settings",
             tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
           )
         }
 
         Box(
-          modifier = Modifier.size(40.dp),
+          modifier = Modifier.size(38.dp),
           contentAlignment = Alignment.Center
         ) {
           IconButton(
@@ -476,7 +475,7 @@ fun ProfileEditScreen(
               imageVector = Icons.Outlined.Notifications,
               contentDescription = "Notifications",
               tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(26.dp)
+              modifier = Modifier.size(24.dp)
             )
           }
           // Notification Dot Badge
@@ -484,7 +483,7 @@ fun ProfileEditScreen(
             modifier = Modifier
               .size(8.dp)
               .align(Alignment.TopEnd)
-              .padding(top = 8.dp, end = 8.dp)
+              .padding(top = 6.dp, end = 6.dp)
               .clip(CircleShape)
               .background(CoralPrimary)
           )
@@ -492,13 +491,13 @@ fun ProfileEditScreen(
       }
     }
 
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(2.dp))
 
     // ── 2. Top Profile Info (Avatar + Identity + Single Edit Button) ─────
     Card(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 6.dp),
+        .padding(horizontal = 20.dp, vertical = 4.dp),
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -611,8 +610,9 @@ fun ProfileEditScreen(
 
           Spacer(modifier = Modifier.width(16.dp))
 
-          // Name, Age, Location, Pronouns & Completion Status
+          // Name, Gender, Current Location, Hometown
           Column(modifier = Modifier.weight(1f)) {
+            // 1. Name & Age (+ Verified badge)
             Row(verticalAlignment = Alignment.CenterVertically) {
               val ageStr = if (displayAge != null && displayAge > 0) ", $displayAge" else ""
               Text(
@@ -632,38 +632,59 @@ fun ProfileEditScreen(
               }
             }
 
-            if (userProfile.pronouns.isNotBlank() || userProfile.gender.isNotBlank()) {
-              val genderInfo = listOfNotNull(
+            // 2. Gender (below name)
+            val genderDisplay = remember(userProfile.gender, userProfile.pronouns) {
+              listOfNotNull(
                 userProfile.gender.ifBlank { null },
                 userProfile.pronouns.ifBlank { null }
-              ).joinToString(" • ")
+              ).joinToString(" • ").ifBlank { "Gender not set" }
+            }
+            Text(
+              text = genderDisplay,
+              fontSize = 12.5.sp,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontWeight = FontWeight.Medium,
+              modifier = Modifier.padding(top = 2.dp)
+            )
+
+            // 3. Current Location (below gender)
+            val currentLocationDisplay = userProfile.currentLocationCity.ifBlank { "Location not set" }
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier.padding(top = 3.dp)
+            ) {
+              Icon(
+                imageVector = Icons.Outlined.LocationOn,
+                contentDescription = null,
+                tint = CoralPrimary,
+                modifier = Modifier.size(14.dp)
+              )
+              Spacer(modifier = Modifier.width(4.dp))
               Text(
-                text = genderInfo,
+                text = currentLocationDisplay,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp)
+                fontWeight = FontWeight.Medium
               )
             }
 
-            if (displayLocation.isNotBlank()) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 3.dp)
-              ) {
-                Icon(
-                  imageVector = Icons.Outlined.LocationOn,
-                  contentDescription = null,
-                  tint = CoralPrimary,
-                  modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                  text = displayLocation,
-                  fontSize = 12.sp,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  fontWeight = FontWeight.Medium
-                )
-              }
+            // 4. Hometown with home emoji (below current location)
+            val hometownDisplay = userProfile.hometown.ifBlank { "Hometown not set" }
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier.padding(top = 2.dp)
+            ) {
+              Text(
+                text = "🏠",
+                fontSize = 12.sp
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(
+                text = hometownDisplay,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+              )
             }
           }
         }
