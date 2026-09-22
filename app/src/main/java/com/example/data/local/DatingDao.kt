@@ -68,6 +68,9 @@ interface DatingDao {
   @Query("SELECT COUNT(*) FROM swipe_records WHERE monthKey = :monthKey")
   fun getMonthlySwipeCountFlow(monthKey: String): Flow<Int>
 
+  @Query("SELECT COUNT(*) FROM swipe_records WHERE monthKey = :monthKey")
+  suspend fun getMonthlySwipeCount(monthKey: String = "2026-09"): Int
+
   @Query("SELECT * FROM swipe_records ORDER BY timestamp DESC LIMIT 1")
   suspend fun getLastSwipeRecord(): SwipeRecordEntity?
 

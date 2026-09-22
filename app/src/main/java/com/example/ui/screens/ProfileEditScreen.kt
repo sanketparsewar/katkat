@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Straighten
@@ -136,9 +137,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.SubscriptionState
+import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.CoralPrimary
+import com.example.ui.theme.GoldVip
 import com.example.util.LocationHelper
 import java.util.Calendar
 import kotlinx.coroutines.launch
@@ -757,14 +760,55 @@ fun ProfileEditScreen(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // ── 4. Upgrade VIP / Plan Banner ────────────────────────────────────
+    // ── 4. Dynamic Active Plan / Upgrade Banner ──────────────────────────
+    val currentPlanTier = subscriptionState.currentTier
+    val isVipPlan = currentPlanTier == SubscriptionTier.TIER_2
+    val isPlusPlan = currentPlanTier == SubscriptionTier.TIER_1
+
+    val bannerContainerColor = when {
+      isVipPlan -> Color(0xFFFFF9E6)
+      isPlusPlan -> Color(0xFFFFF0F3)
+      else -> Color(0xFFFFEBEE)
+    }
+
+    val bannerBorder = when {
+      isVipPlan -> BorderStroke(1.dp, GoldVip.copy(alpha = 0.5f))
+      isPlusPlan -> BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.35f))
+      else -> null
+    }
+
+    val bannerIconColor = when {
+      isVipPlan -> GoldVip
+      else -> CoralPrimary
+    }
+
+    val bannerTitle = when {
+      isVipPlan -> "Active Katkat VIP"
+      isPlusPlan -> "Active Katkat Plus"
+      else -> "Upgrade to Katkat VIP"
+    }
+
+    val bannerSubtitle = when {
+      isVipPlan -> "${subscriptionState.remainingSwipes} swipes left (${subscriptionState.swipesUsedThisMonth}/500 used) • Priority Likes & Rewinds active"
+      isPlusPlan -> "${subscriptionState.remainingSwipes} swipes left (${subscriptionState.swipesUsedThisMonth}/200 used) • Tap to upgrade to VIP (₹399/mo)"
+      else -> "${subscriptionState.swipesUsedThisMonth}/50 free swipes used • Unlock 500 swipes & see who liked you with VIP (₹399/mo)"
+    }
+
+    val bannerBadgeText = when {
+      isVipPlan -> "ACTIVE VIP"
+      isPlusPlan -> "ACTIVE PLUS"
+      else -> "GET VIP"
+    }
+
     Card(
       modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = 20.dp, vertical = 4.dp)
-        .clickable { onOpenPaywall() },
+        .clickable { onOpenPaywall() }
+        .testTag("profile_active_plan_card"),
       shape = RoundedCornerShape(16.dp),
-      colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+      border = bannerBorder,
+      colors = CardDefaults.cardColors(containerColor = bannerContainerColor),
       elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
       Row(
@@ -777,11 +821,11 @@ fun ProfileEditScreen(
           modifier = Modifier
             .size(38.dp)
             .clip(CircleShape)
-            .background(CoralPrimary),
+            .background(bannerIconColor),
           contentAlignment = Alignment.Center
         ) {
           Icon(
-            imageVector = Icons.Filled.WorkspacePremium,
+            imageVector = if (isPlusPlan) Icons.Filled.ElectricBolt else Icons.Filled.WorkspacePremium,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(22.dp)
@@ -793,24 +837,42 @@ fun ProfileEditScreen(
             .weight(1f)
             .padding(horizontal = 12.dp)
         ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+          ) {
+            Text(
+              text = bannerTitle,
+              fontSize = 14.sp,
+              fontWeight = FontWeight.Bold,
+              color = if (isVipPlan) Color(0xFF996515) else CoralPrimary
+            )
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (isVipPlan) GoldVip else CoralPrimary)
+                .padding(horizontal = 5.dp, vertical = 1.5.dp)
+            ) {
+              Text(
+                text = bannerBadgeText,
+                color = Color.White,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold
+              )
+            }
+          }
           Text(
-            text = "Upgrade to Katkat VIP",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = CoralPrimary
-          )
-          Text(
-            text = "See who liked you, get unlimited swipes and instant matches.",
+            text = bannerSubtitle,
             fontSize = 11.5.sp,
             color = Color(0xFF555555),
-            modifier = Modifier.padding(top = 1.dp)
+            modifier = Modifier.padding(top = 2.dp)
           )
         }
 
         Icon(
           imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
           contentDescription = null,
-          tint = Color(0xFF333333),
+          tint = Color(0xFF555555),
           modifier = Modifier.size(14.dp)
         )
       }

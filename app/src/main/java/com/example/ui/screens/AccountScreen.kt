@@ -356,13 +356,13 @@ private fun AccountMainPage(
             }
 
             Text(
-              text = if (isFree) "Free Plan • 50 swipes/month" else "${tier.title} • Unlimited Matches & SuperLikes",
+              text = if (isFree) "Free Plan • 50 swipes/month" else "${tier.title} (${tier.priceMonthly}) • ${tier.monthlySwipes} Swipes",
               style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
               color = if (!isFree) Color.White else MaterialTheme.colorScheme.onSurface
             )
 
             Text(
-              text = "Swipes used: ${subscriptionState.swipesUsedThisMonth} / ${if (isFree) "50" else "Unlimited"}",
+              text = "Swipes used: ${subscriptionState.swipesUsedThisMonth} / ${tier.monthlySwipes} (${subscriptionState.remainingSwipes} remaining)",
               style = MaterialTheme.typography.bodySmall,
               color = if (!isFree) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
             )

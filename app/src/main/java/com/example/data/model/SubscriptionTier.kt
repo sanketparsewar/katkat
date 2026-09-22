@@ -13,8 +13,8 @@ enum class SubscriptionTier(
     title = "Katkat Free",
     badge = "Basic",
     monthlySwipes = 50,
-    priceMonthly = "$0.00",
-    priceYearly = "$0.00",
+    priceMonthly = "₹0",
+    priceYearly = "₹0",
     savingsPercent = "",
     perks = listOf(
       "50 Swipes per month",
@@ -27,8 +27,8 @@ enum class SubscriptionTier(
     title = "Katkat Plus",
     badge = "Popular",
     monthlySwipes = 200,
-    priceMonthly = "$9.99/mo",
-    priceYearly = "$5.99/mo ($71.88/yr)",
+    priceMonthly = "₹199/month",
+    priceYearly = "₹119/mo (₹1,428/yr)",
     savingsPercent = "SAVE 40%",
     perks = listOf(
       "200 Swipes per month",
@@ -42,8 +42,8 @@ enum class SubscriptionTier(
     title = "Katkat VIP",
     badge = "Ultimate",
     monthlySwipes = 500,
-    priceMonthly = "$19.99/mo",
-    priceYearly = "$11.99/mo ($143.88/yr)",
+    priceMonthly = "₹399/month",
+    priceYearly = "₹239/mo (₹2,868/yr)",
     savingsPercent = "SAVE 40%",
     perks = listOf(
       "500 Swipes per month",

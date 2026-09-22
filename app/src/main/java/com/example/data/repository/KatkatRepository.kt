@@ -188,6 +188,27 @@ class KatkatRepository(
           }
         }
       }
+
+      // 5. Observe and sync active subscription plan and swipe quota in real time
+      launch {
+        firestoreManager.observeSubscriptionState(currentUserId).collect { remoteSub ->
+          if (remoteSub != null) {
+            val localSub = dao.getSubscriptionFlow().firstOrNull()
+            if (localSub == null || localSub.tierName != remoteSub.currentTier.name || localSub.swipesUsedThisMonth != remoteSub.swipesUsedThisMonth) {
+              dao.saveSubscription(
+                SubscriptionEntity(
+                  id = "current_sub",
+                  tierName = remoteSub.currentTier.name,
+                  swipesUsedThisMonth = remoteSub.swipesUsedThisMonth,
+                  currentMonthKey = remoteSub.currentMonthKey,
+                  isAnnualBilling = remoteSub.isAnnualBilling,
+                  subscriptionExpiryDate = remoteSub.subscriptionExpiryDate
+                )
+              )
+            }
+          }
+        }
+      }
     }
   }
 
@@ -509,9 +530,10 @@ class KatkatRepository(
     } catch (_: Exception) {
       SubscriptionTier.FREE
     }
+    val effectiveSwipesUsed = maxOf(subEntity?.swipesUsedThisMonth ?: 0, recordedSwipes)
     SubscriptionState(
       currentTier = tier,
-      swipesUsedThisMonth = subEntity?.swipesUsedThisMonth ?: recordedSwipes,
+      swipesUsedThisMonth = effectiveSwipesUsed,
       currentMonthKey = subEntity?.currentMonthKey ?: "2026-09",
       isAnnualBilling = subEntity?.isAnnualBilling ?: false,
       subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "Renews Oct 16, 2026",
@@ -555,7 +577,8 @@ class KatkatRepository(
       } catch (_: Exception) {
         SubscriptionTier.FREE
       }
-      val currentSwipes = sub?.swipesUsedThisMonth ?: 0
+      val recordedSwipes = dao.getMonthlySwipeCount("2026-09")
+      val currentSwipes = maxOf(sub?.swipesUsedThisMonth ?: 0, recordedSwipes)
 
       if (currentSwipes >= tier.monthlySwipes) {
         return SwipeResult.LimitReached(tier, currentSwipes)
@@ -585,6 +608,10 @@ class KatkatRepository(
             subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: "Renews Oct 16, 2026"
           )
         )
+        // Sync updated swipe counts & plan details to Cloud Firestore backend
+        appScope.launch {
+          syncSubscriptionToCloud()
+        }
       }
 
       val now = System.currentTimeMillis()
@@ -653,6 +680,14 @@ class KatkatRepository(
     }
   }
 
+  suspend fun syncSubscriptionToCloud() {
+    if (!firestoreManager.isAvailable) return
+    val myUserId = getEffectiveCurrentUserId()
+    if (myUserId.isBlank()) return
+    val currentSubState = subscriptionState.firstOrNull() ?: return
+    firestoreManager.syncSubscriptionState(myUserId, currentSubState)
+  }
+
   suspend fun rewindLastSwipe(): Boolean {
     val lastSwipe = dao.getLastSwipeRecord() ?: return false
     dao.rewindSwipe(lastSwipe.profileId)
@@ -663,6 +698,9 @@ class KatkatRepository(
       dao.saveSubscription(
         sub.copy(swipesUsedThisMonth = (sub.swipesUsedThisMonth - 1).coerceAtLeast(0))
       )
+      appScope.launch {
+        syncSubscriptionToCloud()
+      }
     }
     return true
   }
@@ -679,6 +717,9 @@ class KatkatRepository(
         subscriptionExpiryDate = if (isAnnual) "Renews Sep 16, 2027" else "Renews Oct 16, 2026"
       )
     )
+    appScope.launch {
+      syncSubscriptionToCloud()
+    }
     return true
   }
 
@@ -686,6 +727,9 @@ class KatkatRepository(
     val sub = dao.getSubscriptionFlow().firstOrNull()
     if (sub != null) {
       dao.saveSubscription(sub.copy(swipesUsedThisMonth = 0))
+      appScope.launch {
+        syncSubscriptionToCloud()
+      }
     }
     return true
   }

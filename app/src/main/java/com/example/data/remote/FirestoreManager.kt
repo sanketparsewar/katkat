@@ -3,6 +3,8 @@ package com.example.data.remote
 import android.util.Log
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
+import com.example.data.model.SubscriptionState
+import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -1076,6 +1078,164 @@ class FirestoreManager {
     } catch (e: Exception) {
       Log.w(tag, "Failed to fetch community profiles: ${e.message}")
       emptyList()
+    }
+  }
+
+  // ==========================================
+  // Subscription Plan & Swipe Syncing
+  // ==========================================
+
+  /**
+   * Persists the user's active subscription plan, complete plan details,
+   * and total swipes used to the Cloud Firestore backend.
+   */
+  suspend fun syncSubscriptionState(userId: String, subscription: SubscriptionState): Boolean {
+    val db = firestore ?: return false
+    if (userId.isBlank()) return false
+    return try {
+      val tier = subscription.currentTier
+      val subData = mapOf(
+        "userId" to userId,
+        "activePlanTier" to tier.name,
+        "planTitle" to tier.title,
+        "planBadge" to tier.badge,
+        "swipesUsedThisMonth" to subscription.swipesUsedThisMonth,
+        "monthlySwipesLimit" to tier.monthlySwipes,
+        "remainingSwipes" to subscription.remainingSwipes,
+        "hasReachedLimit" to subscription.hasReachedLimit,
+        "priceMonthly" to tier.priceMonthly,
+        "priceYearly" to tier.priceYearly,
+        "savingsPercent" to tier.savingsPercent,
+        "isAnnualBilling" to subscription.isAnnualBilling,
+        "subscriptionExpiryDate" to subscription.subscriptionExpiryDate,
+        "perks" to tier.perks,
+        "currentMonthKey" to subscription.currentMonthKey,
+        "updatedAt" to System.currentTimeMillis()
+      )
+
+      // 1. Store in user's root document for fast query & discovery integration
+      db.collection("users")
+        .document(userId)
+        .set(
+          mapOf(
+            "activePlan" to tier.name,
+            "activePlanTitle" to tier.title,
+            "swipesUsedThisMonth" to subscription.swipesUsedThisMonth,
+            "monthlySwipesLimit" to tier.monthlySwipes,
+            "remainingSwipes" to subscription.remainingSwipes,
+            "subscriptionExpiryDate" to subscription.subscriptionExpiryDate,
+            "isVip" to (tier == SubscriptionTier.TIER_2),
+            "subscriptionDetails" to subData,
+            "subscriptionUpdatedAt" to System.currentTimeMillis()
+          ),
+          SetOptions.merge()
+        )
+        .await()
+
+      // 2. Store dedicated subscription sub-document
+      db.collection("users")
+        .document(userId)
+        .collection("subscription")
+        .document("current")
+        .set(subData, SetOptions.merge())
+        .await()
+
+      Log.d(tag, "Successfully synced subscription state for user $userId to cloud (${tier.title}, ${subscription.swipesUsedThisMonth} swipes used)")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Failed to sync subscription to cloud: ${e.message}")
+      false
+    }
+  }
+
+  suspend fun fetchSubscriptionState(userId: String): SubscriptionState? {
+    val db = firestore ?: return null
+    if (userId.isBlank()) return null
+    return try {
+      val doc = db.collection("users")
+        .document(userId)
+        .collection("subscription")
+        .document("current")
+        .get()
+        .await()
+
+      if (!doc.exists()) {
+        // Check user document fallback
+        val userDoc = db.collection("users").document(userId).get().await()
+        val tierName = userDoc.getString("activePlan") ?: return null
+        val tier = try { SubscriptionTier.valueOf(tierName) } catch (_: Exception) { SubscriptionTier.FREE }
+        val swipesUsed = (userDoc.get("swipesUsedThisMonth") as? Number)?.toInt() ?: 0
+        val expiry = userDoc.getString("subscriptionExpiryDate") ?: "Renews Oct 16, 2026"
+        return SubscriptionState(
+          currentTier = tier,
+          swipesUsedThisMonth = swipesUsed,
+          subscriptionExpiryDate = expiry
+        )
+      }
+
+      val data = doc.data ?: return null
+      val tierName = data["activePlanTier"] as? String ?: SubscriptionTier.FREE.name
+      val tier = try { SubscriptionTier.valueOf(tierName) } catch (_: Exception) { SubscriptionTier.FREE }
+      val swipesUsed = (data["swipesUsedThisMonth"] as? Number)?.toInt() ?: 0
+      val monthKey = data["currentMonthKey"] as? String ?: "2026-09"
+      val isAnnual = data["isAnnualBilling"] as? Boolean ?: false
+      val expiry = data["subscriptionExpiryDate"] as? String ?: "Renews Oct 16, 2026"
+
+      SubscriptionState(
+        currentTier = tier,
+        swipesUsedThisMonth = swipesUsed,
+        currentMonthKey = monthKey,
+        isAnnualBilling = isAnnual,
+        subscriptionExpiryDate = expiry
+      )
+    } catch (e: Exception) {
+      Log.w(tag, "Failed to fetch cloud subscription: ${e.message}")
+      null
+    }
+  }
+
+  fun observeSubscriptionState(userId: String): Flow<SubscriptionState?> = callbackFlow {
+    val db = firestore
+    if (db == null || userId.isBlank()) {
+      trySend(null)
+      close()
+      return@callbackFlow
+    }
+
+    val listener = db.collection("users")
+      .document(userId)
+      .collection("subscription")
+      .document("current")
+      .addSnapshotListener { snapshot, error ->
+        if (error != null) {
+          Log.w(tag, "Subscription observation error: ${error.message}")
+          return@addSnapshotListener
+        }
+        if (snapshot != null && snapshot.exists()) {
+          val data = snapshot.data
+          if (data != null) {
+            val tierName = data["activePlanTier"] as? String ?: SubscriptionTier.FREE.name
+            val tier = try { SubscriptionTier.valueOf(tierName) } catch (_: Exception) { SubscriptionTier.FREE }
+            val swipesUsed = (data["swipesUsedThisMonth"] as? Number)?.toInt() ?: 0
+            val monthKey = data["currentMonthKey"] as? String ?: "2026-09"
+            val isAnnual = data["isAnnualBilling"] as? Boolean ?: false
+            val expiry = data["subscriptionExpiryDate"] as? String ?: "Renews Oct 16, 2026"
+
+            trySend(
+              SubscriptionState(
+                currentTier = tier,
+                swipesUsedThisMonth = swipesUsed,
+                currentMonthKey = monthKey,
+                isAnnualBilling = isAnnual,
+                subscriptionExpiryDate = expiry
+              )
+            )
+          }
+        }
+      }
+
+    awaitClose {
+      listener.remove()
     }
   }
 }
