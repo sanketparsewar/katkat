@@ -115,27 +115,8 @@ class KatkatRepository(
                 val matchTime = System.currentTimeMillis()
                 dao.markMutualMatch(senderId, matchTime)
 
-                // Register mutual match in Firestore so both devices share the match record
+                // Register mutual match in Firestore so both users share the match record
                 firestoreManager.registerMutualMatch(currentUserId, senderId)
-
-                // Ensure initial conversation greeting exists
-                val latest = dao.getLatestMessage(senderId)
-                if (latest == null) {
-                  val initialGreeting = getGreetingForProfile(profileEntity.name)
-                  dao.insertMessage(
-                    ChatMessageEntity(
-                      id = UUID.randomUUID().toString(),
-                      matchId = senderId,
-                      senderId = senderId,
-                      senderName = profileEntity.name,
-                      text = initialGreeting,
-                      photoUri = null,
-                      timestamp = matchTime + 500,
-                      isFromMe = false,
-                      isRead = false
-                    )
-                  )
-                }
 
                 // Trigger celebratory match popup on this device
                 val updatedProfile = dao.getProfileById(senderId)?.toDomain()
@@ -1000,33 +981,6 @@ class KatkatRepository(
     dao.deleteAllProfiles()
     if (firestoreManager.isAvailable && !currentUserId.isNullOrBlank()) {
       syncCommunityRegisteredUsers(currentUserId)
-    }
-  }
-
-  private fun getGreetingForProfile(name: String): String {
-    return when (name) {
-      "Maya Lin" -> "Hey Alex! Loved your taste in photography and vinyl. Have you visited the modern art museum's rooftop terrace yet? 🎨"
-      "Lucas Thorne" -> "Hey! Saw you're into indie records too 🎧 What's the best concert you've been to recently?"
-      "Chloe Dubois" -> "Bonjour Alex! 🥐 Loved your photos! Ever tried baking fresh brioche from scratch on a cozy Sunday morning?"
-      else -> "Hey Alex! So happy we matched! How is your week going? ✨"
-    }
-  }
-
-  private fun generatePlayfulReply(userText: String): String {
-    val lower = userText.lowercase()
-    return when {
-      lower.contains("coffee") || lower.contains("cafe") ->
-        "I know this cozy hidden gem with the most incredible lavender latte! We definitely need to go together ☕✨"
-      lower.contains("hi") || lower.contains("hey") || lower.contains("hello") ->
-        "Hey! I was just smiling looking at your profile. What kind of music is on your heavy rotation today? 🎶"
-      lower.contains("photo") || lower.contains("camera") ->
-        "Your photography eye is stunning! I'd love to see some of your favorite film shots sometime 📸"
-      lower.contains("cat") || lower.contains("pet") ->
-        "Aww, cats make everything better! Mine is currently curled up like a little croissant beside me 🥐🐱"
-      lower.contains("date") || lower.contains("meet") || lower.contains("weekend") ->
-        "I'd love that! Are you free this Friday evening? There's a vintage vinyl bar I've been dying to try 🍹"
-      else ->
-        "Haha totally agree! That's so refreshing to hear. What's something that made you genuinely laugh today? 😊"
     }
   }
 
