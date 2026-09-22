@@ -394,7 +394,7 @@ class KatkatRepository(
         occupation = "Documentary Filmmaker",
         company = "Nomad Media",
         education = "FTII Pune",
-        location = "Whitefield, Bengaluru (12 km away)",
+        location = "Whitefield (18 km away)",
         latitude = 12.9698,
         longitude = 77.7500,
         bio = "Telling stories around the world 🎬 Coffee aficionado, vinyl collector, and avid cyclist.",
@@ -410,6 +410,102 @@ class KatkatRepository(
         pets = "Dog person",
         anthemSong = "Dreams",
         anthemArtist = "Fleetwood Mac",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_dev_7",
+        name = "Dev Malhotra",
+        age = 30,
+        gender = "Men",
+        occupation = "Venture Partner & Triathlete",
+        company = "Peak Velocity Fund",
+        education = "Stanford University",
+        location = "Devanahalli (32 km away)",
+        latitude = 13.2483,
+        longitude = 77.7126,
+        bio = "Training for my next triathlon 🏃‍♂️ Tech nerd at heart, lover of good sushi and deep conversations over pour-over coffee.",
+        photosJoined = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "A life goal of mine is...",
+        promptAnswer = "Run a marathon on every continent and build a sustainable tech foundation 🌍",
+        passionsJoined = "Triathlon|||Venture Capital|||Sushi|||Running|||Books",
+        zodiac = "Aries",
+        height = "6'2\" (188 cm)",
+        datingIntention = "Long-term relationship",
+        drinking = "On special occasions",
+        smoking = "Never",
+        pets = "Dog person",
+        anthemSong = "Adventure of a Lifetime",
+        anthemArtist = "Coldplay",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_elena_8",
+        name = "Elena Roy",
+        age = 26,
+        gender = "Women",
+        occupation = "Wildlife Biologist & Writer",
+        company = "Ecosphere Institute",
+        education = "Oxford University",
+        location = "Electronic City (18 km away)",
+        latitude = 12.8399,
+        longitude = 77.6770,
+        bio = "Documenting bird migrations and writing field guides 🦅 Plant mom to 20+ succulents and always looking for weekend trail partners.",
+        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "The best way to spend a Saturday...",
+        promptAnswer = "Morning trail run, iced matcha, and exploring an antique bookstore 🌿",
+        passionsJoined = "Wildlife|||Hiking|||Reading|||Sustainability|||Writing",
+        zodiac = "Sagittarius",
+        height = "5'7\" (170 cm)",
+        datingIntention = "Looking for love",
+        drinking = "Socially",
+        smoking = "Never",
+        pets = "Love all pets",
+        anthemSong = "Holocene",
+        anthemArtist = "Bon Iver",
+        isVerified = true,
+        likedMe = false,
+        isLikedByMe = false,
+        isPassedByMe = false,
+        isSuperLikedByMe = false,
+        isMutualMatch = false,
+        matchedTimestamp = null
+      ),
+      ProfileEntity(
+        id = "profile_samira_9",
+        name = "Samira Sen",
+        age = 28,
+        gender = "Women",
+        occupation = "Astrophysics Researcher",
+        company = "Cosmic Observations Lab",
+        education = "Cambridge University",
+        location = "Nandi Valley (45 km away)",
+        latitude = 13.3702,
+        longitude = 77.6835,
+        bio = "Mapping stellar clusters by night 🔭 Stargazing trips, sci-fi marathons, and board game nights are my favorite things.",
+        photosJoined = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80",
+        promptQuestion = "I won't shut up about...",
+        promptAnswer = "James Webb Space Telescope discoveries and the mysteries of dark matter 🌌",
+        passionsJoined = "Astronomy|||Sci-Fi|||Board Games|||Coffee|||Hiking",
+        zodiac = "Aquarius",
+        height = "5'8\" (173 cm)",
+        datingIntention = "Long-term relationship",
+        drinking = "Never",
+        smoking = "Never",
+        pets = "Cat person",
+        anthemSong = "Space Oddity",
+        anthemArtist = "David Bowie",
         isVerified = true,
         likedMe = false,
         isLikedByMe = false,
@@ -492,32 +588,48 @@ class KatkatRepository(
           }
         }
 
-        // 6. Filter by Maximum Distance Preference
-        if (currentUser.latitude != 0.0 && currentUser.longitude != 0.0 &&
-            entity.latitude != 0.0 && entity.longitude != 0.0) {
-          val distKm = calculateHaversineDistanceKm(
-            currentUser.latitude, currentUser.longitude,
-            entity.latitude, entity.longitude
-          )
-          if (distKm > maxDistance) {
-            return@mapNotNull null
+        // 6. Backend Distance Calculation & Filtering
+        val candidateDistanceKm: Double = when {
+          currentUser.latitude != 0.0 && currentUser.longitude != 0.0 &&
+          entity.latitude != 0.0 && entity.longitude != 0.0 -> {
+            calculateHaversineDistanceKm(
+              currentUser.latitude, currentUser.longitude,
+              entity.latitude, entity.longitude
+            )
           }
-        } else if (entity.location.isNotBlank()) {
-          // Try to parse mock text like "X miles away" or "X km away"
-          val matchMiles = Regex("""(\d+)\s*miles\s*away""", RegexOption.IGNORE_CASE).find(entity.location)
-          if (matchMiles != null) {
-            val miles = matchMiles.groupValues[1].toDoubleOrNull() ?: 0.0
-            val km = miles * 1.60934
-            if (km > maxDistance) return@mapNotNull null
-          }
-          val matchKm = Regex("""(\d+)\s*km\s*away""", RegexOption.IGNORE_CASE).find(entity.location)
-          if (matchKm != null) {
-            val km = matchKm.groupValues[1].toDoubleOrNull() ?: 0.0
-            if (km > maxDistance) return@mapNotNull null
+          else -> {
+            val matchKm = Regex("""(\d+(?:\.\d+)?)\s*km\s*away""", RegexOption.IGNORE_CASE).find(entity.location)
+            if (matchKm != null) {
+              matchKm.groupValues[1].toDoubleOrNull() ?: 0.0
+            } else {
+              val matchMiles = Regex("""(\d+(?:\.\d+)?)\s*miles\s*away""", RegexOption.IGNORE_CASE).find(entity.location)
+              if (matchMiles != null) {
+                (matchMiles.groupValues[1].toDoubleOrNull() ?: 0.0) * 1.60934
+              } else {
+                5.0
+              }
+            }
           }
         }
 
-        entity.toDomain()
+        // Distance constraint: If candidate distance exceeds user's maximum distance filter (e.g. 32 km > 25 km), exclude
+        if (candidateDistanceKm > maxDistance) {
+          return@mapNotNull null
+        }
+
+        // Privacy protection: The exact location (latitude, longitude, exact address) is not exposed to other users.
+        // Instead, the display location is formatted to approximate relative distance (e.g. "5 km away", "18 km away").
+        val privacyMaskedLocation = when {
+          candidateDistanceKm in 0.01..1.0 -> "Less than 1 km away"
+          candidateDistanceKm > 1.0 -> "${Math.round(candidateDistanceKm)} km away"
+          else -> entity.location.ifBlank { "Nearby" }
+        }
+
+        entity.toDomain().copy(
+          location = privacyMaskedLocation,
+          latitude = 0.0, // Privacy protection: exact coordinates hidden
+          longitude = 0.0 // Privacy protection: exact coordinates hidden
+        )
       }
     }
   }
@@ -1001,7 +1113,13 @@ class KatkatRepository(
       if (currentUserId.isNotBlank()) {
         dao.deleteProfileById(currentUserId)
       }
-      val community = firestoreManager.fetchAllCommunityProfiles(currentUserId)
+      val currentUser = dao.getUserProfileFlow().firstOrNull()?.toDomain()
+      val community = firestoreManager.fetchAllCommunityProfiles(
+        excludeUserId = currentUserId,
+        userLatitude = currentUser?.latitude ?: 0.0,
+        userLongitude = currentUser?.longitude ?: 0.0,
+        maxDistanceKm = currentUser?.maxDistanceKm ?: 0
+      )
       val outgoingLikedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingLikedUserIds(currentUserId) else emptySet()
       val mutualMatchedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchMutualMatchedUserIds(currentUserId) else emptySet()
       val outgoingPassedIds = if (currentUserId.isNotBlank()) firestoreManager.fetchOutgoingPassedUserIds(currentUserId) else emptySet()

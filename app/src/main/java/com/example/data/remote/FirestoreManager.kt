@@ -1031,7 +1031,27 @@ class FirestoreManager {
     }
   }
 
-  suspend fun fetchAllCommunityProfiles(excludeUserId: String): List<DatingProfile> {
+  /**
+   * Calculates the distance between two coordinates using the Haversine formula (in Kilometers).
+   */
+  fun calculateDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    if (lat1 == 0.0 || lon1 == 0.0 || lat2 == 0.0 || lon2 == 0.0) return 0.0
+    val r = 6371.0 // Earth radius in km
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return r * c
+  }
+
+  suspend fun fetchAllCommunityProfiles(
+    excludeUserId: String,
+    userLatitude: Double = 0.0,
+    userLongitude: Double = 0.0,
+    maxDistanceKm: Int = 0
+  ): List<DatingProfile> {
     val db = firestore ?: return emptyList()
     return try {
       val deletedUserIds = fetchAllDeletedAccountUserIds()
@@ -1045,6 +1065,28 @@ class FirestoreManager {
         if (data["isAccountDisabled"] == true || data["isDeleted"] == true) return@mapNotNull null
         val name = data["name"] as? String ?: return@mapNotNull null
         if (name.isBlank()) return@mapNotNull null
+
+        val candLat = (data["latitude"] as? Number)?.toDouble() ?: 0.0
+        val candLon = (data["longitude"] as? Number)?.toDouble() ?: 0.0
+
+        val candidateDistance = if (userLatitude != 0.0 && userLongitude != 0.0 && candLat != 0.0 && candLon != 0.0) {
+          calculateDistanceKm(userLatitude, userLongitude, candLat, candLon)
+        } else {
+          0.0
+        }
+
+        // Distance condition: If a maximum distance is configured and candidate exceeds it, filter candidate out
+        if (maxDistanceKm > 0 && candidateDistance > 0.0 && candidateDistance > maxDistanceKm) {
+          return@mapNotNull null
+        }
+
+        // Location privacy: Mask exact coordinates and format approximate distance for safety
+        val privacyMaskedLocation = when {
+          candidateDistance in 0.01..1.0 -> "Less than 1 km away"
+          candidateDistance > 1.0 -> "${Math.round(candidateDistance)} km away"
+          else -> data["currentLocationCity"] as? String ?: (data["hometown"] as? String ?: "Nearby")
+        }
+
         val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>()?.filter { it.startsWith("http://") || it.startsWith("https://") } ?: emptyList()
         @Suppress("UNCHECKED_CAST")
         DatingProfile(
@@ -1055,9 +1097,9 @@ class FirestoreManager {
           occupation = data["occupation"] as? String ?: "",
           company = data["education"] as? String ?: "",
           education = data["education"] as? String ?: "",
-          location = data["currentLocationCity"] as? String ?: (data["hometown"] as? String ?: ""),
-          latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
-          longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+          location = privacyMaskedLocation,
+          latitude = 0.0, // Exact coordinates hidden for privacy
+          longitude = 0.0, // Exact coordinates hidden for privacy
           bio = data["bio"] as? String ?: "",
           photos = photos,
           promptQuestion = data["promptQuestion"] as? String ?: "",
