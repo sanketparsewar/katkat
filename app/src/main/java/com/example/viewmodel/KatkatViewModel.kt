@@ -275,10 +275,6 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.sendMessage(currentMatchId, text.trim(), photoUri)
       _uiEvents.emit(UiEvent.VibrateFeedback("click"))
-      // Trigger temporary typing indicator for realistic 2-way conversation experience
-      _typingMatchIds.update { it + currentMatchId }
-      delay(2000)
-      _typingMatchIds.update { it - currentMatchId }
     }
   }
 

@@ -164,24 +164,6 @@ class KatkatRepository(
             if (profileEntity != null && !profileEntity.isMutualMatch) {
               dao.markMutualMatch(otherUserId, cm.matchedTimestamp)
 
-              val latest = dao.getLatestMessage(otherUserId)
-              if (latest == null) {
-                val initialGreeting = getGreetingForProfile(profileEntity.name)
-                dao.insertMessage(
-                  ChatMessageEntity(
-                    id = UUID.randomUUID().toString(),
-                    matchId = otherUserId,
-                    senderId = otherUserId,
-                    senderName = profileEntity.name,
-                    text = initialGreeting,
-                    photoUri = null,
-                    timestamp = cm.matchedTimestamp + 500,
-                    isFromMe = false,
-                    isRead = false
-                  )
-                )
-              }
-
               val updatedProfile = dao.getProfileById(otherUserId)?.toDomain()
               if (updatedProfile != null) {
                 _realtimeMatchEvent.emit(updatedProfile)
@@ -594,21 +576,6 @@ class KatkatRepository(
               dao.markMutualMatch(profileId, matchTime)
               firestoreManager.registerMutualMatch(myUserId, profileId)
 
-              // Ensure initial greeting message exists
-              val initialGreeting = getGreetingForProfile(profile.name)
-              dao.insertMessage(
-                ChatMessageEntity(
-                  id = UUID.randomUUID().toString(),
-                  matchId = profileId,
-                  senderId = profileId,
-                  senderName = profile.name,
-                  text = initialGreeting,
-                  photoUri = null,
-                  timestamp = matchTime + 500,
-                  isFromMe = false,
-                  isRead = false
-                )
-              )
               val updatedProfile = dao.getProfileById(profileId)?.toDomain()
               if (updatedProfile != null) {
                 _realtimeMatchEvent.emit(updatedProfile)
@@ -623,21 +590,6 @@ class KatkatRepository(
     }
 
     if (isMutual) {
-      // Seed initial welcome greeting message from the matched profile
-      val initialGreeting = getGreetingForProfile(profile.name)
-      dao.insertMessage(
-        ChatMessageEntity(
-          id = UUID.randomUUID().toString(),
-          matchId = profileId,
-          senderId = profileId,
-          senderName = profile.name,
-          text = initialGreeting,
-          photoUri = null,
-          timestamp = now + 1000,
-          isFromMe = false,
-          isRead = false
-        )
-      )
       return SwipeResult.MutualMatch(profile.toDomain())
     }
 
@@ -685,7 +637,8 @@ class KatkatRepository(
   fun getMessages(matchId: String): Flow<List<ChatMessage>> {
     if (firestoreManager.isAvailable) {
       appScope.launch {
-        firestoreManager.observeChatMessages(matchId).collect { remoteMessages ->
+        val myUserId = getEffectiveCurrentUserId()
+        firestoreManager.observeChatMessages(matchId, myUserId).collect { remoteMessages ->
           remoteMessages.forEach { msg ->
             dao.insertMessage(msg.toEntity())
           }
@@ -698,11 +651,15 @@ class KatkatRepository(
   }
 
   suspend fun sendMessage(matchId: String, text: String, photoUri: String? = null) {
+    val myUserId = getEffectiveCurrentUserId()
+    val localUser = dao.getUserProfileFlow().firstOrNull()
+    val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
+
     val myMessage = ChatMessageEntity(
       id = UUID.randomUUID().toString(),
       matchId = matchId,
-      senderId = "my_profile",
-      senderName = "Alex",
+      senderId = myUserId,
+      senderName = myName,
       text = text,
       photoUri = photoUri,
       timestamp = System.currentTimeMillis(),
@@ -711,34 +668,10 @@ class KatkatRepository(
     )
     dao.insertMessage(myMessage)
 
-    // Sync sent message to Cloud Firestore
+    // Sync sent message to Cloud Firestore in real time
     if (firestoreManager.isAvailable) {
       appScope.launch {
-        firestoreManager.sendChatMessage(matchId, myMessage.toDomain())
-      }
-    }
-
-    // Simulate realistic real-time 2-way reply from match
-    appScope.launch {
-      delay(1800)
-      val reply = generatePlayfulReply(text)
-      val profile = dao.getProfileById(matchId)
-      val replyMessage = ChatMessageEntity(
-        id = UUID.randomUUID().toString(),
-        matchId = matchId,
-        senderId = matchId,
-        senderName = profile?.name ?: "Match",
-        text = reply,
-        photoUri = null,
-        timestamp = System.currentTimeMillis(),
-        isFromMe = false,
-        isRead = false
-      )
-      dao.insertMessage(replyMessage)
-
-      // Sync simulated reply to Cloud Firestore
-      if (firestoreManager.isAvailable) {
-        firestoreManager.sendChatMessage(matchId, replyMessage.toDomain())
+        firestoreManager.sendChatMessage(matchId, myMessage.toDomain(), myUserId)
       }
     }
   }
@@ -778,11 +711,15 @@ class KatkatRepository(
 
   suspend fun deleteMessagesForMatch(matchId: String) {
     dao.deleteMessagesForMatch(matchId)
+    if (firestoreManager.isAvailable) {
+      val myUserId = getEffectiveCurrentUserId()
+      firestoreManager.deleteChatMessages(matchId, myUserId)
+    }
   }
 
   suspend fun unmatch(matchId: String) {
     dao.unmatchProfile(matchId)
-    dao.deleteMessagesForMatch(matchId)
+    deleteMessagesForMatch(matchId)
   }
 
   suspend fun createSimulatedTestMatch(): DatingProfile? {
@@ -791,20 +728,6 @@ class KatkatRepository(
     if (candidate != null) {
       val now = System.currentTimeMillis()
       dao.markLiked(candidate.id, isMutual = true, matchedTimestamp = now)
-      val initialGreeting = getGreetingForProfile(candidate.name)
-      dao.insertMessage(
-        ChatMessageEntity(
-          id = UUID.randomUUID().toString(),
-          matchId = candidate.id,
-          senderId = candidate.id,
-          senderName = candidate.name,
-          text = initialGreeting,
-          photoUri = null,
-          timestamp = now,
-          isFromMe = false,
-          isRead = false
-        )
-      )
       return dao.getProfileById(candidate.id)?.toDomain()
     }
     return null

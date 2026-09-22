@@ -1,9 +1,5 @@
 package com.example.ui.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -40,7 +36,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -111,23 +106,12 @@ fun ChatDetailScreen(
   modifier: Modifier = Modifier
 ) {
   var inputText by remember { mutableStateOf("") }
-  var attachedPhotoUri by remember { mutableStateOf<String?>(null) }
   var showMenu by remember { mutableStateOf(false) }
   var showCallDialog by remember { mutableStateOf(false) }
   var showUnmatchConfirm by remember { mutableStateOf(false) }
   var showClearChatConfirm by remember { mutableStateOf(false) }
-  var previewPhotoUrl by remember { mutableStateOf<String?>(null) }
 
   val listState = rememberLazyListState()
-
-  // Gallery photo picker
-  val photoPickerLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.PickVisualMedia()
-  ) { uri: Uri? ->
-    uri?.let {
-      attachedPhotoUri = it.toString()
-    }
-  }
 
   // Scroll to bottom when messages change or typing changes
   LaunchedEffect(messages.size, isMatchTyping) {
@@ -377,8 +361,7 @@ fun ChatDetailScreen(
 
       items(messages, key = { it.id }) { message ->
         ChatMessageBubble(
-          message = message,
-          onPhotoClick = { photoUrl -> previewPhotoUrl = photoUrl }
+          message = message
         )
       }
 
@@ -418,49 +401,7 @@ fun ChatDetailScreen(
       }
     }
 
-    // ── Photo Attachment Preview (if selected) ─────────────────────────
-    AnimatedVisibility(visible = attachedPhotoUri != null) {
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 4.dp)
-      ) {
-        Surface(
-          shape = RoundedCornerShape(12.dp),
-          shadowElevation = 2.dp,
-          color = MaterialTheme.colorScheme.surface
-        ) {
-          Row(
-            modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            AsyncImage(
-              model = attachedPhotoUri,
-              contentDescription = "Attached Photo",
-              modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(8.dp)),
-              contentScale = ContentScale.Crop
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-              text = "Photo ready to send",
-              style = MaterialTheme.typography.bodySmall.copy(color = TextSecondaryDark),
-              modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = { attachedPhotoUri = null }) {
-              Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Remove photo",
-                tint = Color.Gray
-              )
-            }
-          }
-        }
-      }
-    }
-
-    // ── Input Bar ──────────────────────────────────────────────────────
+    // ── Input Bar (Text Only) ──────────────────────────────────────────
     Surface(
       modifier = Modifier.fillMaxWidth(),
       color = MaterialTheme.colorScheme.surface,
@@ -469,35 +410,15 @@ fun ChatDetailScreen(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = 12.dp, vertical = 8.dp),
+          .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        // Photo picker icon
-        IconButton(
-          onClick = {
-            photoPickerLauncher.launch(
-              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
-          },
-          modifier = Modifier
-            .size(40.dp)
-            .testTag("btn_attach_photo")
-        ) {
-          Icon(
-            imageVector = Icons.Default.AddPhotoAlternate,
-            contentDescription = "Attach Photo",
-            tint = CoralPrimary
-          )
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-
         OutlinedTextField(
           value = inputText,
           onValueChange = { inputText = it },
           placeholder = {
             Text(
-              if (attachedPhotoUri != null) "Add a caption..." else "Type a message...",
+              "Type a message...",
               color = Color.Gray,
               fontSize = 14.sp
             )
@@ -519,13 +440,12 @@ fun ChatDetailScreen(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        val canSend = inputText.isNotBlank() || attachedPhotoUri != null
+        val canSend = inputText.isNotBlank()
         IconButton(
           onClick = {
             if (canSend) {
-              onSendMessage(inputText, attachedPhotoUri)
+              onSendMessage(inputText, null)
               inputText = ""
-              attachedPhotoUri = null
             }
           },
           enabled = canSend,
@@ -624,34 +544,11 @@ fun ChatDetailScreen(
       }
     )
   }
-
-  // ── Full Photo Preview Dialog ───────────────────────────────────────
-  if (previewPhotoUrl != null) {
-    Dialog(onDismissRequest = { previewPhotoUrl = null }) {
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .background(Color.Black.copy(alpha = 0.9f))
-          .clickable { previewPhotoUrl = null },
-        contentAlignment = Alignment.Center
-      ) {
-        AsyncImage(
-          model = previewPhotoUrl,
-          contentDescription = "Photo Preview",
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)),
-          contentScale = ContentScale.Fit
-        )
-      }
-    }
-  }
 }
 
 @Composable
 fun ChatMessageBubble(
-  message: ChatMessage,
-  onPhotoClick: (String) -> Unit
+  message: ChatMessage
 ) {
   val isMine = message.isFromMe
 
@@ -671,23 +568,6 @@ fun ChatMessageBubble(
       modifier = Modifier.widthIn(max = 280.dp)
     ) {
       Column(modifier = Modifier.padding(10.dp)) {
-        // Photo preview if message contains an image
-        if (!message.photoUri.isNullOrBlank()) {
-          AsyncImage(
-            model = message.photoUri,
-            contentDescription = "Sent image",
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(180.dp)
-              .clip(RoundedCornerShape(12.dp))
-              .clickable { onPhotoClick(message.photoUri) },
-            contentScale = ContentScale.Crop
-          )
-          if (message.text.isNotBlank()) {
-            Spacer(modifier = Modifier.height(6.dp))
-          }
-        }
-
         // Text content
         if (message.text.isNotBlank()) {
           Text(

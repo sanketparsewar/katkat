@@ -6,6 +6,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,41 @@ fun MainScreen(
   val conversations by viewModel.conversations.collectAsStateWithLifecycle()
   val typingMatchIds by viewModel.typingMatchIds.collectAsStateWithLifecycle()
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+
+  // Calculate actual unread conversation count for bottom navigation badge
+  val unreadConversationsCount = remember(conversations) {
+    conversations.count { it.unreadCount > 0 }
+  }
+
+  // Intercept system back gestures to prevent app closing:
+  // 1. If chat is open, back takes user back to chats list
+  BackHandler(enabled = selectedChatMatch != null) {
+    viewModel.closeChat()
+  }
+
+  // 2. If profile is being inspected in bottom sheet, dismiss it
+  BackHandler(enabled = inspectedProfile != null) {
+    viewModel.inspectProfile(null)
+  }
+
+  // 3. If paywall sheet is open, dismiss it
+  BackHandler(enabled = showPaywall) {
+    viewModel.dismissPaywall()
+  }
+
+  // 4. If match celebration dialog is open, dismiss it
+  BackHandler(enabled = activeMatchCelebration != null) {
+    viewModel.dismissMatchCelebration()
+  }
+
+  // 5. If user is on a secondary tab (Likes, Profile, Account), back returns to Chats or Discover
+  BackHandler(enabled = selectedChatMatch == null && inspectedProfile == null && !showPaywall && activeMatchCelebration == null && currentTab != KatkatTab.DISCOVER) {
+    if (currentTab == KatkatTab.PROFILE || currentTab == KatkatTab.ACCOUNT) {
+      currentTab = KatkatTab.MATCHES
+    } else {
+      currentTab = KatkatTab.DISCOVER
+    }
+  }
 
   // Handle ViewModel Toast & Vibration events
   LaunchedEffect(Unit) {
@@ -132,7 +168,7 @@ fun MainScreen(
           currentTab = currentTab,
           onTabSelected = { currentTab = it },
           likesCount = likedMeProfiles.size,
-          unreadMatchesCount = mutualMatches.size
+          unreadMatchesCount = unreadConversationsCount
         )
       },
       containerColor = MaterialTheme.colorScheme.background
