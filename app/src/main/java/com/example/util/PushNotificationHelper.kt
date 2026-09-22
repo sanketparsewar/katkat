@@ -22,6 +22,9 @@ object PushNotificationHelper {
   private const val CHANNEL_NAME = "Katkat Dating Alerts"
   private const val CHANNEL_DESC = "Notifications for new matches, messages, and profile likes"
 
+  // In-memory deduplication registry to prevent duplicate push notifications for the same event
+  private val recentlyPostedTimestamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
   fun createNotificationChannel(context: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val importance = NotificationManager.IMPORTANCE_HIGH
@@ -52,6 +55,35 @@ object PushNotificationHelper {
       return
     }
 
+    // Rule: "if the application is closed then only the chatting message notification should received
+    // otherwise if the chatting is currently going on between profile1 and profile2 and messages are sent
+    // then don't send notification about the chat message because already screen and application is open."
+    if (notification.type == KatkatNotificationType.NEW_MESSAGE) {
+      if (com.example.KatkatApplication.isAppInForeground) {
+        // App is open, user is actively inside the application or chatting -> suppress system push notification!
+        return
+      }
+    }
+
+    // Single event deduplication:
+    // Determine a semantic deduplication key so that simultaneous events (e.g. from both Firestore snapshot
+    // and local like observer) only produce ONE notification.
+    val dedupeKey = when (notification.type) {
+      KatkatNotificationType.PROFILE_ACTIVITY -> "like_${notification.senderProfileId ?: notification.id}"
+      KatkatNotificationType.NEW_MATCH -> "match_${notification.senderProfileId ?: notification.id}"
+      KatkatNotificationType.NEW_MESSAGE -> "msg_${notification.id}"
+      KatkatNotificationType.MESSAGE_READ -> "read_${notification.senderProfileId ?: notification.id}"
+      KatkatNotificationType.SYSTEM_NOTIFICATION -> notification.id
+    }
+
+    val now = System.currentTimeMillis()
+    val lastPosted = recentlyPostedTimestamps[dedupeKey]
+    if (lastPosted != null && (now - lastPosted) < 15_000L) {
+      // Discard duplicate notification received within 15 seconds of the original
+      return
+    }
+    recentlyPostedTimestamps[dedupeKey] = now
+
     createNotificationChannel(context)
 
     val intent = Intent(context, MainActivity::class.java).apply {
@@ -60,9 +92,12 @@ object PushNotificationHelper {
       putExtra("notification_id", notification.id)
     }
 
+    val notificationTag = dedupeKey
+    val notificationIntId = dedupeKey.hashCode()
+
     val pendingIntent = PendingIntent.getActivity(
       context,
-      notification.id.hashCode(),
+      notificationIntId,
       intent,
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
@@ -90,7 +125,7 @@ object PushNotificationHelper {
 
     try {
       val notificationManager = NotificationManagerCompat.from(context)
-      notificationManager.notify(notification.id.hashCode(), builder.build())
+      notificationManager.notify(notificationTag, notificationIntId, builder.build())
     } catch (_: SecurityException) {
       // Handled if permissions revoked at runtime
     } catch (_: Exception) {

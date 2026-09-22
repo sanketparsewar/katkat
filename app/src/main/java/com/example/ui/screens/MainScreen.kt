@@ -61,6 +61,14 @@ fun MainScreen(
     }
   }
 
+  val selectedChatMatch by viewModel.selectedChatMatch.collectAsStateWithLifecycle()
+  val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
+
+  // Keep KatkatApplication informed of which match chat is currently active on screen
+  LaunchedEffect(selectedChatMatch) {
+    com.example.KatkatApplication.activeChatPartnerId = selectedChatMatch?.id
+  }
+
   var currentTab by remember { mutableStateOf(KatkatTab.DISCOVER) }
 
   val activeProfiles by viewModel.activeProfiles.collectAsStateWithLifecycle()
@@ -76,8 +84,6 @@ fun MainScreen(
   val activeMatchCelebration by viewModel.activeMatchCelebration.collectAsStateWithLifecycle()
   val showPaywall by viewModel.showPaywall.collectAsStateWithLifecycle()
   val inspectedProfile by viewModel.inspectedProfile.collectAsStateWithLifecycle()
-  val selectedChatMatch by viewModel.selectedChatMatch.collectAsStateWithLifecycle()
-  val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
   val conversations by viewModel.conversations.collectAsStateWithLifecycle()
   val typingMatchIds by viewModel.typingMatchIds.collectAsStateWithLifecycle()
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()

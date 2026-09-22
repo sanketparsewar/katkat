@@ -49,11 +49,18 @@ class KatkatRepository(
   val firebaseStorageManager: FirebaseStorageManager = FirebaseStorageManager()
 ) {
 
+  // In-memory set of recently processed notification IDs to avoid duplicate processing and duplicate push notifications
+  private val recentlyProcessedNotifIds = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+
   private suspend fun saveAndPushNotification(notif: KatkatNotification) {
+    val existing = dao.getNotificationById(notif.id)
     dao.insertNotification(notif.toEntity())
-    try {
-      PushNotificationHelper.postPushNotification(KatkatApplication.appContext, notif)
-    } catch (_: Exception) {}
+    // Only post system push notification if this is a newly arrived notification that hasn't been pushed
+    if (existing == null && recentlyProcessedNotifIds.add(notif.id)) {
+      try {
+        PushNotificationHelper.postPushNotification(KatkatApplication.appContext, notif)
+      } catch (_: Exception) {}
+    }
   }
 
   // Concurrency guard to ensure duplicate taps on the same profile don't execute simultaneously
@@ -135,7 +142,7 @@ class KatkatRepository(
               if (isFirstLikeNotice && !wasAlreadyMutual) {
                 // Rule: Profile 2 likes Profile 1 -> Profile 1 receives notification "Someone liked you"
                 val likeNotif = KatkatNotification(
-                  id = "like_${senderId}_${System.currentTimeMillis()}",
+                  id = "like_${senderId}",
                   userId = currentUserId,
                   type = KatkatNotificationType.PROFILE_ACTIVITY,
                   title = "New Like! ✨",
@@ -158,8 +165,9 @@ class KatkatRepository(
                 firestoreManager.registerMutualMatch(currentUserId, senderId)
 
                 // Rule: If it becomes mutual: "Yaaa! You have a new match!"
+                val matchKey = "${minOf(currentUserId, senderId)}_${maxOf(currentUserId, senderId)}"
                 val matchNotif = KatkatNotification(
-                  id = "match_${senderId}_$matchTime",
+                  id = "match_$matchKey",
                   userId = currentUserId,
                   type = KatkatNotificationType.NEW_MATCH,
                   title = "It's a Match! 🎉",
@@ -200,8 +208,9 @@ class KatkatRepository(
               dao.markMutualMatch(otherUserId, cm.matchedTimestamp)
 
               // Rule: "Yaaa! You have a new match!"
+              val matchKey = "${minOf(currentUserId, otherUserId)}_${maxOf(currentUserId, otherUserId)}"
               val matchNotif = KatkatNotification(
-                id = "match_${otherUserId}_${cm.matchedTimestamp}",
+                id = "match_$matchKey",
                 userId = currentUserId,
                 type = KatkatNotificationType.NEW_MATCH,
                 title = "It's a Match! 🎉",
@@ -231,9 +240,10 @@ class KatkatRepository(
               firestoreManager.observeChatMessages(matchProfile.id, currentUserId).collect { remoteMsgs ->
                 val existingLatest = dao.getLatestMessage(matchProfile.id)
                 remoteMsgs.forEach { msg ->
+                  val alreadyStored = dao.getMessageById(msg.id) != null
                   dao.insertMessage(msg.toEntity())
                   // Rule: If a match sends a message: "Profile 2 sent you a message"
-                  if (msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
+                  if (!alreadyStored && msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
                     val notif = KatkatNotification(
                       id = "msg_${msg.id}",
                       userId = currentUserId,
@@ -872,8 +882,9 @@ class KatkatRepository(
                 firestoreManager.registerMutualMatch(myUserId, profileId)
 
                 // Rule: If it becomes mutual: "Yaaa! You have a new match!"
+                val matchKey = "${minOf(myUserId, profileId)}_${maxOf(myUserId, profileId)}"
                 val matchNotifForPartner = KatkatNotification(
-                  id = "match_${myUserId}_$matchTime",
+                  id = "match_$matchKey",
                   userId = profileId,
                   type = KatkatNotificationType.NEW_MATCH,
                   title = "It's a Match! 🎉",
@@ -887,7 +898,7 @@ class KatkatRepository(
                 firestoreManager.sendNotification(profileId, matchNotifForPartner)
 
                 val matchNotifForMe = KatkatNotification(
-                  id = "match_${profileId}_$matchTime",
+                  id = "match_$matchKey",
                   userId = myUserId,
                   type = KatkatNotificationType.NEW_MATCH,
                   title = "It's a Match! 🎉",
@@ -907,7 +918,7 @@ class KatkatRepository(
               } else {
                 // Rule: Profile 2 likes Profile 1 -> Profile 1 receives notification "Someone liked you"
                 val likeNotif = KatkatNotification(
-                  id = "like_${myUserId}_${System.currentTimeMillis()}",
+                  id = "like_${myUserId}",
                   userId = profileId,
                   type = KatkatNotificationType.PROFILE_ACTIVITY,
                   title = "New Like! ✨",
@@ -926,8 +937,9 @@ class KatkatRepository(
               firestoreManager.registerMutualMatch(myUserId, profileId)
 
               // Push match notification to both
+              val matchKey = "${minOf(myUserId, profileId)}_${maxOf(myUserId, profileId)}"
               val matchNotifForPartner = KatkatNotification(
-                id = "match_${myUserId}_$matchTime",
+                id = "match_$matchKey",
                 userId = profileId,
                 type = KatkatNotificationType.NEW_MATCH,
                 title = "It's a Match! 🎉",
@@ -941,7 +953,7 @@ class KatkatRepository(
               firestoreManager.sendNotification(profileId, matchNotifForPartner)
 
               val matchNotifForMe = KatkatNotification(
-                id = "match_${profileId}_$matchTime",
+                id = "match_$matchKey",
                 userId = myUserId,
                 type = KatkatNotificationType.NEW_MATCH,
                 title = "It's a Match! 🎉",
@@ -1093,7 +1105,7 @@ class KatkatRepository(
 
           // Rule: MESSAGE_READ notification sent to original sender
           val readNotif = KatkatNotification(
-            id = "read_${myUserId}_${System.currentTimeMillis()}",
+            id = "read_${myUserId}",
             userId = matchId,
             type = KatkatNotificationType.MESSAGE_READ,
             title = "Message Read 👀",

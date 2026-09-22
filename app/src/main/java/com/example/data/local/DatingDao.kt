@@ -115,6 +115,9 @@ interface DatingDao {
   @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp DESC LIMIT 1")
   suspend fun getLatestMessage(matchId: String): ChatMessageEntity?
 
+  @Query("SELECT * FROM chat_messages WHERE id = :id LIMIT 1")
+  suspend fun getMessageById(id: String): ChatMessageEntity?
+
   @Query("UPDATE chat_messages SET isRead = 1 WHERE matchId = :matchId AND isFromMe = 0")
   suspend fun markMessagesAsRead(matchId: String)
 
@@ -140,6 +143,9 @@ interface DatingDao {
 
   @Query("SELECT COUNT(*) FROM app_notifications WHERE (userId = :userId OR userId = '') AND isRead = 0")
   fun getUnreadNotificationsCountFlow(userId: String): Flow<Int>
+
+  @Query("SELECT * FROM app_notifications WHERE id = :id LIMIT 1")
+  suspend fun getNotificationById(id: String): AppNotificationEntity?
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertNotification(notification: AppNotificationEntity)

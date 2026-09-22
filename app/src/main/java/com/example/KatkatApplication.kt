@@ -19,11 +19,44 @@ class KatkatApplication : Application(), ImageLoaderFactory {
       private set
     val appContext: Context
       get() = instance.applicationContext
+
+    var isAppInForeground: Boolean = false
+      private set
+
+    @Volatile
+    var activeChatPartnerId: String? = null
   }
 
   override fun onCreate() {
     super.onCreate()
     instance = this
+
+    registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+      private var runningActivities = 0
+
+      override fun onActivityStarted(activity: android.app.Activity) {
+        runningActivities++
+        isAppInForeground = runningActivities > 0
+      }
+
+      override fun onActivityStopped(activity: android.app.Activity) {
+        runningActivities = (runningActivities - 1).coerceAtLeast(0)
+        isAppInForeground = runningActivities > 0
+        if (!isAppInForeground) {
+          activeChatPartnerId = null
+        }
+      }
+
+      override fun onActivityResumed(activity: android.app.Activity) {
+        isAppInForeground = true
+      }
+
+      override fun onActivityPaused(activity: android.app.Activity) {}
+      override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
+      override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
+      override fun onActivityDestroyed(activity: android.app.Activity) {}
+    })
+
     try {
       if (FirebaseApp.getApps(this).isEmpty()) {
         FirebaseApp.initializeApp(this)
