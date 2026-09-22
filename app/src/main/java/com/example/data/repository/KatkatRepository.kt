@@ -153,6 +153,21 @@ class KatkatRepository(
           }
         }
       }
+
+      // 3. Observe background chat messages for all mutual matches to update unread counts in real time
+      launch {
+        dao.getMutualMatches().collect { mutualList ->
+          mutualList.forEach { matchProfile ->
+            launch {
+              firestoreManager.observeChatMessages(matchProfile.id, currentUserId).collect { remoteMsgs ->
+                remoteMsgs.forEach { msg ->
+                  dao.insertMessage(msg.toEntity())
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -667,6 +682,14 @@ class KatkatRepository(
 
   suspend fun markMessagesRead(matchId: String) {
     dao.markMessagesAsRead(matchId)
+    if (firestoreManager.isAvailable) {
+      val myUserId = getEffectiveCurrentUserId()
+      if (myUserId.isNotBlank()) {
+        appScope.launch {
+          firestoreManager.markChatMessagesAsRead(matchId, myUserId)
+        }
+      }
+    }
   }
 
   // Reactive conversations stream combining mutual matches with their message threads

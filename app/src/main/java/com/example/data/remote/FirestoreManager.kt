@@ -338,7 +338,7 @@ class FirestoreManager {
         "text" to message.text,
         "photoUri" to null,
         "timestamp" to message.timestamp,
-        "isRead" to message.isRead
+        "isRead" to false
       )
 
       // Write ONLY to the private canonical chat document for this user pair
@@ -416,6 +416,7 @@ class FirestoreManager {
             val data = doc.data ?: continue
             val senderId = data["senderId"] as? String ?: ""
             val isMine = if (myUserId.isNotBlank()) senderId == myUserId else (data["isFromMe"] as? Boolean ?: false)
+            val isReadCloud = (data["isRead"] as? Boolean) ?: false
             val chatMessage = ChatMessage(
               id = doc.id,
               matchId = matchId,
@@ -425,7 +426,7 @@ class FirestoreManager {
               photoUri = null,
               timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
               isFromMe = isMine,
-              isRead = data["isRead"] as? Boolean ?: true
+              isRead = if (isMine) true else isReadCloud
             )
             messagesMap[doc.id] = chatMessage
           } catch (_: Exception) {}
@@ -436,6 +437,29 @@ class FirestoreManager {
 
     awaitClose {
       reg.remove()
+    }
+  }
+
+  suspend fun markChatMessagesAsRead(matchId: String, myUserId: String = ""): Boolean {
+    val db = firestore ?: return false
+    if (myUserId.isBlank() || matchId.isBlank()) return false
+    return try {
+      val targetChatId = getCanonicalChatId(myUserId, matchId)
+      val unreadSnapshot = db.collection("chats")
+        .document(targetChatId)
+        .collection("messages")
+        .whereEqualTo("senderId", matchId)
+        .whereEqualTo("isRead", false)
+        .get()
+        .await()
+
+      for (doc in unreadSnapshot.documents) {
+        doc.reference.update("isRead", true).await()
+      }
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice marking messages as read in cloud: ${e.message}")
+      false
     }
   }
 
