@@ -64,8 +64,8 @@ class KatkatRepository(
         )
 
         // Seed default discover profiles if database is fresh
-        val allCount = dao.getActiveDeckProfiles(null).firstOrNull()?.size ?: 0
-        if (allCount == 0) {
+        val totalCount = dao.getProfilesCount()
+        if (totalCount == 0) {
           seedDefaultProfiles()
         }
 
@@ -847,6 +847,7 @@ class KatkatRepository(
       val community = firestoreManager.fetchAllCommunityProfiles(currentUserId)
       if (community.isNotEmpty()) {
         val entities = community.map { profile ->
+          val existing = dao.getProfileById(profile.id)
           ProfileEntity(
             id = profile.id,
             name = profile.name,
@@ -872,16 +873,16 @@ class KatkatRepository(
             anthemSong = profile.anthemSong,
             anthemArtist = profile.anthemArtist,
             isVerified = profile.isVerified,
-            likedMe = false,
-            isLikedByMe = false,
-            isPassedByMe = false,
-            isSuperLikedByMe = false,
-            isMutualMatch = false,
-            matchedTimestamp = null
+            likedMe = existing?.likedMe ?: false,
+            isLikedByMe = existing?.isLikedByMe ?: false,
+            isPassedByMe = existing?.isPassedByMe ?: false,
+            isSuperLikedByMe = existing?.isSuperLikedByMe ?: false,
+            isMutualMatch = existing?.isMutualMatch ?: false,
+            matchedTimestamp = existing?.matchedTimestamp
           )
         }
         dao.insertProfiles(entities)
-        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles into Discover deck")
+        Log.d("KatkatRepository", "Synced ${entities.size} community registered profiles preserving match states.")
       }
     } catch (e: Exception) {
       Log.w("KatkatRepository", "Notice syncing community users: ${e.message}")
