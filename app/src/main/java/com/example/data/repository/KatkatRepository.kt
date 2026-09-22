@@ -755,6 +755,14 @@ class KatkatRepository(
 
     val fixedProfile = profile.copy(id = uniqueId, photos = cloudPhotos)
 
+    val currentLocal = dao.getUserProfileFlow().firstOrNull()
+    if (currentLocal != null && currentLocal.id.isNotBlank() && currentLocal.id != uniqueId && currentLocal.id != "my_profile") {
+      // Switched to a different profile - purge previous user's local chats and swipe cache
+      dao.deleteAllMessages()
+      dao.deleteAllSwipeRecords()
+      dao.deleteAllProfiles()
+    }
+
     // Save active profile cleanly without transient null emissions
     dao.saveUserProfile(fixedProfile.toEntity())
     dao.deleteOtherUserProfiles(uniqueId)
@@ -772,10 +780,13 @@ class KatkatRepository(
 
   suspend fun logoutActiveSession() {
     phoneAuthManager.signOut()
-    // Delete active user_profile row in SQLite so memory session resets,
-    // while keeping registered profile intact in Firestore.
+    // Delete active user_profile, local cached chats, swipe history, and profiles deck
+    // so no previous user's chat or match data remains on the device.
     dao.deleteUserProfile()
-    Log.d("KatkatRepository", "Logged out active session cleanly.")
+    dao.deleteAllMessages()
+    dao.deleteAllSwipeRecords()
+    dao.deleteAllProfiles()
+    Log.d("KatkatRepository", "Logged out active session and cleared local user data cleanly.")
   }
 
   /**
@@ -798,7 +809,11 @@ class KatkatRepository(
       Log.d("KatkatRepository", "Existing user found in local DB for phone $phoneNumber: ${local.name}")
       val domainUser = local.toDomain().copy(isOnboardingCompleted = true)
       dao.deleteUserProfile()
+      dao.deleteAllMessages()
+      dao.deleteAllSwipeRecords()
+      dao.deleteAllProfiles()
       dao.saveUserProfile(domainUser.toEntity())
+      syncCommunityRegisteredUsers(domainUser.id)
       return domainUser
     }
 
@@ -808,6 +823,9 @@ class KatkatRepository(
         Log.d("KatkatRepository", "Existing user found in Firestore for phone $phoneNumber: ${cloudUser.name}")
         val completedCloudUser = cloudUser.copy(isOnboardingCompleted = true)
         dao.deleteUserProfile()
+        dao.deleteAllMessages()
+        dao.deleteAllSwipeRecords()
+        dao.deleteAllProfiles()
         dao.saveUserProfile(completedCloudUser.toEntity())
         syncCommunityRegisteredUsers(completedCloudUser.id)
         return completedCloudUser

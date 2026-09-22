@@ -316,71 +316,53 @@ class FirestoreManager {
    * Helper to compute deterministic chat ID between two users.
    */
   fun getCanonicalChatId(userA: String, userB: String): String {
-    return if (userA < userB) "${userA}_$userB" else "${userB}_$userA"
+    val cleanA = userA.trim()
+    val cleanB = userB.trim()
+    return if (cleanA < cleanB) "${cleanA}_$cleanB" else "${cleanB}_$cleanA"
   }
 
   suspend fun sendChatMessage(matchId: String, message: ChatMessage, myUserId: String = ""): Boolean {
     val db = firestore ?: return false
     return try {
+      val targetChatId = if (myUserId.isNotBlank() && myUserId != matchId) {
+        getCanonicalChatId(myUserId, matchId)
+      } else {
+        matchId
+      }
+
       val msgData = mapOf(
         "id" to message.id,
-        "matchId" to message.matchId,
+        "matchId" to matchId,
         "senderId" to message.senderId,
         "senderName" to message.senderName,
         "text" to message.text,
-        "photoUri" to message.photoUri,
+        "photoUri" to null,
         "timestamp" to message.timestamp,
-        "isFromMe" to message.isFromMe,
         "isRead" to message.isRead
       )
 
-      // Primary: write to matchId conversation collection
+      // Write ONLY to the private canonical chat document for this user pair
       db.collection("chats")
-        .document(matchId)
+        .document(targetChatId)
         .collection("messages")
         .document(message.id)
         .set(msgData)
         .await()
 
-      // Update conversation metadata
+      // Update conversation metadata on the private pair conversation
       db.collection("chats")
-        .document(matchId)
+        .document(targetChatId)
         .set(
           mapOf(
             "lastMessage" to message.text,
             "lastMessageTimestamp" to message.timestamp,
             "lastSenderName" to message.senderName,
-            "lastSenderId" to message.senderId
+            "lastSenderId" to message.senderId,
+            "participants" to listOfNotNull(myUserId.takeIf { it.isNotBlank() }, matchId).distinct()
           ),
           SetOptions.merge()
         )
         .await()
-
-      // If myUserId is provided and differs from matchId, also sync to canonical thread
-      if (myUserId.isNotBlank() && myUserId != matchId) {
-        val canonicalId = getCanonicalChatId(myUserId, matchId)
-        if (canonicalId != matchId) {
-          db.collection("chats")
-            .document(canonicalId)
-            .collection("messages")
-            .document(message.id)
-            .set(msgData)
-            .await()
-
-          db.collection("chats")
-            .document(canonicalId)
-            .set(
-              mapOf(
-                "lastMessage" to message.text,
-                "lastMessageTimestamp" to message.timestamp,
-                "lastSenderName" to message.senderName,
-                "lastSenderId" to message.senderId
-              ),
-              SetOptions.merge()
-            )
-            .await()
-        }
-      }
 
       true
     } catch (e: Exception) {
@@ -401,15 +383,12 @@ class FirestoreManager {
       return@callbackFlow
     }
 
-    // Determine target chat document ID:
-    // If myUserId is known and distinct from matchId, canonical conversation ID connects both users
-    val targetDocId = if (myUserId.isNotBlank() && myUserId != matchId) {
+    val targetChatId = if (myUserId.isNotBlank() && myUserId != matchId) {
       getCanonicalChatId(myUserId, matchId)
     } else {
       matchId
     }
 
-    val listeners = mutableListOf<ListenerRegistration>()
     val messagesMap = java.util.concurrent.ConcurrentHashMap<String, ChatMessage>()
 
     fun emitCurrentMessages() {
@@ -417,79 +396,69 @@ class FirestoreManager {
       trySend(sorted)
     }
 
-    fun attachListenerToDoc(docId: String) {
-      val collectionRef = db.collection("chats")
-        .document(docId)
-        .collection("messages")
-        .orderBy("timestamp", Query.Direction.ASCENDING)
+    val collectionRef = db.collection("chats")
+      .document(targetChatId)
+      .collection("messages")
+      .orderBy("timestamp", Query.Direction.ASCENDING)
 
-      val reg = collectionRef.addSnapshotListener { snapshot, error ->
-        if (error != null) {
-          if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-            Log.w(tag, "Firestore chat listener: rules pending. Serving local.")
-          } else {
-            Log.w(tag, "Firestore chat listener notice: ${error.message}")
-          }
-          return@addSnapshotListener
+    val reg = collectionRef.addSnapshotListener { snapshot, error ->
+      if (error != null) {
+        if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+          Log.w(tag, "Firestore chat listener: rules pending. Serving local.")
+        } else {
+          Log.w(tag, "Firestore chat listener notice: ${error.message}")
         }
-        if (snapshot != null) {
-          for (doc in snapshot.documents) {
-            try {
-              val data = doc.data ?: continue
-              val senderId = data["senderId"] as? String ?: ""
-              val isMine = if (myUserId.isNotBlank()) senderId == myUserId else (data["isFromMe"] as? Boolean ?: false)
-              val chatMessage = ChatMessage(
-                id = doc.id,
-                matchId = matchId,
-                senderId = senderId,
-                senderName = data["senderName"] as? String ?: "",
-                text = data["text"] as? String ?: "",
-                photoUri = data["photoUri"] as? String,
-                timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
-                isFromMe = isMine,
-                isRead = data["isRead"] as? Boolean ?: true
-              )
-              messagesMap[doc.id] = chatMessage
-            } catch (_: Exception) {}
-          }
-          emitCurrentMessages()
-        }
+        return@addSnapshotListener
       }
-      listeners.add(reg)
-    }
-
-    attachListenerToDoc(targetDocId)
-    if (targetDocId != matchId) {
-      attachListenerToDoc(matchId)
+      if (snapshot != null) {
+        for (doc in snapshot.documents) {
+          try {
+            val data = doc.data ?: continue
+            val senderId = data["senderId"] as? String ?: ""
+            val isMine = if (myUserId.isNotBlank()) senderId == myUserId else (data["isFromMe"] as? Boolean ?: false)
+            val chatMessage = ChatMessage(
+              id = doc.id,
+              matchId = matchId,
+              senderId = senderId,
+              senderName = data["senderName"] as? String ?: "",
+              text = data["text"] as? String ?: "",
+              photoUri = null,
+              timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+              isFromMe = isMine,
+              isRead = data["isRead"] as? Boolean ?: true
+            )
+            messagesMap[doc.id] = chatMessage
+          } catch (_: Exception) {}
+        }
+        emitCurrentMessages()
+      }
     }
 
     awaitClose {
-      listeners.forEach { it.remove() }
+      reg.remove()
     }
   }
 
   suspend fun deleteChatMessages(matchId: String, myUserId: String = ""): Boolean {
     val db = firestore ?: return false
     return try {
-      val targetDocs = mutableListOf<String>()
-      if (myUserId.isNotBlank() && myUserId != matchId) {
-        targetDocs.add(getCanonicalChatId(myUserId, matchId))
+      val targetChatId = if (myUserId.isNotBlank() && myUserId != matchId) {
+        getCanonicalChatId(myUserId, matchId)
+      } else {
+        matchId
       }
-      targetDocs.add(matchId)
 
-      for (docId in targetDocs.distinct()) {
-        val messagesSnapshot = db.collection("chats")
-          .document(docId)
-          .collection("messages")
-          .get()
-          .await()
+      val messagesSnapshot = db.collection("chats")
+        .document(targetChatId)
+        .collection("messages")
+        .get()
+        .await()
 
-        for (msgDoc in messagesSnapshot.documents) {
-          msgDoc.reference.delete().await()
-        }
-
-        db.collection("chats").document(docId).delete().await()
+      for (msgDoc in messagesSnapshot.documents) {
+        msgDoc.reference.delete().await()
       }
+
+      db.collection("chats").document(targetChatId).delete().await()
       true
     } catch (e: Exception) {
       Log.w(tag, "Failed to clear cloud chat history: ${e.message}")
