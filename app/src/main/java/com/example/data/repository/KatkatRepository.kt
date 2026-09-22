@@ -209,6 +209,18 @@ class KatkatRepository(
           }
         }
       }
+
+      // 6. Observe and stream user profile directly from backend database as the source of truth
+      launch {
+        firestoreManager.observeUserProfile(currentUserId).collect { remoteUserProfile ->
+          if (remoteUserProfile != null && remoteUserProfile.name.isNotBlank()) {
+            val localProfile = dao.getUserProfileFlow().firstOrNull()
+            if (localProfile == null || localProfile.name != remoteUserProfile.name || localProfile.bio != remoteUserProfile.bio || localProfile.photosJoined != remoteUserProfile.photos.joinToString("|||")) {
+              dao.saveUserProfile(remoteUserProfile.toEntity())
+            }
+          }
+        }
+      }
     }
   }
 
@@ -832,14 +844,17 @@ class KatkatRepository(
   }
 
   suspend fun blockProfile(matchId: String) {
-    dao.deleteProfileById(matchId)
-    deleteMessagesForMatch(matchId)
     val myUserId = getEffectiveCurrentUserId()
     if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
-      appScope.launch {
+      try {
         firestoreManager.blockUser(myUserId, matchId)
+        firestoreManager.deleteChatMessages(matchId, myUserId)
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Notice blocking user in Firestore: ${e.message}")
       }
     }
+    dao.deleteProfileById(matchId)
+    deleteMessagesForMatch(matchId)
   }
 
   suspend fun createSimulatedTestMatch(): DatingProfile? {
@@ -902,19 +917,22 @@ class KatkatRepository(
       dao.deleteAllProfiles()
     }
 
-    // Save active profile cleanly without transient null emissions
-    dao.saveUserProfile(fixedProfile.toEntity())
-    dao.deleteOtherUserProfiles(uniqueId)
+    // 1. Save directly to Cloud Firestore backend as the authoritative source of truth
     if (firestoreManager.isAvailable) {
-      appScope.launch {
+      try {
         firestoreManager.syncUserProfile(fixedProfile)
-        // If user completed onboarding, publish as a dating profile for other users
         if (fixedProfile.isOnboardingCompleted && fixedProfile.name.isNotBlank()) {
           firestoreManager.publishUserToDiscovery(fixedProfile)
           syncCommunityRegisteredUsers(fixedProfile.id)
         }
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Firestore profile sync notice: ${e.message}")
       }
     }
+
+    // 2. Update local database cache to reflect backend data
+    dao.saveUserProfile(fixedProfile.toEntity())
+    dao.deleteOtherUserProfiles(uniqueId)
   }
 
   suspend fun logoutActiveSession() {
@@ -1098,27 +1116,31 @@ class KatkatRepository(
   }
 
   suspend fun disableAccount(disabled: Boolean) {
-    dao.setAccountDisabled(disabled)
     val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
     if (current != null && firestoreManager.isAvailable) {
-      appScope.launch {
+      try {
         firestoreManager.syncUserProfile(current.copy(isAccountDisabled = disabled))
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Notice disabling account in Firestore: ${e.message}")
       }
     }
+    dao.setAccountDisabled(disabled)
   }
 
   suspend fun deleteAccount(): Boolean {
     val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
+    if (current != null && firestoreManager.isAvailable) {
+      try {
+        firestoreManager.deleteUserProfile(current.id)
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Notice deleting user in Firestore: ${e.message}")
+      }
+    }
     phoneAuthManager.signOut()
     dao.deleteUserProfile()
     dao.deleteAllMessages()
     dao.deleteAllSwipeRecords()
     dao.deleteAllProfiles()
-    if (current != null && firestoreManager.isAvailable) {
-      appScope.launch {
-        firestoreManager.deleteUserProfile(current.id)
-      }
-    }
     // Re-create initial fresh un-onboarded entry
     val freshInitial = UserProfileEntity(
       id = "my_profile",
