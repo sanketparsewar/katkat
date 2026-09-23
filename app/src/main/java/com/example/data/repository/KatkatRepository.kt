@@ -2542,8 +2542,10 @@ class KatkatRepository(
         Log.w("KatkatRepository", "Notice blocking user in Firestore: ${e.message}")
       }
     }
+    dao.unmatchProfile(matchId)
     dao.deleteProfileById(matchId)
     deleteMessagesForMatch(matchId)
+    _realtimeBlockedEvent.emit(matchId)
   }
 
   suspend fun createSimulatedTestMatch(): DatingProfile? {

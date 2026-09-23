@@ -25,26 +25,46 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +96,8 @@ fun ProfileDetailBottomSheet(
   onLike: () -> Unit = {},
   onPass: () -> Unit = {},
   onSuperLike: () -> Unit = {},
+  onBlock: () -> Unit = {},
+  onReport: (reason: String, details: String, alsoBlock: Boolean) -> Unit = { _, _, _ -> },
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -83,6 +105,10 @@ fun ProfileDetailBottomSheet(
   val photos = remember(profile.photos) { profile.photos.filter { it.isNotBlank() } }
   val pagerState = rememberPagerState(pageCount = { photos.size.coerceAtLeast(1) })
   val coroutineScope = rememberCoroutineScope()
+
+  var showOptionsMenu by remember { mutableStateOf(false) }
+  var showBlockConfirm by remember { mutableStateOf(false) }
+  var showReportDialog by remember { mutableStateOf(false) }
 
   // Clean occupation: remove "at ..." and further values
   val cleanOccupation = remember(profile.occupation) {
@@ -246,22 +272,82 @@ fun ProfileDetailBottomSheet(
           }
         }
 
-        // Close Button
-        IconButton(
-          onClick = onDismiss,
+        // Top Bar Controls: Close Button (Start) and Options Menu ⋮ (End)
+        Row(
           modifier = Modifier
-            .padding(top = if (photos.size > 1) 24.dp else 12.dp, end = 12.dp)
-            .align(Alignment.TopEnd)
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.5f))
+            .fillMaxWidth()
+            .padding(
+              top = if (photos.size > 1) 24.dp else 12.dp,
+              start = 12.dp,
+              end = 12.dp
+            )
+            .align(Alignment.TopCenter),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          Icon(
-            imageVector = Icons.Default.Close,
-            contentDescription = "Close",
-            tint = Color.White,
-            modifier = Modifier.size(20.dp)
-          )
+          // Close Button
+          IconButton(
+            onClick = onDismiss,
+            modifier = Modifier
+              .size(38.dp)
+              .clip(CircleShape)
+              .background(Color.Black.copy(alpha = 0.5f))
+              .testTag("btn_close_profile_sheet")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Close,
+              contentDescription = "Close",
+              tint = Color.White,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+
+          // More Options ⋮ Button
+          Box {
+            IconButton(
+              onClick = { showOptionsMenu = true },
+              modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .testTag("btn_profile_options_menu")
+            ) {
+              Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More Options",
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
+              )
+            }
+
+            DropdownMenu(
+              expanded = showOptionsMenu,
+              onDismissRequest = { showOptionsMenu = false }
+            ) {
+              DropdownMenuItem(
+                text = { Text("Block ${profile.name}", color = Color(0xFFD32F2F), fontWeight = FontWeight.SemiBold) },
+                leadingIcon = {
+                  Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFD32F2F))
+                },
+                onClick = {
+                  showOptionsMenu = false
+                  showBlockConfirm = true
+                },
+                modifier = Modifier.testTag("menu_item_block_profile")
+              )
+              DropdownMenuItem(
+                text = { Text("Report ${profile.name}", color = Color(0xFFE65100), fontWeight = FontWeight.SemiBold) },
+                leadingIcon = {
+                  Icon(Icons.Default.Flag, contentDescription = null, tint = Color(0xFFE65100))
+                },
+                onClick = {
+                  showOptionsMenu = false
+                  showReportDialog = true
+                },
+                modifier = Modifier.testTag("menu_item_report_profile")
+              )
+            }
+          }
         }
       }
 
@@ -486,8 +572,76 @@ fun ProfileDetailBottomSheet(
           Spacer(modifier = Modifier.height(24.dp))
         }
 
+        // ── 5. Safety & Trust Actions ─────────────────────────────────────
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+          shape = RoundedCornerShape(16.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+          Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.Shield,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = "Safety & Community",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+              )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              OutlinedButton(
+                onClick = { showReportDialog = true },
+                modifier = Modifier
+                  .weight(1f)
+                  .testTag("btn_profile_sheet_report"),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFFE65100))
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Flag,
+                  contentDescription = null,
+                  tint = Color(0xFFE65100),
+                  modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Report", color = Color(0xFFE65100), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+              }
+
+              OutlinedButton(
+                onClick = { showBlockConfirm = true },
+                modifier = Modifier
+                  .weight(1f)
+                  .testTag("btn_profile_sheet_block"),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFFD32F2F))
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Block,
+                  contentDescription = null,
+                  tint = Color(0xFFD32F2F),
+                  modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Block", color = Color(0xFFD32F2F), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+              }
+            }
+          }
+        }
+
         if (!isAlreadyMatched) {
-          // ── 5. Quick Floating Action Row (Pass, Superlike, Like) ────────────
+          // ── 6. Quick Floating Action Row (Pass, Superlike, Like) ────────────
+          Spacer(modifier = Modifier.height(12.dp))
           Row(
             modifier = Modifier
               .fillMaxWidth()
@@ -570,6 +724,187 @@ fun ProfileDetailBottomSheet(
         }
       }
     }
+  }
+
+  // ── Block Confirmation Dialog ───────────────────────────────────────
+  if (showBlockConfirm) {
+    AlertDialog(
+      onDismissRequest = { showBlockConfirm = false },
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.Block,
+            contentDescription = null,
+            tint = Color(0xFFD32F2F),
+            modifier = Modifier.size(24.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(text = "Block ${profile.name}?", fontWeight = FontWeight.Bold)
+        }
+      },
+      text = {
+        Column(modifier = Modifier.fillMaxWidth()) {
+          Text(
+            text = "When you block ${profile.name}:",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+          Text("• Remove from Discover feed", style = MaterialTheme.typography.bodySmall)
+          Text("• Prevent likes between you", style = MaterialTheme.typography.bodySmall)
+          Text("• Prevent messaging and chat history", style = MaterialTheme.typography.bodySmall)
+          Text("• Prevent future matching", style = MaterialTheme.typography.bodySmall)
+          Spacer(modifier = Modifier.height(10.dp))
+          Text(
+            text = "This action takes effect instantly across the entire platform.",
+            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+          )
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            showBlockConfirm = false
+            onBlock()
+            onDismiss()
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+          modifier = Modifier.testTag("btn_confirm_block_profile")
+        ) {
+          Text("Block Profile", color = Color.White, fontWeight = FontWeight.Bold)
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showBlockConfirm = false }) {
+          Text("Cancel")
+        }
+      }
+    )
+  }
+
+  // ── Report User Dialog ──────────────────────────────────────────────
+  if (showReportDialog) {
+    val reportReasons = listOf(
+      "Fake profile",
+      "Spam",
+      "Harassment",
+      "Inappropriate content",
+      "Scam",
+      "Other"
+    )
+    var selectedReason by remember { mutableStateOf(reportReasons.first()) }
+    var reportDetails by remember { mutableStateOf("") }
+    var alsoBlock by remember { mutableStateOf(true) }
+
+    AlertDialog(
+      onDismissRequest = { showReportDialog = false },
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.Flag,
+            contentDescription = null,
+            tint = Color(0xFFE65100),
+            modifier = Modifier.size(24.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(text = "Report ${profile.name}", fontWeight = FontWeight.Bold)
+        }
+      },
+      text = {
+        Column(modifier = Modifier.fillMaxWidth()) {
+          Text(
+            text = "Select a reason for reporting:",
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+
+          reportReasons.forEach { reason ->
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { selectedReason = reason }
+                .padding(vertical = 4.dp, horizontal = 4.dp)
+                .testTag("report_reason_$reason")
+            ) {
+              RadioButton(
+                selected = selectedReason == reason,
+                onClick = { selectedReason = reason },
+                colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = reason,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (selectedReason == reason) FontWeight.Bold else FontWeight.Normal)
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(10.dp))
+          OutlinedTextField(
+            value = reportDetails,
+            onValueChange = { reportDetails = it },
+            placeholder = { Text("Provide details (optional)...", fontSize = 12.sp) },
+            label = { Text("Details", fontSize = 12.sp) },
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("report_details_input"),
+            maxLines = 3,
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedBorderColor = CoralPrimary
+            )
+          )
+
+          Spacer(modifier = Modifier.height(10.dp))
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(8.dp))
+              .clickable { alsoBlock = !alsoBlock }
+              .padding(vertical = 4.dp)
+              .testTag("report_also_block_checkbox")
+          ) {
+            Checkbox(
+              checked = alsoBlock,
+              onCheckedChange = { alsoBlock = it },
+              colors = CheckboxDefaults.colors(checkedColor = Color(0xFFD32F2F))
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Column {
+              Text(
+                text = "Also block ${profile.name}",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+              )
+              Text(
+                text = "Hide from Discover & prevent messaging",
+                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+              )
+            }
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            showReportDialog = false
+            onReport(selectedReason, reportDetails, alsoBlock)
+            onDismiss()
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+          modifier = Modifier.testTag("btn_submit_report")
+        ) {
+          Text("Submit Report", color = Color.White, fontWeight = FontWeight.Bold)
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showReportDialog = false }) {
+          Text("Cancel")
+        }
+      }
+    )
   }
 }
 

@@ -664,17 +664,47 @@ fun ChatDetailScreen(
   if (showBlockConfirm) {
     AlertDialog(
       onDismissRequest = { showBlockConfirm = false },
-      title = { Text("Block ${match.name}?", fontWeight = FontWeight.Bold) },
-      text = { Text("They will be permanently blocked across the backend. You will no longer see each other in Discover or receive messages.") },
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.Block,
+            contentDescription = null,
+            tint = Color(0xFFD32F2F),
+            modifier = Modifier.size(24.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Block ${match.name}?", fontWeight = FontWeight.Bold)
+        }
+      },
+      text = {
+        Column(modifier = Modifier.fillMaxWidth()) {
+          Text(
+            text = "When you block ${match.name}:",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+          Text("• Remove from Discover feed", style = MaterialTheme.typography.bodySmall)
+          Text("• Prevent likes between you", style = MaterialTheme.typography.bodySmall)
+          Text("• Prevent messaging and chat history", style = MaterialTheme.typography.bodySmall)
+          Text("• Prevent future matching", style = MaterialTheme.typography.bodySmall)
+          Spacer(modifier = Modifier.height(10.dp))
+          Text(
+            text = "This action takes effect immediately across the platform.",
+            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+          )
+        }
+      },
       confirmButton = {
         Button(
           onClick = {
             showBlockConfirm = false
             onBlockProfile?.invoke()
           },
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+          modifier = Modifier.testTag("btn_confirm_block_profile_chat")
         ) {
-          Text("Block Profile")
+          Text("Block Profile", color = Color.White, fontWeight = FontWeight.Bold)
         }
       },
       dismissButton = {
@@ -688,12 +718,12 @@ fun ChatDetailScreen(
   // ── Report User Dialog ──────────────────────────────────────────────
   if (showReportDialog) {
     val reportReasons = listOf(
-      "Inappropriate messages or content",
-      "Fake profile or scam",
-      "Harassment or abusive behavior",
-      "Spam or commercial advertising",
-      "Underage user",
-      "Other reason"
+      "Fake profile",
+      "Spam",
+      "Harassment",
+      "Inappropriate content",
+      "Scam",
+      "Other"
     )
     var selectedReason by remember { mutableStateOf(reportReasons.first()) }
     var reportDetails by remember { mutableStateOf("") }
@@ -701,22 +731,35 @@ fun ChatDetailScreen(
 
     AlertDialog(
       onDismissRequest = { showReportDialog = false },
-      title = { Text("Report ${match.name}", fontWeight = FontWeight.Bold) },
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.Flag,
+            contentDescription = null,
+            tint = Color(0xFFE65100),
+            modifier = Modifier.size(24.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Report ${match.name}", fontWeight = FontWeight.Bold)
+        }
+      },
       text = {
         Column(modifier = Modifier.fillMaxWidth()) {
           Text(
-            "Select reason for reporting:",
+            "Select a reason for reporting:",
             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
-          Spacer(modifier = Modifier.height(6.dp))
+          Spacer(modifier = Modifier.height(8.dp))
           reportReasons.forEach { reason ->
             Row(
               verticalAlignment = Alignment.CenterVertically,
               modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
                 .clickable { selectedReason = reason }
-                .padding(vertical = 2.dp)
+                .padding(vertical = 4.dp, horizontal = 4.dp)
+                .testTag("report_reason_$reason")
             ) {
               RadioButton(
                 selected = selectedReason == reason,
@@ -724,36 +767,48 @@ fun ChatDetailScreen(
                 colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary)
               )
               Spacer(modifier = Modifier.width(6.dp))
-              Text(text = reason, style = MaterialTheme.typography.bodySmall)
+              Text(
+                text = reason,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (selectedReason == reason) FontWeight.Bold else FontWeight.Normal)
+              )
             }
           }
 
-          Spacer(modifier = Modifier.height(8.dp))
+          Spacer(modifier = Modifier.height(10.dp))
           OutlinedTextField(
             value = reportDetails,
             onValueChange = { reportDetails = it },
-            placeholder = { Text("Optional details...", fontSize = 12.sp) },
-            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Provide details (optional)...", fontSize = 12.sp) },
+            label = { Text("Details", fontSize = 12.sp) },
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("report_details_input"),
             maxLines = 3,
             colors = OutlinedTextFieldDefaults.colors(
               focusedBorderColor = CoralPrimary
             )
           )
 
-          Spacer(modifier = Modifier.height(8.dp))
+          Spacer(modifier = Modifier.height(10.dp))
           Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
               .fillMaxWidth()
+              .clip(RoundedCornerShape(8.dp))
               .clickable { alsoBlock = !alsoBlock }
+              .padding(vertical = 4.dp)
+              .testTag("report_also_block_checkbox")
           ) {
             Checkbox(
               checked = alsoBlock,
               onCheckedChange = { alsoBlock = it },
               colors = CheckboxDefaults.colors(checkedColor = Color(0xFFD32F2F))
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Also block ${match.name}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium))
+            Spacer(modifier = Modifier.width(6.dp))
+            Column {
+              Text("Also block ${match.name}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold))
+              Text("Hide from Discover & prevent messaging", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+            }
           }
         }
       },
@@ -763,9 +818,10 @@ fun ChatDetailScreen(
             showReportDialog = false
             onReportProfile?.invoke(selectedReason, reportDetails, alsoBlock)
           },
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+          modifier = Modifier.testTag("btn_submit_report_chat")
         ) {
-          Text("Submit Report")
+          Text("Submit Report", color = Color.White, fontWeight = FontWeight.Bold)
         }
       },
       dismissButton = {

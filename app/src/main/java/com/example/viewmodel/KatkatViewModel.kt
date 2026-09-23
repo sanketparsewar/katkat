@@ -374,6 +374,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         if (_selectedChatMatch.value?.id == matchId) {
           _selectedChatMatch.value = null
         }
+        if (_inspectedProfile.value?.id == matchId) {
+          _inspectedProfile.value = null
+        }
         _uiEvents.emit(UiEvent.ShowToast("Report submitted & user blocked."))
       } else {
         _uiEvents.emit(UiEvent.ShowToast("Report submitted. Thank you for keeping our community safe."))
@@ -388,6 +391,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       if (_selectedChatMatch.value?.id == matchId) {
         _selectedChatMatch.value = null
       }
+      if (_inspectedProfile.value?.id == matchId) {
+        _inspectedProfile.value = null
+      }
       _uiEvents.emit(UiEvent.ShowToast("Unmatched profile"))
       _uiEvents.emit(UiEvent.VibrateFeedback("click"))
     }
@@ -398,6 +404,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       repository.blockProfile(matchId)
       if (_selectedChatMatch.value?.id == matchId) {
         _selectedChatMatch.value = null
+      }
+      if (_inspectedProfile.value?.id == matchId) {
+        _inspectedProfile.value = null
       }
       _uiEvents.emit(UiEvent.ShowToast("Profile blocked"))
       _uiEvents.emit(UiEvent.VibrateFeedback("click"))

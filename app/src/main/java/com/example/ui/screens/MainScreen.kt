@@ -384,6 +384,14 @@ fun MainScreen(
         viewModel.superLike(profileToInspect.id)
         viewModel.inspectProfile(null)
       },
+      onBlock = {
+        viewModel.blockUser(profileToInspect.id)
+        viewModel.inspectProfile(null)
+      },
+      onReport = { reason, details, alsoBlock ->
+        viewModel.reportUser(profileToInspect.id, reason, details, alsoBlock)
+        viewModel.inspectProfile(null)
+      },
       onDismiss = {
         viewModel.inspectProfile(null)
       }
