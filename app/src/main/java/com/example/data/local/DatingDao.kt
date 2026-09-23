@@ -10,13 +10,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface DatingDao {
   // Profiles
-  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC")
+  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND isAccountDisabled = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC")
   fun getActiveDeckProfiles(excludeUserId: String? = null): Flow<List<ProfileEntity>>
 
-  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC LIMIT :limit OFFSET :offset")
+  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND isAccountDisabled = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC LIMIT :limit OFFSET :offset")
   suspend fun getActiveDeckProfilesPaged(excludeUserId: String? = null, limit: Int, offset: Int): List<ProfileEntity>
 
-  @Query("SELECT COUNT(*) FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId)")
+  @Query("SELECT COUNT(*) FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND isAccountDisabled = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId)")
   suspend fun getEligibleDeckCount(excludeUserId: String? = null): Int
 
   @Query("SELECT id FROM dating_profiles WHERE isLikedByMe = 1 OR isSuperLikedByMe = 1")
@@ -31,7 +31,7 @@ interface DatingDao {
   @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
   fun getMutualMatches(): Flow<List<ProfileEntity>>
 
-  @Query("SELECT * FROM dating_profiles WHERE likedMe = 1 AND isMutualMatch = 0 AND isPassedByMe = 0 AND isLikedByMe = 0 ORDER BY id ASC")
+  @Query("SELECT * FROM dating_profiles WHERE likedMe = 1 AND isMutualMatch = 0 AND isPassedByMe = 0 AND isLikedByMe = 0 AND isAccountDisabled = 0 ORDER BY id ASC")
   fun getProfilesWhoLikedMe(): Flow<List<ProfileEntity>>
 
   @Query("UPDATE dating_profiles SET likedMe = 0, isPassedByMe = 1 WHERE id = :id")

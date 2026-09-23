@@ -1767,6 +1767,9 @@ class KatkatRepository(
 
     // 3. Apply all exclusion rules to the page candidates
     val eligibleCandidates = rawPageCandidates.mapNotNull { candidate ->
+      // Exclusion 0: Exclude paused / hidden / disabled profiles
+      if (candidate.isAccountDisabled) return@mapNotNull null
+
       // Exclusion 1: Not in any excluded IDs (liked, passed, matched, blocked, deleted, own profile)
       if (allExcludedIds.contains(candidate.id)) return@mapNotNull null
       if (candidate.isLikedByMe || candidate.isPassedByMe || candidate.isSuperLikedByMe || candidate.isMutualMatch) return@mapNotNull null
@@ -1893,6 +1896,9 @@ class KatkatRepository(
     dao.getActiveDeckProfiles(excludeUserId = excludeId).map { entities ->
       entities.mapNotNull { entity ->
         // Multi-factor exclusion to ensure user's own profile never appears in discover deck:
+        // 0. Exclude paused / hidden / disabled profiles
+        if (entity.isAccountDisabled) return@mapNotNull null
+
         // 1. By ID
         if (excludeId != null && entity.id == excludeId) return@mapNotNull null
         if (currentUser.id.isNotBlank() && entity.id == currentUser.id) return@mapNotNull null
@@ -1996,6 +2002,7 @@ class KatkatRepository(
     }
 
     entities.mapNotNull { entity ->
+      if (entity.isAccountDisabled) return@mapNotNull null
       if (entity.isMutualMatch || entity.isPassedByMe || entity.isLikedByMe) return@mapNotNull null
       if (blockedIds.contains(entity.id) || deletedIds.contains(entity.id)) return@mapNotNull null
       if (entity.id == myUserId || entity.id == currentUser.id || entity.id == "my_profile") return@mapNotNull null
@@ -2751,7 +2758,8 @@ class KatkatRepository(
             isPassedByMe = isAlreadyPassed,
             isSuperLikedByMe = existing?.isSuperLikedByMe ?: false,
             isMutualMatch = isAlreadyMutual,
-            matchedTimestamp = existing?.matchedTimestamp
+            matchedTimestamp = existing?.matchedTimestamp,
+            isAccountDisabled = profile.isAccountDisabled
           )
         }
         dao.insertProfiles(entities)

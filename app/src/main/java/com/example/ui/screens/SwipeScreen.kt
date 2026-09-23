@@ -82,6 +82,8 @@ fun SwipeScreen(
   currentPage: Int = 1,
   isLoadingMore: Boolean = false,
   onLoadMore: () -> Unit = {},
+  isAccountPaused: Boolean = false,
+  onUnpauseAccount: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val refreshState = rememberPullToRefreshState()
@@ -149,6 +151,54 @@ fun SwipeScreen(
       modifier = Modifier.fillMaxSize(),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
+      // Pause Alert Banner on Discovery Feed if user's own profile is paused
+      if (isAccountPaused) {
+        androidx.compose.material3.Surface(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .testTag("discover_paused_banner"),
+          shape = RoundedCornerShape(12.dp),
+          color = Color(0xFFFFF3E0),
+          border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D))
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Row(
+              modifier = Modifier.weight(1f),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "⏸️",
+                fontSize = 14.sp
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = "Your profile is paused & hidden from Discovery.",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFFE65100),
+                lineHeight = 15.sp
+              )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+              onClick = onUnpauseAccount,
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+              contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+              modifier = Modifier.height(28.dp)
+            ) {
+              Text("Unpause", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+          }
+        }
+      }
       if (profiles.isNotEmpty()) {
         // Swipe Deck Box
         Box(
@@ -240,6 +290,8 @@ fun SwipeScreen(
         // Empty Deck State with animated radar pulse
         EmptyDeckView(
           isLoadingMore = isLoadingMore,
+          isAccountPaused = isAccountPaused,
+          onUnpauseAccount = onUnpauseAccount,
           onResetDeck = onResetDeck,
           onOpenPaywall = onOpenPaywall,
           modifier = Modifier
@@ -254,6 +306,8 @@ fun SwipeScreen(
 @Composable
 fun EmptyDeckView(
   isLoadingMore: Boolean,
+  isAccountPaused: Boolean = false,
+  onUnpauseAccount: () -> Unit = {},
   onResetDeck: () -> Unit,
   onOpenPaywall: () -> Unit,
   modifier: Modifier = Modifier
@@ -319,7 +373,11 @@ fun EmptyDeckView(
       Spacer(modifier = Modifier.height(24.dp))
 
       Text(
-        text = if (isLoadingMore) "Finding more profiles..." else "You've Swiped Everyone Nearby!",
+        text = when {
+          isLoadingMore -> "Finding more profiles..."
+          isAccountPaused -> "Your Profile is Paused & Hidden"
+          else -> "You've Swiped Everyone Nearby!"
+        },
         style = MaterialTheme.typography.titleLarge.copy(
           fontWeight = FontWeight.ExtraBold,
           color = MaterialTheme.colorScheme.onSurface
@@ -330,10 +388,10 @@ fun EmptyDeckView(
       Spacer(modifier = Modifier.height(8.dp))
 
       Text(
-        text = if (isLoadingMore) {
-          "Looking for more people nearby that match your preferences."
-        } else {
-          "Check back soon for new profiles, or pull down to refresh the deck."
+        text = when {
+          isLoadingMore -> "Looking for more people nearby that match your preferences."
+          isAccountPaused -> "Your profile is hidden from new members in Discover. Unpause anytime to resume discovery."
+          else -> "Check back soon for new profiles, or pull down to refresh the deck."
         },
         style = MaterialTheme.typography.bodyMedium.copy(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -345,7 +403,16 @@ fun EmptyDeckView(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      if (!isLoadingMore) {
+      if (isAccountPaused) {
+        Button(
+          onClick = onUnpauseAccount,
+          shape = RoundedCornerShape(22.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+          modifier = Modifier.testTag("btn_unpause_empty_deck")
+        ) {
+          Text(text = "Unpause My Profile", color = Color.White, fontWeight = FontWeight.Bold)
+        }
+      } else if (!isLoadingMore) {
         Button(
           onClick = onResetDeck,
           shape = RoundedCornerShape(22.dp),

@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
     SubscriptionEntity::class,
     AppNotificationEntity::class
   ],
-  version = 9,
+  version = 10,
   exportSchema = false
 )
 abstract class KatkatDatabase : RoomDatabase() {

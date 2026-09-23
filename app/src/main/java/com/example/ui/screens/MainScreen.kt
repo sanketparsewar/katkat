@@ -230,7 +230,9 @@ fun MainScreen(
               onOpenPaywall = { viewModel.openPaywall() },
               currentPage = currentPage,
               isLoadingMore = isLoadingMoreProfiles,
-              onLoadMore = { viewModel.loadNextPage() }
+              onLoadMore = { viewModel.loadNextPage() },
+              isAccountPaused = userProfile.isAccountDisabled,
+              onUnpauseAccount = { viewModel.disableAccount(false) }
             )
           }
 

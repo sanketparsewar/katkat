@@ -362,7 +362,8 @@ class FirestoreManager {
               currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
               latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
               longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
-              isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false
+              isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
+              isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: (data["isPaused"] as? Boolean ?: (data["isProfileHidden"] as? Boolean ?: false))
             )
             trySend(profile)
           }
@@ -1216,7 +1217,8 @@ class FirestoreManager {
           anthemSong = "",
           anthemArtist = "",
           isVerified = data["isPhoneVerified"] as? Boolean ?: true,
-          likedMe = false
+          likedMe = false,
+          isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: (data["isPaused"] as? Boolean ?: (data["isProfileHidden"] as? Boolean ?: false))
         )
       }
     } catch (e: Exception) {
