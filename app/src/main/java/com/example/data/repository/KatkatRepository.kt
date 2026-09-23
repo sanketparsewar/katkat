@@ -2603,7 +2603,9 @@ class KatkatRepository(
     if (firestoreManager.isAvailable) {
       try {
         firestoreManager.syncUserProfile(fixedProfile)
-        if (fixedProfile.isOnboardingCompleted && fixedProfile.name.isNotBlank()) {
+        if (fixedProfile.isAccountDisabled) {
+          firestoreManager.unpublishUserFromDiscovery(fixedProfile.id)
+        } else if (fixedProfile.isOnboardingCompleted && fixedProfile.name.isNotBlank()) {
           firestoreManager.publishUserToDiscovery(fixedProfile)
           syncCommunityRegisteredUsers(fixedProfile.id)
         }
@@ -2812,11 +2814,21 @@ class KatkatRepository(
 
   suspend fun disableAccount(disabled: Boolean) {
     val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
-    if (current != null && firestoreManager.isAvailable) {
-      try {
-        firestoreManager.syncUserProfile(current.copy(isAccountDisabled = disabled))
-      } catch (e: Exception) {
-        Log.w("KatkatRepository", "Notice disabling account in Firestore: ${e.message}")
+    if (current != null) {
+      val updated = current.copy(isAccountDisabled = disabled)
+      dao.saveUserProfile(updated.toEntity())
+      if (firestoreManager.isAvailable) {
+        try {
+          firestoreManager.syncUserProfile(updated)
+          if (disabled) {
+            firestoreManager.unpublishUserFromDiscovery(updated.id)
+          } else if (updated.isOnboardingCompleted && updated.name.isNotBlank()) {
+            firestoreManager.publishUserToDiscovery(updated)
+            syncCommunityRegisteredUsers(updated.id)
+          }
+        } catch (e: Exception) {
+          Log.w("KatkatRepository", "Notice updating pause status in Firestore: ${e.message}")
+        }
       }
     }
     dao.setAccountDisabled(disabled)

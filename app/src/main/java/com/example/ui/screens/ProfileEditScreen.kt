@@ -65,8 +65,8 @@ import androidx.compose.material.icons.outlined.LocalBar
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.PauseCircle
-import androidx.compose.material.icons.outlined.Pets
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.QuestionAnswer
@@ -93,6 +93,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -506,6 +507,67 @@ fun ProfileEditScreen(
 
     Spacer(modifier = Modifier.height(2.dp))
 
+    // Paused Profile Top Alert Banner (if account is paused/disabled)
+    if (userProfile.isAccountDisabled) {
+      Card(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 20.dp, vertical = 4.dp)
+          .testTag("paused_profile_alert_banner"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+        border = BorderStroke(1.dp, Color(0xFFFFB74D))
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Surface(
+            shape = CircleShape,
+            color = Color(0xFFFF9800).copy(alpha = 0.2f),
+            modifier = Modifier.size(38.dp)
+          ) {
+            Box(contentAlignment = Alignment.Center) {
+              Icon(
+                imageVector = Icons.Filled.PauseCircle,
+                contentDescription = "Profile Paused",
+                tint = Color(0xFFE65100),
+                modifier = Modifier.size(22.dp)
+              )
+            }
+          }
+          Spacer(modifier = Modifier.width(12.dp))
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = "Profile Paused & Hidden",
+              fontWeight = FontWeight.Bold,
+              fontSize = 14.sp,
+              color = Color(0xFFE65100)
+            )
+            Text(
+              text = "Hidden from Discover. Existing matches and chats remain active.",
+              fontSize = 11.5.sp,
+              color = Color(0xFF5D4037),
+              lineHeight = 15.sp,
+              modifier = Modifier.padding(top = 1.dp)
+            )
+          }
+          Spacer(modifier = Modifier.width(8.dp))
+          Button(
+            onClick = { onDisableAccount(false) },
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.testTag("unpause_profile_banner_button")
+          ) {
+            Text("Unpause", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+          }
+        }
+      }
+    }
+
     // ── 2. Top Profile Info (Avatar + Identity + Single Edit Button) ─────
     Card(
       modifier = Modifier
@@ -743,7 +805,153 @@ fun ProfileEditScreen(
       }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(4.dp))
+
+    // ── 2B. Interactive Profile Completion Percentage Card & Missing Fields ───
+    Card(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 20.dp, vertical = 4.dp)
+        .testTag("profile_completion_percentage_card"),
+      shape = RoundedCornerShape(18.dp),
+      colors = CardDefaults.cardColors(
+        containerColor = if (completionPercent == 100) Color(0xFFF1F8E9) else MaterialTheme.colorScheme.surface
+      ),
+      elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+      border = BorderStroke(
+        1.dp,
+        if (completionPercent == 100) Color(0xFF81C784).copy(alpha = 0.6f) else CoralPrimary.copy(alpha = 0.25f)
+      )
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(16.dp)
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = if (completionPercent == 100) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+              contentDescription = null,
+              tint = if (completionPercent == 100) Color(0xFF2E7D32) else CoralPrimary,
+              modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = if (completionPercent == 100) "Profile Completed" else "Profile Completion",
+              fontWeight = FontWeight.Bold,
+              fontSize = 14.5.sp,
+              color = MaterialTheme.colorScheme.onSurface
+            )
+          }
+
+          Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary,
+            contentColor = Color.White
+          ) {
+            Text(
+              text = "$completionPercent%",
+              fontSize = 12.sp,
+              fontWeight = FontWeight.ExtraBold,
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Linear Progress Bar
+        val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+          targetValue = completionPercent / 100f,
+          animationSpec = androidx.compose.animation.core.tween(durationMillis = 600),
+          label = "profile_completion_progress"
+        )
+
+        LinearProgressIndicator(
+          progress = { animatedProgress },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(7.dp)
+            .clip(RoundedCornerShape(4.dp)),
+          color = if (completionPercent == 100) Color(0xFF4CAF50) else CoralPrimary,
+          trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        )
+
+        if (completionPercent == 100) {
+          Spacer(modifier = Modifier.height(10.dp))
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Text(
+              text = "⭐ Star Profile! Your profile is 100% complete and boosted for maximum visibility in Discover.",
+              fontSize = 12.sp,
+              color = Color(0xFF2E7D32),
+              lineHeight = 16.sp
+            )
+          }
+        } else if (remainingFields.isNotEmpty()) {
+          Spacer(modifier = Modifier.height(10.dp))
+          Text(
+            text = "Tap to complete missing details & boost matches:",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+          FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+          ) {
+            remainingFields.forEach { field ->
+              Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CoralPrimary.copy(alpha = 0.1f),
+                border = BorderStroke(0.5.dp, CoralPrimary.copy(alpha = 0.4f)),
+                modifier = Modifier.clickable {
+                  when (field) {
+                    "Bio", "Name", "Age / Birthday", "Gender", "Location" -> showBasicInfoSheet = true
+                    "Add photos", "Add 2+ photos" -> showPhotoManagementSheet = true
+                    "Work or Education" -> showWorkEducationSheet = true
+                    "Lifestyle info" -> showIntentionsLifestyleSheet = true
+                    "Interests" -> showInterestsSheet = true
+                    "Profile Prompt" -> showPromptsSheet = true
+                    else -> showBasicInfoSheet = true
+                  }
+                }
+              ) {
+                Row(
+                  modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.5.dp),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = CoralPrimary,
+                    modifier = Modifier.size(13.dp)
+                  )
+                  Spacer(modifier = Modifier.width(3.dp))
+                  Text(
+                    text = field,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = CoralPrimary
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    Spacer(modifier = Modifier.height(6.dp))
 
     // ── 3. Real Stats Row from Database ─────────────────────────────────
     Row(
@@ -1087,7 +1295,7 @@ fun ProfileEditScreen(
         }
         if (hasPets) {
           ProfileAttributeItem(
-            icon = Icons.Outlined.Pets,
+            icon = Icons.Filled.Pets,
             label = "Pets",
             value = userProfile.pets
           )
@@ -1270,6 +1478,74 @@ fun ProfileEditScreen(
           contentDescription = null,
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.size(14.dp)
+        )
+      }
+    }
+
+    Spacer(modifier = Modifier.height(2.dp))
+
+    // ── 12. Pause / Hide Profile Card ──────────────────────────────────
+    Card(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 20.dp, vertical = 6.dp)
+        .testTag("pause_profile_card"),
+      shape = RoundedCornerShape(16.dp),
+      colors = CardDefaults.cardColors(
+        containerColor = if (userProfile.isAccountDisabled) Color(0xFFFFF3E0) else MaterialTheme.colorScheme.surface
+      ),
+      elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+      border = BorderStroke(
+        1.dp,
+        if (userProfile.isAccountDisabled) Color(0xFFFFB74D) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+      )
+    ) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Icon(
+          imageVector = Icons.Filled.PauseCircle,
+          contentDescription = null,
+          tint = if (userProfile.isAccountDisabled) Color(0xFFE65100) else CoralPrimary,
+          modifier = Modifier.size(26.dp)
+        )
+
+        Column(
+          modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 14.dp)
+        ) {
+          Text(
+            text = if (userProfile.isAccountDisabled) "Profile Paused & Hidden" else "Pause / Hide Profile",
+            fontSize = 14.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (userProfile.isAccountDisabled) Color(0xFFE65100) else MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            text = if (userProfile.isAccountDisabled)
+              "Hidden from Discover. Existing matches can still chat."
+            else
+              "Temporarily hide yourself from Discover without losing chats or matches.",
+            fontSize = 11.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp)
+          )
+        }
+
+        Switch(
+          checked = userProfile.isAccountDisabled,
+          onCheckedChange = { isChecked ->
+            onDisableAccount(isChecked)
+          },
+          colors = SwitchDefaults.colors(
+            checkedThumbColor = Color(0xFFE65100),
+            checkedTrackColor = Color(0xFFFFCC80),
+            uncheckedThumbColor = CoralPrimary
+          ),
+          modifier = Modifier.testTag("pause_profile_switch")
         )
       }
     }
@@ -2968,7 +3244,7 @@ fun ProfileEditScreen(
           verticalAlignment = Alignment.CenterVertically
         ) {
           Icon(
-            imageVector = Icons.Outlined.PauseCircle,
+            imageVector = Icons.Filled.PauseCircle,
             contentDescription = null,
             tint = CoralPrimary,
             modifier = Modifier.size(24.dp)

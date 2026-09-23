@@ -87,6 +87,10 @@ class FirestoreManager {
         "latitude" to profile.latitude,
         "longitude" to profile.longitude,
         "isPhoneVerified" to profile.isPhoneVerified,
+        "isAccountDisabled" to profile.isAccountDisabled,
+        "isPaused" to profile.isAccountDisabled,
+        "isProfileHidden" to profile.isAccountDisabled,
+        "profileCompletionPercent" to profile.calculateProfileStrength(),
         "maxDistanceKm" to profile.maxDistanceKm,
         "minAgePreference" to profile.minAgePreference,
         "maxAgePreference" to profile.maxAgePreference,
@@ -212,7 +216,7 @@ class FirestoreManager {
       latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
       longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
       isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
-      isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: false,
+      isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: (data["isPaused"] as? Boolean ?: (data["isProfileHidden"] as? Boolean ?: false)),
       maxDistanceKm = (data["maxDistanceKm"] as? Number)?.toInt() ?: 50,
       minAgePreference = (data["minAgePreference"] as? Number)?.toInt() ?: 18,
       maxAgePreference = (data["maxAgePreference"] as? Number)?.toInt() ?: 35,
@@ -1055,8 +1059,25 @@ class FirestoreManager {
     }
   }
 
+  suspend fun unpublishUserFromDiscovery(userId: String): Boolean {
+    val db = firestore ?: return false
+    if (userId.isBlank()) return false
+    return try {
+      db.collection("discovery_profiles").document(userId).delete().await()
+      Log.d(tag, "User unpublished from discovery: $userId")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice unpublishing user from discovery: ${e.message}")
+      false
+    }
+  }
+
   suspend fun publishUserToDiscovery(profile: UserProfile): Boolean {
     val db = firestore ?: return false
+    if (profile.isAccountDisabled) {
+      unpublishUserFromDiscovery(profile.id)
+      return true
+    }
     return try {
       // CRITICAL: Only publish remote cloud URLs (HTTP/HTTPS) to discovery so all devices can display photos
       val cloudPhotos = profile.photos.filter { it.startsWith("http://") || it.startsWith("https://") }
@@ -1143,7 +1164,7 @@ class FirestoreManager {
       snapshot.documents.mapNotNull { doc ->
         if (doc.id == excludeUserId || deletedUserIds.contains(doc.id)) return@mapNotNull null
         val data = doc.data ?: return@mapNotNull null
-        if (data["isAccountDisabled"] == true || data["isDeleted"] == true) return@mapNotNull null
+        if (data["isAccountDisabled"] == true || data["isPaused"] == true || data["isProfileHidden"] == true || data["isDeleted"] == true) return@mapNotNull null
         val name = data["name"] as? String ?: return@mapNotNull null
         if (name.isBlank()) return@mapNotNull null
 
