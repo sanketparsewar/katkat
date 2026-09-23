@@ -49,6 +49,9 @@ interface DatingDao {
   @Query("DELETE FROM dating_profiles WHERE id = :id")
   suspend fun deleteProfileById(id: String)
 
+  @Query("UPDATE dating_profiles SET isAccountDisabled = :disabled WHERE id = :id")
+  suspend fun setProfileDisabledStatus(id: String, disabled: Boolean)
+
   @Query("DELETE FROM dating_profiles")
   suspend fun deleteAllProfiles()
 

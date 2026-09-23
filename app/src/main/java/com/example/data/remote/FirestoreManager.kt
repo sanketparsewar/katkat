@@ -1227,6 +1227,74 @@ class FirestoreManager {
     }
   }
 
+  /**
+   * Observes all community users in real time so paused, hidden, or deleted profiles
+   * are immediately pushed out of other users' Discover and "Likes You" feeds without refresh.
+   */
+  fun observeCommunityProfiles(excludeUserId: String): Flow<List<DatingProfile>> = callbackFlow {
+    val db = firestore
+    if (db == null) {
+      trySend(emptyList())
+      close()
+      return@callbackFlow
+    }
+
+    val listener = db.collection("users")
+      .whereEqualTo("isOnboardingCompleted", true)
+      .addSnapshotListener { snapshot, error ->
+        if (error != null) {
+          Log.w(tag, "observeCommunityProfiles notice: ${error.message}")
+          return@addSnapshotListener
+        }
+        if (snapshot != null) {
+          val profiles = snapshot.documents.mapNotNull { doc ->
+            if (doc.id == excludeUserId) return@mapNotNull null
+            val data = doc.data ?: return@mapNotNull null
+            val name = data["name"] as? String ?: return@mapNotNull null
+            if (name.isBlank()) return@mapNotNull null
+
+            val isDisabled = data["isAccountDisabled"] as? Boolean ?: (data["isPaused"] as? Boolean ?: (data["isProfileHidden"] as? Boolean ?: false))
+            val isDeleted = data["isDeleted"] as? Boolean ?: false
+
+            val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>()?.filter { it.startsWith("http://") || it.startsWith("https://") } ?: emptyList()
+
+            @Suppress("UNCHECKED_CAST")
+            DatingProfile(
+              id = doc.id,
+              name = name,
+              age = (data["age"] as? Number)?.toInt() ?: 0,
+              gender = data["gender"] as? String ?: "",
+              occupation = data["occupation"] as? String ?: "",
+              company = data["education"] as? String ?: "",
+              education = data["education"] as? String ?: "",
+              location = data["currentLocationCity"] as? String ?: (data["hometown"] as? String ?: "Nearby"),
+              latitude = 0.0,
+              longitude = 0.0,
+              bio = data["bio"] as? String ?: "",
+              photos = photos,
+              promptQuestion = data["promptQuestion"] as? String ?: "",
+              promptAnswer = data["promptAnswer"] as? String ?: "",
+              passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+              zodiac = data["zodiac"] as? String ?: "",
+              height = data["height"] as? String ?: "",
+              datingIntention = data["datingIntention"] as? String ?: "",
+              drinking = data["drinking"] as? String ?: "",
+              smoking = data["smoking"] as? String ?: "",
+              pets = data["pets"] as? String ?: "",
+              anthemSong = "",
+              anthemArtist = "",
+              isVerified = data["isPhoneVerified"] as? Boolean ?: true,
+              likedMe = false,
+              isAccountDisabled = isDisabled || isDeleted
+            )
+          }
+          trySend(profiles)
+        }
+      }
+
+    awaitClose { listener.remove() }
+  }
+
   // ==========================================
   // Subscription Plan & Swipe Syncing
   // ==========================================

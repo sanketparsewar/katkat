@@ -319,6 +319,37 @@ class KatkatRepository(
           }
         }
       }
+
+      // 8. Observe community profiles in real-time to immediately filter and reflect paused/hidden/unpaused status everywhere without refresh
+      launch {
+        firestoreManager.observeCommunityProfiles(currentUserId).collect { remoteProfiles ->
+          val blockedOrDeleted = if (firestoreManager.isAvailable) {
+            firestoreManager.fetchAllBlockedOrBlockingUserIds(currentUserId) + firestoreManager.fetchAllDeletedAccountUserIds()
+          } else {
+            emptySet()
+          }
+          for (remote in remoteProfiles) {
+            if (blockedOrDeleted.contains(remote.id)) {
+              dao.deleteProfileById(remote.id)
+              continue
+            }
+            val existing = dao.getProfileById(remote.id)
+            if (remote.isAccountDisabled) {
+              if (existing != null) {
+                dao.setProfileDisabledStatus(remote.id, true)
+              }
+            } else {
+              if (existing != null) {
+                if (existing.isAccountDisabled) {
+                  dao.setProfileDisabledStatus(remote.id, false)
+                }
+              } else {
+                dao.insertProfile(remote.toEntity())
+              }
+            }
+          }
+        }
+      }
     }
   }
 
