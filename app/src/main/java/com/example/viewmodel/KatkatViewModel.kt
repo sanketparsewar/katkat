@@ -90,34 +90,6 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _showGreetingSplash = MutableStateFlow(true)
   val showGreetingSplash: StateFlow<Boolean> = _showGreetingSplash.asStateFlow()
 
-  init {
-    viewModelScope.launch {
-      repository.userProfile.collect {
-        _isSessionLoaded.value = true
-      }
-    }
-    // Listen for real-time cross-device matches
-    viewModelScope.launch {
-      repository.realtimeMatchEvent.collect { matchedProfile ->
-        _activeMatchCelebration.value = matchedProfile
-        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
-      }
-    }
-    // Listen for real-time blocks to dismiss chat if blocked
-    viewModelScope.launch {
-      repository.realtimeBlockedEvent.collect { blockedId ->
-        if (_selectedChatMatch.value?.id == blockedId) {
-          _selectedChatMatch.value = null
-          _uiEvents.emit(UiEvent.ShowToast("This conversation is no longer available."))
-        }
-      }
-    }
-  }
-
-  fun dismissGreeting() {
-    _showGreetingSplash.value = false
-  }
-
   val subscriptionState: StateFlow<SubscriptionState> = repository.subscriptionState.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
@@ -131,10 +103,6 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _themeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.LIGHT)
   val themeMode: StateFlow<com.example.ui.theme.AppThemeMode> = _themeMode.asStateFlow()
 
-  fun setThemeMode(mode: com.example.ui.theme.AppThemeMode) {
-    _themeMode.value = mode
-  }
-
   // Match celebration dialog state
   private val _activeMatchCelebration = MutableStateFlow<DatingProfile?>(null)
   val activeMatchCelebration: StateFlow<DatingProfile?> = _activeMatchCelebration.asStateFlow()
@@ -142,6 +110,16 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   // Pull-to-refresh state for discover deck
   private val _isRefreshingDeck = MutableStateFlow(false)
   val isRefreshingDeck: StateFlow<Boolean> = _isRefreshingDeck.asStateFlow()
+
+  // Pagination for Discover deck (Page 1: 1-20, Page 2: 21-40, etc.)
+  private val _currentPage = MutableStateFlow(1)
+  val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
+
+  private val _isLoadingMoreProfiles = MutableStateFlow(false)
+  val isLoadingMoreProfiles: StateFlow<Boolean> = _isLoadingMoreProfiles.asStateFlow()
+
+  private val _hasMoreProfiles = MutableStateFlow(true)
+  val hasMoreProfiles: StateFlow<Boolean> = _hasMoreProfiles.asStateFlow()
 
   // Paywall bottom sheet state
   private val _showPaywall = MutableStateFlow(false)
@@ -181,6 +159,68 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _typingMatchIds = MutableStateFlow<Set<String>>(emptySet())
   val typingMatchIds: StateFlow<Set<String>> = _typingMatchIds.asStateFlow()
 
+  init {
+    viewModelScope.launch {
+      repository.userProfile.collect {
+        _isSessionLoaded.value = true
+      }
+    }
+    // Listen for real-time cross-device matches
+    viewModelScope.launch {
+      repository.realtimeMatchEvent.collect { matchedProfile ->
+        _activeMatchCelebration.value = matchedProfile
+        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
+      }
+    }
+    // Listen for real-time blocks to dismiss chat if blocked
+    viewModelScope.launch {
+      repository.realtimeBlockedEvent.collect { blockedId ->
+        if (_selectedChatMatch.value?.id == blockedId) {
+          _selectedChatMatch.value = null
+          _uiEvents.emit(UiEvent.ShowToast("This conversation is no longer available."))
+        }
+      }
+    }
+    // Automatically load next page in background when approaching end of active deck
+    viewModelScope.launch {
+      activeProfiles.collect { list ->
+        if (list.size <= 5 && _hasMoreProfiles.value && !_isLoadingMoreProfiles.value && !_isRefreshingDeck.value) {
+          loadNextPage()
+        }
+      }
+    }
+  }
+
+  fun dismissGreeting() {
+    _showGreetingSplash.value = false
+  }
+
+  fun setThemeMode(mode: com.example.ui.theme.AppThemeMode) {
+    _themeMode.value = mode
+  }
+
+  fun loadNextPage() {
+    if (_isLoadingMoreProfiles.value || !_hasMoreProfiles.value) return
+    viewModelScope.launch {
+      _isLoadingMoreProfiles.value = true
+      try {
+        val nextPage = _currentPage.value + 1
+        val newProfiles = repository.loadDiscoverPage(page = nextPage, pageSize = 20)
+        _currentPage.value = nextPage
+        if (newProfiles.isEmpty()) {
+          // Check if higher page might have more or if dynamic catalog continues
+          if (nextPage > 10) {
+            _hasMoreProfiles.value = false
+          }
+        }
+      } catch (e: Exception) {
+        android.util.Log.w("KatkatViewModel", "Notice loading next page: ${e.message}")
+      } finally {
+        _isLoadingMoreProfiles.value = false
+      }
+    }
+  }
+
   fun onSwipe(profileId: String, action: SwipeAction) {
     viewModelScope.launch {
       val result = repository.processSwipe(profileId, action)
@@ -204,6 +244,12 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         is SwipeResult.Error -> {
           _uiEvents.emit(UiEvent.ShowToast(result.message))
         }
+      }
+
+      // Auto-paginate when user approaches the end of current deck (<= 5 profiles remaining)
+      val remainingCount = activeProfiles.value.size - 1
+      if (remainingCount <= 5 && _hasMoreProfiles.value && !_isLoadingMoreProfiles.value) {
+        loadNextPage()
       }
     }
   }
@@ -614,9 +660,12 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun resetDeck() {
     viewModelScope.launch {
       _isRefreshingDeck.value = true
+      _currentPage.value = 1
+      _hasMoreProfiles.value = true
       kotlinx.coroutines.delay(650)
       val currentUserId = getEffectiveUserId()
       repository.resetDeckForTesting(currentUserId)
+      repository.loadDiscoverPage(page = 1, pageSize = 20)
       _isRefreshingDeck.value = false
       _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed! ✨"))
       _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))

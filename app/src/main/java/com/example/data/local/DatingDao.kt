@@ -13,6 +13,21 @@ interface DatingDao {
   @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC")
   fun getActiveDeckProfiles(excludeUserId: String? = null): Flow<List<ProfileEntity>>
 
+  @Query("SELECT * FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId) ORDER BY id ASC LIMIT :limit OFFSET :offset")
+  suspend fun getActiveDeckProfilesPaged(excludeUserId: String? = null, limit: Int, offset: Int): List<ProfileEntity>
+
+  @Query("SELECT COUNT(*) FROM dating_profiles WHERE isLikedByMe = 0 AND isPassedByMe = 0 AND isSuperLikedByMe = 0 AND isMutualMatch = 0 AND (:excludeUserId IS NULL OR id != :excludeUserId)")
+  suspend fun getEligibleDeckCount(excludeUserId: String? = null): Int
+
+  @Query("SELECT id FROM dating_profiles WHERE isLikedByMe = 1 OR isSuperLikedByMe = 1")
+  suspend fun getLikedProfileIds(): List<String>
+
+  @Query("SELECT id FROM dating_profiles WHERE isPassedByMe = 1")
+  suspend fun getPassedProfileIds(): List<String>
+
+  @Query("SELECT id FROM dating_profiles WHERE isMutualMatch = 1")
+  suspend fun getMatchedProfileIds(): List<String>
+
   @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
   fun getMutualMatches(): Flow<List<ProfileEntity>>
 

@@ -77,6 +77,8 @@ fun MainScreen(
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val subscriptionState by viewModel.subscriptionState.collectAsStateWithLifecycle()
   val isRefreshingDeck by viewModel.isRefreshingDeck.collectAsStateWithLifecycle()
+  val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
+  val isLoadingMoreProfiles by viewModel.isLoadingMoreProfiles.collectAsStateWithLifecycle()
   val isSessionLoaded by viewModel.isSessionLoaded.collectAsStateWithLifecycle()
   val isUploadingPhoto by viewModel.isUploadingPhoto.collectAsStateWithLifecycle()
   val showGreetingSplash by viewModel.showGreetingSplash.collectAsStateWithLifecycle()
@@ -221,7 +223,10 @@ fun MainScreen(
               onBoost = { viewModel.boostProfile() },
               onInspectProfile = { profile -> viewModel.inspectProfile(profile) },
               onResetDeck = { viewModel.resetDeck() },
-              onOpenPaywall = { viewModel.openPaywall() }
+              onOpenPaywall = { viewModel.openPaywall() },
+              currentPage = currentPage,
+              isLoadingMore = isLoadingMoreProfiles,
+              onLoadMore = { viewModel.loadNextPage() }
             )
           }
 

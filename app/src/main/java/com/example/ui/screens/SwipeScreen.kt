@@ -79,6 +79,9 @@ fun SwipeScreen(
   onInspectProfile: (DatingProfile) -> Unit,
   onResetDeck: () -> Unit,
   onOpenPaywall: () -> Unit,
+  currentPage: Int = 1,
+  isLoadingMore: Boolean = false,
+  onLoadMore: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val refreshState = rememberPullToRefreshState()
@@ -94,6 +97,13 @@ fun SwipeScreen(
     programmaticSwipe = null
     topCardDragProgress = 0f
     topCardDragDirection = null
+  }
+
+  // Automatically trigger loading next page when deck approaches end (1 to 5 profiles remaining)
+  LaunchedEffect(profiles.size, isLoadingMore, isRefreshing) {
+    if (profiles.isNotEmpty() && profiles.size <= 5 && !isLoadingMore && !isRefreshing) {
+      onLoadMore()
+    }
   }
 
   // Safety fallback: ensure programmatic swipe lock is never stuck
@@ -229,6 +239,7 @@ fun SwipeScreen(
       } else {
         // Empty Deck State with animated radar pulse
         EmptyDeckView(
+          isLoadingMore = isLoadingMore,
           onResetDeck = onResetDeck,
           onOpenPaywall = onOpenPaywall,
           modifier = Modifier
@@ -242,6 +253,7 @@ fun SwipeScreen(
 
 @Composable
 fun EmptyDeckView(
+  isLoadingMore: Boolean,
   onResetDeck: () -> Unit,
   onOpenPaywall: () -> Unit,
   modifier: Modifier = Modifier
@@ -307,7 +319,7 @@ fun EmptyDeckView(
       Spacer(modifier = Modifier.height(24.dp))
 
       Text(
-        text = "You've Swiped Everyone Nearby!",
+        text = if (isLoadingMore) "Finding more profiles..." else "You've Swiped Everyone Nearby!",
         style = MaterialTheme.typography.titleLarge.copy(
           fontWeight = FontWeight.ExtraBold,
           color = MaterialTheme.colorScheme.onSurface
@@ -318,7 +330,11 @@ fun EmptyDeckView(
       Spacer(modifier = Modifier.height(8.dp))
 
       Text(
-        text = "Check back soon for new profiles, or pull down to refresh the deck.",
+        text = if (isLoadingMore) {
+          "Looking for more people nearby that match your preferences."
+        } else {
+          "Check back soon for new profiles, or pull down to refresh the deck."
+        },
         style = MaterialTheme.typography.bodyMedium.copy(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           textAlign = TextAlign.Center,
@@ -329,21 +345,23 @@ fun EmptyDeckView(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      Button(
-        onClick = onResetDeck,
-        shape = RoundedCornerShape(22.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
-        modifier = Modifier.testTag("btn_refresh_deck")
-      ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Icon(
-            imageVector = Icons.Default.Refresh,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(18.dp)
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(text = "Refresh Deck", color = Color.White, fontWeight = FontWeight.Bold)
+      if (!isLoadingMore) {
+        Button(
+          onClick = onResetDeck,
+          shape = RoundedCornerShape(22.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+          modifier = Modifier.testTag("btn_refresh_deck")
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = Icons.Default.Refresh,
+              contentDescription = null,
+              tint = Color.White,
+              modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "Refresh Deck", color = Color.White, fontWeight = FontWeight.Bold)
+          }
         }
       }
     }
