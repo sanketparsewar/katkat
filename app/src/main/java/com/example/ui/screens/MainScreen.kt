@@ -238,7 +238,11 @@ fun MainScreen(
               onInstantMatch = { profile ->
                 viewModel.swipeRight(profile.id)
               },
-              onInspectProfile = { profile -> viewModel.inspectProfile(profile) }
+              onPassProfile = { profile ->
+                viewModel.passFromLikes(profile.id)
+              },
+              onInspectProfile = { profile -> viewModel.inspectProfile(profile) },
+              onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER }
             )
           }
 

@@ -1978,9 +1978,42 @@ class KatkatRepository(
     entities.map { it.toDomain() }
   }
 
-  // Profiles Who Liked Current User (for "Likes You" tab)
-  val profilesWhoLikedMe: Flow<List<DatingProfile>> = dao.getProfilesWhoLikedMe().map { entities ->
-    entities.map { it.toDomain() }
+  // Profiles Who Liked Current User (for "Likes You" tab, with backend exclusion of blocked, deleted, and matched users)
+  val profilesWhoLikedMe: Flow<List<DatingProfile>> = combine(
+    dao.getProfilesWhoLikedMe(),
+    userProfile
+  ) { entities, currentUser ->
+    val myUserId = getEffectiveCurrentUserId()
+    val blockedIds = if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      firestoreManager.fetchAllBlockedOrBlockingUserIds(myUserId)
+    } else {
+      emptySet()
+    }
+    val deletedIds = if (firestoreManager.isAvailable) {
+      firestoreManager.fetchAllDeletedAccountUserIds()
+    } else {
+      emptySet()
+    }
+
+    entities.mapNotNull { entity ->
+      if (entity.isMutualMatch || entity.isPassedByMe || entity.isLikedByMe) return@mapNotNull null
+      if (blockedIds.contains(entity.id) || deletedIds.contains(entity.id)) return@mapNotNull null
+      if (entity.id == myUserId || entity.id == currentUser.id || entity.id == "my_profile") return@mapNotNull null
+      entity.toDomain()
+    }
+  }
+
+  suspend fun passFromLikesYou(profileId: String) {
+    if (profileId.isBlank()) return
+    dao.passFromLikesYou(profileId)
+    if (firestoreManager.isAvailable) {
+      val myUserId = getEffectiveCurrentUserId()
+      if (myUserId.isNotBlank()) {
+        appScope.launch {
+          firestoreManager.sendPass(myUserId, profileId)
+        }
+      }
+    }
   }
 
   // Subscription State combined with monthly swipe record counts

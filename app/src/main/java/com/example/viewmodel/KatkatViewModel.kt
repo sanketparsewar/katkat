@@ -258,6 +258,14 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun swipeRight(profileId: String) = onSwipe(profileId, SwipeAction.LIKE)
   fun superLike(profileId: String) = onSwipe(profileId, SwipeAction.SUPERLIKE)
 
+  fun passFromLikes(profileId: String) {
+    viewModelScope.launch {
+      repository.passFromLikesYou(profileId)
+      _uiEvents.emit(UiEvent.VibrateFeedback("swipe_pass"))
+      _uiEvents.emit(UiEvent.ShowToast("Profile passed"))
+    }
+  }
+
   fun rewind() {
     viewModelScope.launch {
       val currentSub = subscriptionState.value

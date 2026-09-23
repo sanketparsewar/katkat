@@ -31,8 +31,11 @@ interface DatingDao {
   @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
   fun getMutualMatches(): Flow<List<ProfileEntity>>
 
-  @Query("SELECT * FROM dating_profiles WHERE likedMe = 1")
+  @Query("SELECT * FROM dating_profiles WHERE likedMe = 1 AND isMutualMatch = 0 AND isPassedByMe = 0 AND isLikedByMe = 0 ORDER BY id ASC")
   fun getProfilesWhoLikedMe(): Flow<List<ProfileEntity>>
+
+  @Query("UPDATE dating_profiles SET likedMe = 0, isPassedByMe = 1 WHERE id = :id")
+  suspend fun passFromLikesYou(id: String)
 
   @Query("SELECT * FROM dating_profiles WHERE id = :id")
   suspend fun getProfileById(id: String): ProfileEntity?
