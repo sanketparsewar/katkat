@@ -1739,16 +1739,47 @@ class KatkatRepository(
     val allExcludedIds = likedIds + passedIds + matchedIds + blockedIds + deletedIds +
         outgoingLiked + outgoingPassed + mutualMatched + setOf(myUserId, "my_profile")
 
-    // 2. Fetch raw page candidates
-    val rawPageCandidates = generatePageCandidates(page, pageSize)
+    // 2. Fetch raw page candidates (from master catalog, procedural generator, and cloud community profiles)
+    val rawPageCandidates = generatePageCandidates(page, pageSize).toMutableList()
+
+    // On initial pages, also merge any active community profiles from Firestore
+    if (page == 1 && firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      try {
+        val cloudProfiles = firestoreManager.fetchAllCommunityProfiles(
+          excludeUserId = myUserId,
+          userLatitude = currentUser.latitude,
+          userLongitude = currentUser.longitude,
+          maxDistanceKm = if (currentUser.maxDistanceKm > 0) currentUser.maxDistanceKm else 50
+        )
+        for (cp in cloudProfiles) {
+          if (!rawPageCandidates.any { it.id == cp.id }) {
+            rawPageCandidates.add(0, cp.toEntity())
+          }
+        }
+      } catch (e: Exception) {
+        android.util.Log.w("KatkatRepository", "Notice fetching cloud community profiles: ${e.message}")
+      }
+    }
+
+    val currentPhone = currentUser.phoneNumber.filter { it.isDigit() }
+    val currentName = currentUser.name.trim().lowercase()
+    val maxDistance = if (currentUser.maxDistanceKm > 0) currentUser.maxDistanceKm else 50
 
     // 3. Apply all exclusion rules to the page candidates
-    val eligibleCandidates = rawPageCandidates.filter { candidate ->
+    val eligibleCandidates = rawPageCandidates.mapNotNull { candidate ->
       // Exclusion 1: Not in any excluded IDs (liked, passed, matched, blocked, deleted, own profile)
-      if (allExcludedIds.contains(candidate.id)) return@filter false
-      if (candidate.isLikedByMe || candidate.isPassedByMe || candidate.isSuperLikedByMe || candidate.isMutualMatch) return@filter false
+      if (allExcludedIds.contains(candidate.id)) return@mapNotNull null
+      if (candidate.isLikedByMe || candidate.isPassedByMe || candidate.isSuperLikedByMe || candidate.isMutualMatch) return@mapNotNull null
 
-      // Exclusion 2: Filter by Gender / Interested in Preference
+      // Exclusion 2: Prevent user's own profile from appearing (by ID, phone, or name)
+      if (myUserId.isNotBlank() && candidate.id == myUserId) return@mapNotNull null
+      if (currentUser.id.isNotBlank() && candidate.id == currentUser.id) return@mapNotNull null
+      if (currentPhone.isNotBlank() && (candidate.id.contains(currentPhone) || candidate.id == "user_$currentPhone")) return@mapNotNull null
+      if (currentUser.isOnboardingCompleted && currentName.isNotBlank() && candidate.name.trim().lowercase() == currentName) {
+        if (currentUser.age > 0 && candidate.age == currentUser.age) return@mapNotNull null
+      }
+
+      // Exclusion 3: Filter by Gender / Interested in Preference
       val effectiveInterestedIn = when {
         currentUser.interestedInGender.isNotBlank() -> currentUser.interestedInGender
         currentUser.gender.equals("Man", ignoreCase = true) -> "Women"
@@ -1760,25 +1791,62 @@ class KatkatRepository(
             !candidate.gender.equals("Woman", ignoreCase = true) &&
             !candidate.gender.equals("Women", ignoreCase = true) &&
             !candidate.gender.equals("Female", ignoreCase = true)) {
-          return@filter false
+          return@mapNotNull null
         }
       } else if (effectiveInterestedIn.equals("Men", ignoreCase = true)) {
         if (candidate.gender.isNotBlank() &&
             !candidate.gender.equals("Man", ignoreCase = true) &&
             !candidate.gender.equals("Men", ignoreCase = true) &&
             !candidate.gender.equals("Male", ignoreCase = true)) {
-          return@filter false
+          return@mapNotNull null
         }
       }
 
-      // Exclusion 3: Filter by Age Preference
+      // Exclusion 4: Filter by Age Preference
       val minAge = if (currentUser.minAgePreference in 18..100) currentUser.minAgePreference else 18
       val maxAge = if (currentUser.maxAgePreference in 18..100) currentUser.maxAgePreference else 35
       if (candidate.age in 18..100 && (candidate.age < minAge || candidate.age > maxAge)) {
-        return@filter false
+        return@mapNotNull null
       }
 
-      true
+      // Exclusion 5: Filter by Distance Preference
+      val candidateDistanceKm: Double = when {
+        currentUser.latitude != 0.0 && currentUser.longitude != 0.0 &&
+        candidate.latitude != 0.0 && candidate.longitude != 0.0 -> {
+          calculateHaversineDistanceKm(
+            currentUser.latitude, currentUser.longitude,
+            candidate.latitude, candidate.longitude
+          )
+        }
+        else -> {
+          val matchKm = Regex("""(\d+(?:\.\d+)?)\s*km\s*away""", RegexOption.IGNORE_CASE).find(candidate.location)
+          if (matchKm != null) {
+            matchKm.groupValues[1].toDoubleOrNull() ?: 0.0
+          } else {
+            val matchMiles = Regex("""(\d+(?:\.\d+)?)\s*miles\s*away""", RegexOption.IGNORE_CASE).find(candidate.location)
+            if (matchMiles != null) {
+              (matchMiles.groupValues[1].toDoubleOrNull() ?: 0.0) * 1.60934
+            } else {
+              5.0
+            }
+          }
+        }
+      }
+
+      if (candidateDistanceKm > maxDistance) {
+        return@mapNotNull null
+      }
+
+      // Distance privacy masking & display formatting
+      val privacyMaskedLocation = when {
+        candidateDistanceKm in 0.01..1.0 -> "Less than 1 km away"
+        candidateDistanceKm > 1.0 -> "${Math.round(candidateDistanceKm)} km away"
+        else -> candidate.location.ifBlank { "Nearby" }
+      }
+
+      candidate.copy(
+        location = privacyMaskedLocation
+      )
     }
 
     // 4. Save eligible candidates into local DB so reactive flow emits them

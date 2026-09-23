@@ -437,6 +437,11 @@ fun SwipeCard(
               )
             )
           )
+          .pointerInput(profile.id) {
+            detectTapGestures {
+              onInspectProfile()
+            }
+          }
           .padding(start = 18.dp, end = 18.dp, bottom = 18.dp, top = 40.dp)
       ) {
         Column(modifier = Modifier.fillMaxWidth()) {
