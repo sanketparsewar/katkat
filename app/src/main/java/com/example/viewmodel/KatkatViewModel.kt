@@ -36,7 +36,7 @@ sealed class UiEvent {
 
 class KatkatViewModel(application: Application) : AndroidViewModel(application) {
   private val database = KatkatDatabase.getDatabase(application)
-  private val repository = KatkatRepository(database.datingDao(), viewModelScope)
+  private val repository = KatkatRepository.getInstance(application)
 
   val activeProfiles: StateFlow<List<DatingProfile>> = repository.activeProfiles.stateIn(
     scope = viewModelScope,

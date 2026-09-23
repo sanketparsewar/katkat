@@ -65,6 +65,7 @@ class KatkatApplication : Application(), ImageLoaderFactory {
       Log.w("KatkatApplication", "FirebaseApp initialization notice: ${e.message}")
     }
     com.example.util.PushNotificationHelper.createNotificationChannel(this)
+    com.example.service.KatkatNotificationSyncService.startService(this)
   }
 
   override fun newImageLoader(): ImageLoader {

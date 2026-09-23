@@ -18,6 +18,7 @@ import com.example.data.model.MatchConversation
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
+import android.content.Context
 import android.util.Log
 import com.example.KatkatApplication
 import com.example.util.PushNotificationHelper
@@ -27,6 +28,7 @@ import com.example.data.remote.PhoneAuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1591,6 +1593,26 @@ class KatkatRepository(
     if (firestoreManager.isAvailable && userId.isNotBlank()) {
       appScope.launch {
         firestoreManager.sendNotification(userId, notif)
+      }
+    }
+  }
+
+  suspend fun saveAndPushNotificationPublic(notif: KatkatNotification) {
+    saveAndPushNotification(notif)
+  }
+
+  companion object {
+    @Volatile
+    private var INSTANCE: KatkatRepository? = null
+
+    private val appCoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun getInstance(context: Context): KatkatRepository {
+      return INSTANCE ?: synchronized(this) {
+        INSTANCE ?: KatkatRepository(
+          dao = com.example.data.local.KatkatDatabase.getDatabase(context.applicationContext).datingDao(),
+          appScope = appCoroutineScope
+        ).also { INSTANCE = it }
       }
     }
   }
