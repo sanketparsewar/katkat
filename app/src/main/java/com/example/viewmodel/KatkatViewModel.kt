@@ -359,6 +359,29 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun retrySendMessage(messageId: String) {
+    viewModelScope.launch {
+      repository.retrySendMessage(messageId)
+      _uiEvents.emit(UiEvent.VibrateFeedback("click"))
+    }
+  }
+
+  fun reportUser(matchId: String, reason: String, details: String = "", blockAfterReport: Boolean = false) {
+    viewModelScope.launch {
+      repository.reportProfile(matchId, reason, details)
+      if (blockAfterReport) {
+        repository.blockProfile(matchId)
+        if (_selectedChatMatch.value?.id == matchId) {
+          _selectedChatMatch.value = null
+        }
+        _uiEvents.emit(UiEvent.ShowToast("Report submitted & user blocked."))
+      } else {
+        _uiEvents.emit(UiEvent.ShowToast("Report submitted. Thank you for keeping our community safe."))
+      }
+      _uiEvents.emit(UiEvent.VibrateFeedback("save"))
+    }
+  }
+
   fun unmatch(matchId: String) {
     viewModelScope.launch {
       repository.unmatch(matchId)

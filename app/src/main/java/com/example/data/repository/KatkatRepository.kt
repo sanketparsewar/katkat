@@ -2336,8 +2336,9 @@ class KatkatRepository(
     val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
     val convId = com.example.util.EndToEndEncryptionHelper.getConversationId(myUserId, matchId)
 
+    val msgId = UUID.randomUUID().toString()
     val myMessage = ChatMessageEntity(
-      id = UUID.randomUUID().toString(),
+      id = msgId,
       conversationId = convId,
       matchId = matchId,
       senderId = myUserId,
@@ -2348,29 +2349,94 @@ class KatkatRepository(
       photoUri = photoUri,
       timestamp = System.currentTimeMillis(),
       isFromMe = true,
-      isRead = true
+      isRead = true,
+      isSending = firestoreManager.isAvailable,
+      isFailed = false
     )
     dao.insertMessage(myMessage)
 
     // Sync sent message to Cloud Firestore in real time
     if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
       appScope.launch {
-        firestoreManager.sendChatMessage(matchId, myMessage.toDomain(), myUserId)
+        val success = try {
+          firestoreManager.sendChatMessage(matchId, myMessage.toDomain().copy(isSending = false, isFailed = false), myUserId)
+        } catch (e: Exception) {
+          Log.w("KatkatRepository", "Error sending cloud message: ${e.message}")
+          false
+        }
 
-        // Push notification strictly to the recipient's user account collection: "Profile 2 sent you a message"
-        val msgNotif = KatkatNotification(
-          id = "msg_${myMessage.id}",
-          userId = matchId,
-          type = KatkatNotificationType.NEW_MESSAGE,
-          title = "New Message 💬",
-          message = "$myName sent you a message",
-          timestamp = myMessage.timestamp,
-          senderProfileId = myUserId,
-          senderProfileName = myName,
-          senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
-          deepLinkTarget = "chat/$myUserId"
-        )
-        firestoreManager.sendNotification(matchId, msgNotif)
+        if (success) {
+          dao.insertMessage(myMessage.copy(isSending = false, isFailed = false))
+          // Push notification strictly to the recipient's user account collection: "Profile 2 sent you a message"
+          val msgNotif = KatkatNotification(
+            id = "msg_${myMessage.id}",
+            userId = matchId,
+            type = KatkatNotificationType.NEW_MESSAGE,
+            title = "New Message 💬",
+            message = "$myName sent you a message",
+            timestamp = myMessage.timestamp,
+            senderProfileId = myUserId,
+            senderProfileName = myName,
+            senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
+            deepLinkTarget = "chat/$myUserId"
+          )
+          firestoreManager.sendNotification(matchId, msgNotif)
+        } else {
+          dao.insertMessage(myMessage.copy(isSending = false, isFailed = true))
+        }
+      }
+    } else {
+      dao.insertMessage(myMessage.copy(isSending = false, isFailed = false))
+    }
+  }
+
+  suspend fun retrySendMessage(messageId: String) {
+    val existing = dao.getMessageById(messageId) ?: return
+    val myUserId = getEffectiveCurrentUserId()
+    val localUser = dao.getUserProfileFlow().firstOrNull()
+    val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
+
+    dao.insertMessage(existing.copy(isSending = true, isFailed = false))
+
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      appScope.launch {
+        val success = try {
+          firestoreManager.sendChatMessage(existing.matchId, existing.toDomain().copy(isSending = false, isFailed = false), myUserId)
+        } catch (e: Exception) {
+          false
+        }
+
+        if (success) {
+          dao.insertMessage(existing.copy(isSending = false, isFailed = false))
+          val msgNotif = KatkatNotification(
+            id = "msg_${existing.id}",
+            userId = existing.matchId,
+            type = KatkatNotificationType.NEW_MESSAGE,
+            title = "New Message 💬",
+            message = "$myName sent you a message",
+            timestamp = existing.timestamp,
+            senderProfileId = myUserId,
+            senderProfileName = myName,
+            senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
+            deepLinkTarget = "chat/$myUserId"
+          )
+          firestoreManager.sendNotification(existing.matchId, msgNotif)
+        } else {
+          dao.insertMessage(existing.copy(isSending = false, isFailed = true))
+        }
+      }
+    } else {
+      dao.insertMessage(existing.copy(isSending = false, isFailed = false))
+    }
+  }
+
+  suspend fun reportProfile(matchId: String, reason: String, details: String = "") {
+    val myUserId = getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      try {
+        firestoreManager.reportUser(myUserId, matchId, reason, details)
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Notice reporting profile: ${e.message}")
       }
     }
   }
@@ -2447,6 +2513,14 @@ class KatkatRepository(
   }
 
   suspend fun unmatch(matchId: String) {
+    val myUserId = getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+      try {
+        firestoreManager.unmatchUser(myUserId, matchId)
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Notice unmatching in Firestore: ${e.message}")
+      }
+    }
     dao.unmatchProfile(matchId)
     deleteMessagesForMatch(matchId)
   }
@@ -2933,7 +3007,9 @@ fun ChatMessageEntity.toDomain() = ChatMessage(
   isRead = isRead,
   conversationId = conversationId,
   currentUserId = currentUserId,
-  recipientId = recipientId
+  recipientId = recipientId,
+  isSending = isSending,
+  isFailed = isFailed
 )
 
 fun ChatMessage.toEntity(ownerUserId: String = "") = ChatMessageEntity(
@@ -2948,5 +3024,7 @@ fun ChatMessage.toEntity(ownerUserId: String = "") = ChatMessageEntity(
   isRead = isRead,
   conversationId = conversationId,
   currentUserId = if (ownerUserId.isNotBlank()) ownerUserId else currentUserId,
-  recipientId = recipientId
+  recipientId = recipientId,
+  isSending = isSending,
+  isFailed = isFailed
 )

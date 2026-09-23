@@ -121,7 +121,9 @@ data class ChatMessage(
   val isRead: Boolean = true,
   val conversationId: String = "",
   val currentUserId: String = "",
-  val recipientId: String = ""
+  val recipientId: String = "",
+  val isSending: Boolean = false,
+  val isFailed: Boolean = false
 )
 
 data class MatchConversation(

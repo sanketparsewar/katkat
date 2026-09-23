@@ -878,6 +878,62 @@ class FirestoreManager {
   }
 
   /**
+   * Reports a user profile in Cloud Firestore for trust & safety review.
+   */
+  suspend fun reportUser(
+    reportingUserId: String,
+    reportedUserId: String,
+    reason: String,
+    details: String = ""
+  ): Boolean {
+    val db = firestore ?: return false
+    if (reportingUserId.isBlank() || reportedUserId.isBlank()) return false
+    return try {
+      val reportId = "report_${reportingUserId}_${reportedUserId}_${System.currentTimeMillis()}"
+      val data = mapOf(
+        "id" to reportId,
+        "reportingUserId" to reportingUserId,
+        "reportedUserId" to reportedUserId,
+        "reason" to reason,
+        "details" to details,
+        "timestamp" to System.currentTimeMillis(),
+        "status" to "PENDING_REVIEW"
+      )
+      db.collection("reports").document(reportId).set(data, SetOptions.merge()).await()
+      Log.d(tag, "Safety report created in cloud: $reportingUserId reported $reportedUserId for $reason")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice reporting user in cloud: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Unmatches two users in Cloud Firestore, removing the match document, mutual likes, and chat messages.
+   */
+  suspend fun unmatchUser(userA: String, userB: String): Boolean {
+    val db = firestore ?: return false
+    if (userA.isBlank() || userB.isBlank()) return false
+    return try {
+      val (u1, u2) = if (userA < userB) Pair(userA, userB) else Pair(userB, userA)
+      val matchDocId = "${u1}_$u2"
+      try {
+        db.collection("matches").document(matchDocId).delete().await()
+      } catch (_: Exception) {}
+      try {
+        db.collection("likes").document("${userA}_$userB").delete().await()
+        db.collection("likes").document("${userB}_$userA").delete().await()
+      } catch (_: Exception) {}
+      deleteChatMessages(userB, userA)
+      Log.d(tag, "Cloud unmatch completed between $userA and $userB")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice unmatching in cloud: ${e.message}")
+      false
+    }
+  }
+
+  /**
    * Fetches all user IDs that either:
    * 1. The current user has blocked (outgoing)
    * 2. Have blocked the current user (incoming)

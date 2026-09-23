@@ -176,12 +176,16 @@ fun MainScreen(
       match = currentChat,
       messages = activeChatMessages,
       onSendMessage = { text, photoUri -> viewModel.sendMessage(text = text, photoUri = photoUri) },
+      onRetryMessage = { msgId -> viewModel.retrySendMessage(msgId) },
       onBack = { viewModel.closeChat() },
       onInspectProfile = { viewModel.inspectProfile(currentChat) },
       isMatchTyping = typingMatchIds.contains(currentChat.id),
       onClearChat = { viewModel.clearChat(currentChat.id) },
       onUnmatch = { viewModel.unmatch(currentChat.id) },
-      onBlockProfile = { viewModel.blockUser(currentChat.id) }
+      onBlockProfile = { viewModel.blockUser(currentChat.id) },
+      onReportProfile = { reason, details, blockAlso ->
+        viewModel.reportUser(currentChat.id, reason, details, blockAlso)
+      }
     )
   } else {
     Scaffold(

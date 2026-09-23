@@ -253,7 +253,9 @@ data class ChatMessageEntity(
   val isRead: Boolean,
   val conversationId: String = "",
   val currentUserId: String = "",
-  val recipientId: String = ""
+  val recipientId: String = "",
+  val isSending: Boolean = false,
+  val isFailed: Boolean = false
 )
 
 @Entity(tableName = "subscription_info")

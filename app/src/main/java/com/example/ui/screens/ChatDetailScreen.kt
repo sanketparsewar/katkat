@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,26 +36,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,17 +77,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.model.ChatMessage
@@ -88,9 +95,8 @@ import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.PeachSecondary
 import com.example.ui.theme.SuperlikeBlue
-import com.example.ui.theme.TextPrimaryDark
-import com.example.ui.theme.TextSecondaryDark
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -99,12 +105,14 @@ fun ChatDetailScreen(
   match: DatingProfile,
   messages: List<ChatMessage>,
   onSendMessage: (String, String?) -> Unit,
+  onRetryMessage: ((String) -> Unit)? = null,
   onBack: () -> Unit,
   onInspectProfile: () -> Unit,
   isMatchTyping: Boolean = false,
   onClearChat: (() -> Unit)? = null,
   onUnmatch: (() -> Unit)? = null,
   onBlockProfile: (() -> Unit)? = null,
+  onReportProfile: ((String, String, Boolean) -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   var inputText by remember { mutableStateOf("") }
@@ -113,10 +121,12 @@ fun ChatDetailScreen(
   var showUnmatchConfirm by remember { mutableStateOf(false) }
   var showClearChatConfirm by remember { mutableStateOf(false) }
   var showBlockConfirm by remember { mutableStateOf(false) }
+  var showReportDialog by remember { mutableStateOf(false) }
 
   val listState = rememberLazyListState()
+  val avatarUrl = match.photos.firstOrNull { it.isNotBlank() }
 
-  // Scroll to bottom when messages change or typing changes
+  // Scroll to bottom when new messages arrive or match is typing
   LaunchedEffect(messages.size, isMatchTyping) {
     if (messages.isNotEmpty()) {
       listState.animateScrollToItem(messages.size - 1)
@@ -166,7 +176,7 @@ fun ChatDetailScreen(
           )
         }
 
-        // Match Avatar + Presence
+        // Match Avatar + Online status
         val avatarUrl = match.photos.firstOrNull { it.isNotBlank() }
         Box(
           modifier = Modifier
@@ -262,19 +272,19 @@ fun ChatDetailScreen(
           }
         }
 
-        // Call button
+        // Call / Date Invite button
         IconButton(
           onClick = { showCallDialog = true },
           modifier = Modifier.testTag("btn_chat_call")
         ) {
           Icon(
             imageVector = Icons.Default.Phone,
-            contentDescription = "Call",
+            contentDescription = "Invite to Date",
             tint = CoralPrimary
           )
         }
 
-        // More options dropdown
+        // Options dropdown menu
         Box {
           IconButton(onClick = { showMenu = true }) {
             Icon(
@@ -312,55 +322,167 @@ fun ChatDetailScreen(
                 showBlockConfirm = true
               }
             )
+            DropdownMenuItem(
+              text = { Text("Report ${match.name}", color = Color(0xFFE65100)) },
+              leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null, tint = Color(0xFFE65100)) },
+              onClick = {
+                showMenu = false
+                showReportDialog = true
+              }
+            )
           }
         }
       }
     }
 
-    // ── Messages List ──────────────────────────────────────────────────
-    LazyColumn(
-      state = listState,
-      modifier = Modifier
-        .fillMaxWidth()
-        .weight(1f)
-        .padding(horizontal = 16.dp, vertical = 8.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-      // Date badge header
-      item {
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-          contentAlignment = Alignment.Center
+    // ── Messages List / Empty Chat State ───────────────────────────────
+    if (messages.isEmpty()) {
+      // Empty Chat State with Match Celebration Card
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f)
+          .padding(20.dp),
+        contentAlignment = Alignment.Center
+      ) {
+        Column(
+          horizontalAlignment = Alignment.CenterHorizontally,
+          verticalArrangement = Arrangement.Center
         ) {
-          Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+          Box(
+            modifier = Modifier
+              .size(90.dp)
+              .clip(CircleShape)
+              .border(2.dp, CoralPrimary, CircleShape)
           ) {
-            Text(
-              text = "Matched & Connected ✨",
-              style = MaterialTheme.typography.labelSmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold
-              ),
-              modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            if (!avatarUrl.isNullOrBlank()) {
+              AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                  .data(avatarUrl)
+                  .crossfade(true)
+                  .build(),
+                contentDescription = match.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+              )
+            } else {
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(CoralPrimary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Text(
+                  text = match.name.take(1),
+                  style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = CoralPrimary
+                  )
+                )
+              }
+            }
+          }
+
+          Spacer(modifier = Modifier.height(14.dp))
+
+          Text(
+            text = "You & ${match.name} Matched! ✨",
+            style = MaterialTheme.typography.titleLarge.copy(
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface
+            ),
+            textAlign = TextAlign.Center
+          )
+
+          Spacer(modifier = Modifier.height(6.dp))
+
+          Text(
+            text = "Send a first message or tap one of the icebreakers below to get things started.",
+            style = MaterialTheme.typography.bodyMedium.copy(
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp)
+          )
+        }
+      }
+    } else {
+      LazyColumn(
+        state = listState,
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f)
+          .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        // Matched badge header
+        item {
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = MaterialTheme.colorScheme.surfaceVariant,
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+              Text(
+                text = "Matched & Connected ✨",
+                style = MaterialTheme.typography.labelSmall.copy(
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  fontWeight = FontWeight.SemiBold
+                ),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+              )
+            }
+          }
+        }
+
+        // Messages with Date Separators
+        var lastDayKey = ""
+        messages.forEachIndexed { index, message ->
+          val currentDayKey = formatMessageDayHeader(message.timestamp)
+          if (currentDayKey != lastDayKey) {
+            lastDayKey = currentDayKey
+            item(key = "day_header_$index") {
+              Box(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+              ) {
+                Surface(
+                  shape = RoundedCornerShape(10.dp),
+                  color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                ) {
+                  Text(
+                    text = currentDayKey,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      fontSize = 10.sp
+                    ),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                  )
+                }
+              }
+            }
+          }
+
+          item(key = message.id) {
+            ChatMessageBubble(
+              message = message,
+              onRetry = { onRetryMessage?.invoke(message.id) }
             )
           }
         }
-      }
 
-      items(messages, key = { it.id }) { message ->
-        ChatMessageBubble(
-          message = message
-        )
-      }
-
-      // Live typing indicator bubble
-      if (isMatchTyping) {
-        item {
-          TypingIndicatorBubble(matchName = match.name)
+        // Live typing indicator bubble
+        if (isMatchTyping) {
+          item(key = "typing_bubble") {
+            TypingIndicatorBubble(matchName = match.name)
+          }
         }
       }
     }
@@ -394,7 +516,7 @@ fun ChatDetailScreen(
       }
     }
 
-    // ── Input Bar (Text Only) ──────────────────────────────────────────
+    // ── Input Bar ──────────────────────────────────────────────────────
     Surface(
       modifier = Modifier.fillMaxWidth(),
       color = MaterialTheme.colorScheme.surface,
@@ -459,7 +581,7 @@ fun ChatDetailScreen(
     }
   }
 
-  // ── Call Dialog ──────────────────────────────────────────────────────
+  // ── Call / Coffee Date Dialog ────────────────────────────────────────
   if (showCallDialog) {
     AlertDialog(
       onDismissRequest = { showCallDialog = false },
@@ -467,7 +589,7 @@ fun ChatDetailScreen(
         Text("Connect with ${match.name}", fontWeight = FontWeight.Bold)
       },
       text = {
-        Text("Spark a connection! Would you like to send a voice note or invite ${match.name} on a Coffee Date? ☕")
+        Text("Spark a connection! Would you like to invite ${match.name} on a Coffee Date? ☕")
       },
       confirmButton = {
         Button(
@@ -493,7 +615,7 @@ fun ChatDetailScreen(
     AlertDialog(
       onDismissRequest = { showClearChatConfirm = false },
       title = { Text("Clear Chat History?") },
-      text = { Text("All messages with ${match.name} will be permanently removed from this conversation.") },
+      text = { Text("All messages in this conversation with ${match.name} will be permanently removed locally.") },
       confirmButton = {
         Button(
           onClick = {
@@ -502,7 +624,7 @@ fun ChatDetailScreen(
           },
           colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
         ) {
-          Text("Clear")
+          Text("Clear Chat")
         }
       },
       dismissButton = {
@@ -518,7 +640,7 @@ fun ChatDetailScreen(
     AlertDialog(
       onDismissRequest = { showUnmatchConfirm = false },
       title = { Text("Unmatch ${match.name}?") },
-      text = { Text("They will no longer appear in your matches or conversations. You can always discover other people.") },
+      text = { Text("They will no longer appear in your matches or conversations. You can always discover new profiles.") },
       confirmButton = {
         Button(
           onClick = {
@@ -543,7 +665,7 @@ fun ChatDetailScreen(
     AlertDialog(
       onDismissRequest = { showBlockConfirm = false },
       title = { Text("Block ${match.name}?", fontWeight = FontWeight.Bold) },
-      text = { Text("They will be permanently blocked. You will no longer be able to message each other, and neither of you will see each other in Discover.") },
+      text = { Text("They will be permanently blocked across the backend. You will no longer see each other in Discover or receive messages.") },
       confirmButton = {
         Button(
           onClick = {
@@ -562,11 +684,103 @@ fun ChatDetailScreen(
       }
     )
   }
+
+  // ── Report User Dialog ──────────────────────────────────────────────
+  if (showReportDialog) {
+    val reportReasons = listOf(
+      "Inappropriate messages or content",
+      "Fake profile or scam",
+      "Harassment or abusive behavior",
+      "Spam or commercial advertising",
+      "Underage user",
+      "Other reason"
+    )
+    var selectedReason by remember { mutableStateOf(reportReasons.first()) }
+    var reportDetails by remember { mutableStateOf("") }
+    var alsoBlock by remember { mutableStateOf(true) }
+
+    AlertDialog(
+      onDismissRequest = { showReportDialog = false },
+      title = { Text("Report ${match.name}", fontWeight = FontWeight.Bold) },
+      text = {
+        Column(modifier = Modifier.fillMaxWidth()) {
+          Text(
+            "Select reason for reporting:",
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Spacer(modifier = Modifier.height(6.dp))
+          reportReasons.forEach { reason ->
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier
+                .fillMaxWidth()
+                .clickable { selectedReason = reason }
+                .padding(vertical = 2.dp)
+            ) {
+              RadioButton(
+                selected = selectedReason == reason,
+                onClick = { selectedReason = reason },
+                colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(text = reason, style = MaterialTheme.typography.bodySmall)
+            }
+          }
+
+          Spacer(modifier = Modifier.height(8.dp))
+          OutlinedTextField(
+            value = reportDetails,
+            onValueChange = { reportDetails = it },
+            placeholder = { Text("Optional details...", fontSize = 12.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 3,
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedBorderColor = CoralPrimary
+            )
+          )
+
+          Spacer(modifier = Modifier.height(8.dp))
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { alsoBlock = !alsoBlock }
+          ) {
+            Checkbox(
+              checked = alsoBlock,
+              onCheckedChange = { alsoBlock = it },
+              colors = CheckboxDefaults.colors(checkedColor = Color(0xFFD32F2F))
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Also block ${match.name}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium))
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            showReportDialog = false
+            onReportProfile?.invoke(selectedReason, reportDetails, alsoBlock)
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+        ) {
+          Text("Submit Report")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showReportDialog = false }) {
+          Text("Cancel")
+        }
+      }
+    )
+  }
 }
 
 @Composable
 fun ChatMessageBubble(
-  message: ChatMessage
+  message: ChatMessage,
+  onRetry: () -> Unit = {}
 ) {
   val isMine = message.isFromMe
 
@@ -574,53 +788,116 @@ fun ChatMessageBubble(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start
   ) {
-    Surface(
-      shape = RoundedCornerShape(
-        topStart = 18.dp,
-        topEnd = 18.dp,
-        bottomStart = if (isMine) 18.dp else 4.dp,
-        bottomEnd = if (isMine) 4.dp else 18.dp
-      ),
-      color = if (isMine) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant,
-      border = if (isMine) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-      shadowElevation = 1.5.dp,
+    Column(
+      horizontalAlignment = if (isMine) Alignment.End else Alignment.Start,
       modifier = Modifier.widthIn(max = 280.dp)
     ) {
-      Column(modifier = Modifier.padding(10.dp)) {
-        // Text content
-        if (message.text.isNotBlank()) {
-          Text(
-            text = message.text,
-            style = MaterialTheme.typography.bodyMedium.copy(
-              color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
-              lineHeight = 20.sp
-            )
-          )
-        }
-
-        Spacer(modifier = Modifier.height(3.dp))
-
-        // Time and read receipt
-        Row(
-          modifier = Modifier.align(Alignment.End),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = formatMessageTime(message.timestamp),
-            style = MaterialTheme.typography.labelSmall.copy(
-              color = if (isMine) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
-              fontSize = 10.sp
-            )
-          )
-          if (isMine) {
-            Spacer(modifier = Modifier.width(3.dp))
-            Icon(
-              imageVector = Icons.Default.Check,
-              contentDescription = "Delivered",
-              tint = Color.White.copy(alpha = 0.85f),
-              modifier = Modifier.size(12.dp)
+      Surface(
+        shape = RoundedCornerShape(
+          topStart = 18.dp,
+          topEnd = 18.dp,
+          bottomStart = if (isMine) 18.dp else 4.dp,
+          bottomEnd = if (isMine) 4.dp else 18.dp
+        ),
+        color = if (isMine) {
+          if (message.isFailed) Color(0xFFD32F2F) else CoralPrimary
+        } else {
+          MaterialTheme.colorScheme.surfaceVariant
+        },
+        border = if (isMine) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        shadowElevation = 1.5.dp
+      ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+          // Message text
+          if (message.text.isNotBlank()) {
+            Text(
+              text = message.text,
+              style = MaterialTheme.typography.bodyMedium.copy(
+                color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
+                lineHeight = 20.sp
+              )
             )
           }
+
+          Spacer(modifier = Modifier.height(3.dp))
+
+          // Timestamp, Sending state, Read receipts
+          Row(
+            modifier = Modifier.align(Alignment.End),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(
+              text = formatMessageTime(message.timestamp),
+              style = MaterialTheme.typography.labelSmall.copy(
+                color = if (isMine) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp
+              )
+            )
+
+            if (isMine) {
+              Spacer(modifier = Modifier.width(4.dp))
+              when {
+                message.isSending -> {
+                  CircularProgressIndicator(
+                    modifier = Modifier.size(10.dp),
+                    color = Color.White.copy(alpha = 0.85f),
+                    strokeWidth = 1.5.dp
+                  )
+                }
+                message.isFailed -> {
+                  Icon(
+                    imageVector = Icons.Default.ErrorOutline,
+                    contentDescription = "Failed",
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                  )
+                }
+                message.isRead -> {
+                  Icon(
+                    imageVector = Icons.Default.DoneAll,
+                    contentDescription = "Read",
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp)
+                  )
+                }
+                else -> {
+                  Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Delivered",
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(12.dp)
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // If message failed to send, display retry affordance
+      if (isMine && message.isFailed) {
+        Spacer(modifier = Modifier.height(2.dp))
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          modifier = Modifier
+            .clickable(onClick = onRetry)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+        ) {
+          Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = "Retry",
+            tint = Color(0xFFD32F2F),
+            modifier = Modifier.size(12.dp)
+          )
+          Spacer(modifier = Modifier.width(3.dp))
+          Text(
+            text = "Failed to send • Tap to retry",
+            style = MaterialTheme.typography.labelSmall.copy(
+              color = Color(0xFFD32F2F),
+              fontSize = 11.sp,
+              fontWeight = FontWeight.SemiBold
+            )
+          )
         }
       }
     }
@@ -714,4 +991,17 @@ fun TypingIndicatorBubble(matchName: String) {
 fun formatMessageTime(millis: Long): String {
   val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
   return sdf.format(Date(millis))
+}
+
+fun formatMessageDayHeader(millis: Long): String {
+  val msgCal = Calendar.getInstance().apply { timeInMillis = millis }
+  val nowCal = Calendar.getInstance()
+
+  return when {
+    msgCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+      msgCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR) -> "Today"
+    msgCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+      msgCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR) - 1 -> "Yesterday"
+    else -> SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(millis))
+  }
 }

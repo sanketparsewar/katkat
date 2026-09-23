@@ -29,7 +29,11 @@ class MainActivity : ComponentActivity() {
 
   override fun onStart() {
     super.onStart()
-    com.example.service.KatkatNotificationSyncService.startService(this)
+    try {
+      com.example.service.KatkatNotificationSyncService.startService(this)
+    } catch (e: Exception) {
+      android.util.Log.w("MainActivity", "Notice launching sync service: ${e.message}")
+    }
   }
 }
 
