@@ -118,11 +118,15 @@ data class ChatMessage(
   val photoUri: String? = null,
   val timestamp: Long = System.currentTimeMillis(),
   val isFromMe: Boolean = false,
-  val isRead: Boolean = true
+  val isRead: Boolean = true,
+  val conversationId: String = "",
+  val currentUserId: String = "",
+  val recipientId: String = ""
 )
 
 data class MatchConversation(
   val matchProfile: DatingProfile,
+  val conversationId: String = "",
   val matchTimeMillis: Long,
   val lastMessage: String,
   val lastMessageTimeMillis: Long,

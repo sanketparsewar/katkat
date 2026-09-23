@@ -240,10 +240,10 @@ class KatkatRepository(
           mutualList.forEach { matchProfile ->
             launch {
               firestoreManager.observeChatMessages(matchProfile.id, currentUserId).collect { remoteMsgs ->
-                val existingLatest = dao.getLatestMessage(matchProfile.id)
+                val existingLatest = dao.getLatestMessage(matchProfile.id, currentUserId)
                 remoteMsgs.forEach { msg ->
                   val alreadyStored = dao.getMessageById(msg.id) != null
-                  dao.insertMessage(msg.toEntity())
+                  dao.insertMessage(msg.toEntity(ownerUserId = currentUserId))
                   // Rule: If a match sends a message: "Profile 2 sent you a message"
                   if (!alreadyStored && msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
                     val notif = KatkatNotification(
@@ -1037,19 +1037,22 @@ class KatkatRepository(
   }
 
   // Chat Messages
+  @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
   fun getMessages(matchId: String): Flow<List<ChatMessage>> {
-    if (firestoreManager.isAvailable) {
-      appScope.launch {
-        val myUserId = getEffectiveCurrentUserId()
-        firestoreManager.observeChatMessages(matchId, myUserId).collect { remoteMessages ->
-          remoteMessages.forEach { msg ->
-            dao.insertMessage(msg.toEntity())
+    return userProfile.flatMapLatest { profile ->
+      val myUserId = profile.id
+      if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
+        appScope.launch {
+          firestoreManager.observeChatMessages(matchId, myUserId).collect { remoteMessages ->
+            remoteMessages.forEach { msg ->
+              dao.insertMessage(msg.toEntity(ownerUserId = myUserId))
+            }
           }
         }
       }
-    }
-    return dao.getMessagesForMatch(matchId).map { list ->
-      list.map { it.toDomain() }
+      dao.getMessagesForMatch(matchId, myUserId).map { list ->
+        list.map { it.toDomain() }
+      }
     }
   }
 
@@ -1057,11 +1060,15 @@ class KatkatRepository(
     val myUserId = getEffectiveCurrentUserId()
     val localUser = dao.getUserProfileFlow().firstOrNull()
     val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
+    val convId = com.example.util.EndToEndEncryptionHelper.getConversationId(myUserId, matchId)
 
     val myMessage = ChatMessageEntity(
       id = UUID.randomUUID().toString(),
+      conversationId = convId,
       matchId = matchId,
       senderId = myUserId,
+      recipientId = matchId,
+      currentUserId = myUserId,
       senderName = myName,
       text = text,
       photoUri = photoUri,
@@ -1072,11 +1079,11 @@ class KatkatRepository(
     dao.insertMessage(myMessage)
 
     // Sync sent message to Cloud Firestore in real time
-    if (firestoreManager.isAvailable) {
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
       appScope.launch {
         firestoreManager.sendChatMessage(matchId, myMessage.toDomain(), myUserId)
 
-        // Push notification to recipient: "Profile 2 sent you a message"
+        // Push notification strictly to the recipient's user account collection: "Profile 2 sent you a message"
         val msgNotif = KatkatNotification(
           id = "msg_${myMessage.id}",
           userId = matchId,
@@ -1095,62 +1102,66 @@ class KatkatRepository(
   }
 
   suspend fun markMessagesRead(matchId: String) {
-    dao.markMessagesAsRead(matchId)
-    if (firestoreManager.isAvailable) {
-      val myUserId = getEffectiveCurrentUserId()
+    val myUserId = getEffectiveCurrentUserId()
+    dao.markMessagesAsRead(matchId, myUserId)
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
       val localUser = dao.getUserProfileFlow().firstOrNull()
       val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
 
-      if (myUserId.isNotBlank()) {
-        appScope.launch {
-          firestoreManager.markChatMessagesAsRead(matchId, myUserId)
+      appScope.launch {
+        firestoreManager.markChatMessagesAsRead(matchId, myUserId)
 
-          // Rule: MESSAGE_READ notification sent to original sender
-          val readNotif = KatkatNotification(
-            id = "read_${myUserId}",
-            userId = matchId,
-            type = KatkatNotificationType.MESSAGE_READ,
-            title = "Message Read 👀",
-            message = "$myName read your message",
-            timestamp = System.currentTimeMillis(),
-            senderProfileId = myUserId,
-            senderProfileName = myName,
-            senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
-            deepLinkTarget = "chat/$myUserId"
-          )
-          firestoreManager.sendNotification(matchId, readNotif)
-        }
+        // Rule: MESSAGE_READ notification sent strictly to the original sender's user account
+        val readNotif = KatkatNotification(
+          id = "read_${myUserId}",
+          userId = matchId,
+          type = KatkatNotificationType.MESSAGE_READ,
+          title = "Message Read 👀",
+          message = "$myName read your message",
+          timestamp = System.currentTimeMillis(),
+          senderProfileId = myUserId,
+          senderProfileName = myName,
+          senderAvatarUrl = localUser?.photosJoined?.split("|||")?.firstOrNull(),
+          deepLinkTarget = "chat/$myUserId"
+        )
+        firestoreManager.sendNotification(matchId, readNotif)
       }
     }
   }
 
-  // Reactive conversations stream combining mutual matches with their message threads
-  val conversations: Flow<List<MatchConversation>> = combine(
-    mutualMatches,
-    dao.getAllMessagesFlow()
-  ) { matches, allMessages ->
-    val messagesByMatch = allMessages.groupBy { it.matchId }
-    matches.map { profile ->
-      val matchMsgs = messagesByMatch[profile.id].orEmpty().sortedBy { it.timestamp }
-      val lastMsg = matchMsgs.lastOrNull()
-      val unreadCount = matchMsgs.count { !it.isFromMe && !it.isRead }
-      val lastText = when {
-        lastMsg?.photoUri != null && !lastMsg.text.isNullOrBlank() -> "📷 ${lastMsg.text}"
-        lastMsg?.photoUri != null -> "📷 Sent a photo"
-        lastMsg != null -> lastMsg.text
-        else -> "New match! Say hello 👋"
-      }
-      val lastTime = lastMsg?.timestamp ?: (profile.matchedTimestamp ?: (System.currentTimeMillis() - 3600_000L))
+  // Reactive conversations stream combining mutual matches with their message threads isolated by logged-in user
+  @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+  val conversations: Flow<List<MatchConversation>> = userProfile.flatMapLatest { profile ->
+    val currentUserId = profile.id
+    combine(
+      mutualMatches,
+      dao.getAllMessagesFlow(currentUserId)
+    ) { matches, allMessages ->
+      val messagesByMatch = allMessages.groupBy { it.matchId }
+      matches.map { matchProfile ->
+        val convId = com.example.util.EndToEndEncryptionHelper.getConversationId(currentUserId, matchProfile.id)
+        val matchMsgs = messagesByMatch[matchProfile.id].orEmpty().sortedBy { it.timestamp }
+        val lastMsg = matchMsgs.lastOrNull()
+        val unreadCount = matchMsgs.count { !it.isFromMe && !it.isRead }
+        val lastText = when {
+          lastMsg?.photoUri != null && !lastMsg.text.isNullOrBlank() -> "📷 ${lastMsg.text}"
+          lastMsg?.photoUri != null -> "📷 Sent a photo"
+          lastMsg != null -> lastMsg.text
+          else -> "New match! Say hello 👋"
+        }
+        val lastTime = lastMsg?.timestamp ?: (matchProfile.matchedTimestamp ?: (System.currentTimeMillis() - 3600_000L))
 
-      MatchConversation(
-        matchProfile = profile,
-        matchTimeMillis = profile.matchedTimestamp ?: lastTime,
-        lastMessage = lastText,
-        lastMessageTimeMillis = lastTime,
-        unreadCount = unreadCount,
-        isOnline = true
-      )
-    }.sortedByDescending { it.lastMessageTimeMillis }
+        MatchConversation(
+          matchProfile = matchProfile,
+          conversationId = convId,
+          matchTimeMillis = matchProfile.matchedTimestamp ?: lastTime,
+          lastMessage = lastText,
+          lastMessageTimeMillis = lastTime,
+          unreadCount = unreadCount,
+          isOnline = true
+        )
+      }.sortedByDescending { it.lastMessageTimeMillis }
+    }
   }
 
   suspend fun deleteMessagesForMatch(matchId: String) {
@@ -1259,14 +1270,21 @@ class KatkatRepository(
   }
 
   suspend fun logoutActiveSession() {
+    realTimeSyncJob?.cancel()
+    realTimeSyncJob = null
+    recentlyProcessedNotifIds.clear()
+    KatkatApplication.activeChatPartnerId = null
+
+    val currentUserId = getEffectiveCurrentUserId()
     phoneAuthManager.signOut()
-    // Delete active user_profile, local cached chats, swipe history, and profiles deck
+    // Delete active user_profile, local cached chats, swipe history, notifications, and profiles deck
     // so no previous user's chat or match data remains on the device.
     dao.deleteUserProfile()
     dao.deleteAllMessages()
+    dao.deleteAllNotifications(currentUserId)
     dao.deleteAllSwipeRecords()
     dao.deleteAllProfiles()
-    Log.d("KatkatRepository", "Logged out active session and cleared local user data cleanly.")
+    Log.d("KatkatRepository", "Logged out active session and cleared local user data cleanly for user: $currentUserId")
   }
 
   /**
@@ -1636,10 +1654,13 @@ fun ChatMessageEntity.toDomain() = ChatMessage(
   photoUri = photoUri,
   timestamp = timestamp,
   isFromMe = isFromMe,
-  isRead = isRead
+  isRead = isRead,
+  conversationId = conversationId,
+  currentUserId = currentUserId,
+  recipientId = recipientId
 )
 
-fun ChatMessage.toEntity() = ChatMessageEntity(
+fun ChatMessage.toEntity(ownerUserId: String = "") = ChatMessageEntity(
   id = id,
   matchId = matchId,
   senderId = senderId,
@@ -1648,5 +1669,8 @@ fun ChatMessage.toEntity() = ChatMessageEntity(
   photoUri = photoUri,
   timestamp = timestamp,
   isFromMe = isFromMe,
-  isRead = isRead
+  isRead = isRead,
+  conversationId = conversationId,
+  currentUserId = if (ownerUserId.isNotBlank()) ownerUserId else currentUserId,
+  recipientId = recipientId
 )

@@ -233,7 +233,14 @@ data class SwipeRecordEntity(
   val timestamp: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "chat_messages")
+@Entity(
+  tableName = "chat_messages",
+  indices = [
+    androidx.room.Index(value = ["matchId"]),
+    androidx.room.Index(value = ["conversationId"]),
+    androidx.room.Index(value = ["currentUserId"])
+  ]
+)
 data class ChatMessageEntity(
   @PrimaryKey val id: String,
   val matchId: String,
@@ -243,7 +250,10 @@ data class ChatMessageEntity(
   val photoUri: String?,
   val timestamp: Long,
   val isFromMe: Boolean,
-  val isRead: Boolean
+  val isRead: Boolean,
+  val conversationId: String = "",
+  val currentUserId: String = "",
+  val recipientId: String = ""
 )
 
 @Entity(tableName = "subscription_info")

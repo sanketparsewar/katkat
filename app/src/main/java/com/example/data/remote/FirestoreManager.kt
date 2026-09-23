@@ -378,32 +378,38 @@ class FirestoreManager {
   // ==========================================
 
   /**
-   * Helper to compute deterministic chat ID between two users.
+   * Helper to compute deterministic canonical conversation ID between two users.
    */
   fun getCanonicalChatId(userA: String, userB: String): String {
-    val cleanA = userA.trim()
-    val cleanB = userB.trim()
-    return if (cleanA < cleanB) "${cleanA}_$cleanB" else "${cleanB}_$cleanA"
+    return com.example.util.EndToEndEncryptionHelper.getConversationId(userA, userB)
   }
 
   suspend fun sendChatMessage(matchId: String, message: ChatMessage, myUserId: String = ""): Boolean {
     val db = firestore ?: return false
+    if (myUserId.isBlank() || matchId.isBlank()) return false
     return try {
-      val targetChatId = if (myUserId.isNotBlank() && myUserId != matchId) {
-        getCanonicalChatId(myUserId, matchId)
-      } else {
-        matchId
-      }
+      val targetChatId = getCanonicalChatId(myUserId, matchId)
+      val recipientId = matchId
+
+      // Profile-level End-to-End Encryption between the two participating profiles
+      val encryptedPayload = com.example.util.EndToEndEncryptionHelper.encryptMessage(
+        message.text,
+        myUserId,
+        recipientId
+      )
 
       val msgData = mapOf(
         "id" to message.id,
+        "conversationId" to targetChatId,
         "matchId" to matchId,
         "senderId" to message.senderId,
+        "recipientId" to recipientId,
         "senderName" to message.senderName,
-        "text" to message.text,
+        "text" to encryptedPayload,
         "photoUri" to null,
         "timestamp" to message.timestamp,
-        "isRead" to false
+        "isRead" to false,
+        "participants" to listOf(myUserId, recipientId).sorted()
       )
 
       // Write ONLY to the private canonical chat document for this user pair
@@ -419,11 +425,12 @@ class FirestoreManager {
         .document(targetChatId)
         .set(
           mapOf(
-            "lastMessage" to message.text,
+            "conversationId" to targetChatId,
+            "lastMessage" to encryptedPayload,
             "lastMessageTimestamp" to message.timestamp,
             "lastSenderName" to message.senderName,
             "lastSenderId" to message.senderId,
-            "participants" to listOfNotNull(myUserId.takeIf { it.isNotBlank() }, matchId).distinct()
+            "participants" to listOf(myUserId, recipientId).sorted()
           ),
           SetOptions.merge()
         )
@@ -442,17 +449,13 @@ class FirestoreManager {
 
   fun observeChatMessages(matchId: String, myUserId: String = ""): Flow<List<ChatMessage>> = callbackFlow {
     val db = firestore
-    if (db == null) {
+    if (db == null || myUserId.isBlank() || matchId.isBlank()) {
       trySend(emptyList())
       close()
       return@callbackFlow
     }
 
-    val targetChatId = if (myUserId.isNotBlank() && myUserId != matchId) {
-      getCanonicalChatId(myUserId, matchId)
-    } else {
-      matchId
-    }
+    val targetChatId = getCanonicalChatId(myUserId, matchId)
 
     val messagesMap = java.util.concurrent.ConcurrentHashMap<String, ChatMessage>()
 
@@ -480,18 +483,38 @@ class FirestoreManager {
           try {
             val data = doc.data ?: continue
             val senderId = data["senderId"] as? String ?: ""
-            val isMine = if (myUserId.isNotBlank()) senderId == myUserId else (data["isFromMe"] as? Boolean ?: false)
+            val recipientId = data["recipientId"] as? String ?: ""
+
+            // Strict participant verification: only process messages belonging to this authenticated pair
+            val isAuthorizedParticipant = (senderId == myUserId || senderId == matchId) &&
+              (recipientId.isBlank() || recipientId == myUserId || recipientId == matchId)
+
+            if (!isAuthorizedParticipant) continue
+
+            val isMine = senderId == myUserId
             val isReadCloud = (data["isRead"] as? Boolean) ?: false
+            val rawText = data["text"] as? String ?: ""
+
+            // Decrypt message content using participating profile keys
+            val decryptedText = com.example.util.EndToEndEncryptionHelper.decryptMessage(
+              rawText,
+              myUserId,
+              matchId
+            )
+
             val chatMessage = ChatMessage(
               id = doc.id,
               matchId = matchId,
               senderId = senderId,
               senderName = data["senderName"] as? String ?: "",
-              text = data["text"] as? String ?: "",
+              text = decryptedText,
               photoUri = null,
               timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
               isFromMe = isMine,
-              isRead = if (isMine) true else isReadCloud
+              isRead = if (isMine) true else isReadCloud,
+              conversationId = targetChatId,
+              currentUserId = myUserId,
+              recipientId = if (isMine) matchId else myUserId
             )
             messagesMap[doc.id] = chatMessage
           } catch (_: Exception) {}

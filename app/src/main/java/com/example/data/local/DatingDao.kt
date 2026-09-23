@@ -103,26 +103,32 @@ interface DatingDao {
   suspend fun deleteAllSwipeRecords()
 
   // Chat Messages
-  @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp ASC")
-  fun getMessagesForMatch(matchId: String): Flow<List<ChatMessageEntity>>
+  @Query("SELECT * FROM chat_messages WHERE (matchId = :matchId OR conversationId = :conversationId) AND (currentUserId = :currentUserId OR currentUserId = '') ORDER BY timestamp ASC")
+  fun getMessagesForConversation(conversationId: String, matchId: String, currentUserId: String): Flow<List<ChatMessageEntity>>
 
-  @Query("SELECT * FROM chat_messages ORDER BY timestamp DESC")
-  fun getAllMessagesFlow(): Flow<List<ChatMessageEntity>>
+  @Query("SELECT * FROM chat_messages WHERE matchId = :matchId AND (currentUserId = :currentUserId OR currentUserId = '') ORDER BY timestamp ASC")
+  fun getMessagesForMatch(matchId: String, currentUserId: String = ""): Flow<List<ChatMessageEntity>>
+
+  @Query("SELECT * FROM chat_messages WHERE (currentUserId = :currentUserId OR currentUserId = '') ORDER BY timestamp DESC")
+  fun getAllMessagesFlow(currentUserId: String = ""): Flow<List<ChatMessageEntity>>
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertMessage(message: ChatMessageEntity)
 
-  @Query("SELECT * FROM chat_messages WHERE matchId = :matchId ORDER BY timestamp DESC LIMIT 1")
-  suspend fun getLatestMessage(matchId: String): ChatMessageEntity?
+  @Query("SELECT * FROM chat_messages WHERE matchId = :matchId AND (currentUserId = :currentUserId OR currentUserId = '') ORDER BY timestamp DESC LIMIT 1")
+  suspend fun getLatestMessage(matchId: String, currentUserId: String = ""): ChatMessageEntity?
 
   @Query("SELECT * FROM chat_messages WHERE id = :id LIMIT 1")
   suspend fun getMessageById(id: String): ChatMessageEntity?
 
-  @Query("UPDATE chat_messages SET isRead = 1 WHERE matchId = :matchId AND isFromMe = 0")
-  suspend fun markMessagesAsRead(matchId: String)
+  @Query("UPDATE chat_messages SET isRead = 1 WHERE matchId = :matchId AND isFromMe = 0 AND (currentUserId = :currentUserId OR currentUserId = '')")
+  suspend fun markMessagesAsRead(matchId: String, currentUserId: String = "")
 
-  @Query("DELETE FROM chat_messages WHERE matchId = :matchId")
-  suspend fun deleteMessagesForMatch(matchId: String)
+  @Query("DELETE FROM chat_messages WHERE matchId = :matchId AND (currentUserId = :currentUserId OR currentUserId = '')")
+  suspend fun deleteMessagesForMatch(matchId: String, currentUserId: String = "")
+
+  @Query("DELETE FROM chat_messages WHERE currentUserId = :currentUserId")
+  suspend fun deleteMessagesForUser(currentUserId: String)
 
   @Query("UPDATE dating_profiles SET isMutualMatch = 0, isLikedByMe = 0, isSuperLikedByMe = 0, matchedTimestamp = NULL WHERE id = :matchId")
   suspend fun unmatchProfile(matchId: String)
