@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -135,7 +136,7 @@ fun ChatDetailScreen(
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(Color(0xFFFAF7F5))
+      .background(MaterialTheme.colorScheme.background)
       .statusBarsPadding()
       .navigationBarsPadding()
       .imePadding()
@@ -161,7 +162,7 @@ fun ChatDetailScreen(
           Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = TextPrimaryDark
+            tint = MaterialTheme.colorScheme.onSurface
           )
         }
 
@@ -207,7 +208,7 @@ fun ChatDetailScreen(
               .size(12.dp)
               .clip(CircleShape)
               .background(Color(0xFF2EC4B6))
-              .border(1.5.dp, Color.White, CircleShape)
+              .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
           )
         }
 
@@ -224,7 +225,7 @@ fun ChatDetailScreen(
               text = match.name,
               style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.Bold,
-                color = TextPrimaryDark
+                color = MaterialTheme.colorScheme.onSurface
               ),
               maxLines = 1,
               overflow = TextOverflow.Ellipsis
@@ -252,7 +253,7 @@ fun ChatDetailScreen(
             Text(
               text = "Active now • ${match.location}",
               style = MaterialTheme.typography.labelSmall.copy(
-                color = TextSecondaryDark,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp
               ),
               maxLines = 1,
@@ -273,25 +274,13 @@ fun ChatDetailScreen(
           )
         }
 
-        // Info / Profile
-        IconButton(
-          onClick = onInspectProfile,
-          modifier = Modifier.testTag("btn_chat_info")
-        ) {
-          Icon(
-            imageVector = Icons.Default.Info,
-            contentDescription = "Profile Details",
-            tint = TextSecondaryDark
-          )
-        }
-
         // More options dropdown
         Box {
           IconButton(onClick = { showMenu = true }) {
             Icon(
               imageVector = Icons.Default.MoreVert,
               contentDescription = "More Options",
-              tint = TextSecondaryDark
+              tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
 
@@ -299,14 +288,6 @@ fun ChatDetailScreen(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
           ) {
-            DropdownMenuItem(
-              text = { Text("View Full Profile") },
-              leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-              onClick = {
-                showMenu = false
-                onInspectProfile()
-              }
-            )
             DropdownMenuItem(
               text = { Text("Clear Chat History") },
               leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
@@ -355,12 +336,13 @@ fun ChatDetailScreen(
         ) {
           Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFFECE4DF)
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
           ) {
             Text(
               text = "Matched & Connected ✨",
               style = MaterialTheme.typography.labelSmall.copy(
-                color = TextSecondaryDark,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
               ),
               modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -394,7 +376,8 @@ fun ChatDetailScreen(
         Box(
           modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(PeachBlush)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
             .clickable {
               onSendMessage(prompt, null)
             }
@@ -429,7 +412,7 @@ fun ChatDetailScreen(
           placeholder = {
             Text(
               "Type a message...",
-              color = Color.Gray,
+              color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
               fontSize = 14.sp
             )
           },
@@ -438,12 +421,12 @@ fun ChatDetailScreen(
             .testTag("chat_input_text_field"),
           shape = RoundedCornerShape(24.dp),
           colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.background,
-            unfocusedContainerColor = MaterialTheme.colorScheme.background,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedBorderColor = CoralPrimary,
-            unfocusedBorderColor = Color(0xFFE8DDD6),
-            focusedTextColor = TextPrimaryDark,
-            unfocusedTextColor = TextPrimaryDark
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
           ),
           maxLines = 4
         )
@@ -463,7 +446,7 @@ fun ChatDetailScreen(
             .size(46.dp)
             .testTag("btn_send_chat_message")
             .clip(CircleShape)
-            .background(if (canSend) CoralPrimary else Color.LightGray)
+            .background(if (canSend) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
         ) {
           Icon(
             imageVector = Icons.AutoMirrored.Filled.Send,
@@ -499,7 +482,7 @@ fun ChatDetailScreen(
       },
       dismissButton = {
         TextButton(onClick = { showCallDialog = false }) {
-          Text("Cancel", color = TextSecondaryDark)
+          Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
     )
@@ -598,7 +581,8 @@ fun ChatMessageBubble(
         bottomStart = if (isMine) 18.dp else 4.dp,
         bottomEnd = if (isMine) 4.dp else 18.dp
       ),
-      color = if (isMine) CoralPrimary else Color.White,
+      color = if (isMine) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant,
+      border = if (isMine) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
       shadowElevation = 1.5.dp,
       modifier = Modifier.widthIn(max = 280.dp)
     ) {
@@ -608,7 +592,7 @@ fun ChatMessageBubble(
           Text(
             text = message.text,
             style = MaterialTheme.typography.bodyMedium.copy(
-              color = if (isMine) Color.White else TextPrimaryDark,
+              color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
               lineHeight = 20.sp
             )
           )
@@ -624,7 +608,7 @@ fun ChatMessageBubble(
           Text(
             text = formatMessageTime(message.timestamp),
             style = MaterialTheme.typography.labelSmall.copy(
-              color = if (isMine) Color.White.copy(alpha = 0.75f) else TextSecondaryDark,
+              color = if (isMine) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
               fontSize = 10.sp
             )
           )
@@ -685,7 +669,8 @@ fun TypingIndicatorBubble(matchName: String) {
         bottomStart = 4.dp,
         bottomEnd = 18.dp
       ),
-      color = Color.White,
+      color = MaterialTheme.colorScheme.surfaceVariant,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
       shadowElevation = 1.dp,
       modifier = Modifier.padding(vertical = 4.dp)
     ) {
@@ -696,7 +681,7 @@ fun TypingIndicatorBubble(matchName: String) {
         Text(
           text = "${matchName.split(" ").first()} is typing",
           style = MaterialTheme.typography.labelSmall.copy(
-            color = TextSecondaryDark,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp
           )
         )

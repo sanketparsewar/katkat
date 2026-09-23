@@ -150,7 +150,7 @@ fun MatchesChatScreen(
             text = "Matches & Chats",
             style = MaterialTheme.typography.headlineLarge.copy(
               fontWeight = FontWeight.ExtraBold,
-              color = TextPrimaryDark,
+              color = MaterialTheme.colorScheme.onBackground,
               fontSize = 28.sp
             )
           )
@@ -172,7 +172,7 @@ fun MatchesChatScreen(
         }
         Text(
           text = "Connect, spark conversations & set up real dates 💕",
-          style = MaterialTheme.typography.bodySmall.copy(color = TextSecondaryDark)
+          style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
         )
       }
     }
@@ -182,12 +182,12 @@ fun MatchesChatScreen(
       OutlinedTextField(
         value = searchQuery,
         onValueChange = { searchQuery = it },
-        placeholder = { Text("Search matches or messages...", fontSize = 14.sp, color = Color.Gray) },
+        placeholder = { Text("Search matches or messages...", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
         leadingIcon = {
           Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "Search",
-            tint = Color.Gray,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
           )
         },
@@ -197,7 +197,7 @@ fun MatchesChatScreen(
               Icon(
                 imageVector = Icons.Default.Clear,
                 contentDescription = "Clear search",
-                tint = Color.Gray,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
               )
             }
@@ -209,12 +209,12 @@ fun MatchesChatScreen(
           .testTag("matches_search_input"),
         shape = RoundedCornerShape(24.dp),
         colors = OutlinedTextFieldDefaults.colors(
-          focusedContainerColor = MaterialTheme.colorScheme.surface,
-          unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+          focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+          unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
           focusedBorderColor = CoralPrimary,
-          unfocusedBorderColor = Color(0xFFE8DDD6),
-          focusedTextColor = TextPrimaryDark,
-          unfocusedTextColor = TextPrimaryDark
+          unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+          focusedTextColor = MaterialTheme.colorScheme.onSurface,
+          unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         ),
         singleLine = true
       )
@@ -293,7 +293,7 @@ fun MatchesChatScreen(
                 )
                 Text(
                   text = "Mutual Likes",
-                  style = MaterialTheme.typography.labelSmall.copy(color = TextSecondaryDark)
+                  style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
               }
 
@@ -313,7 +313,7 @@ fun MatchesChatScreen(
             }
 
             Divider(
-              color = Color(0xFFF3E7DF),
+              color = MaterialTheme.colorScheme.outlineVariant,
               thickness = 1.dp,
               modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
@@ -326,7 +326,7 @@ fun MatchesChatScreen(
             text = "MESSAGES (${filteredConversations.size})",
             style = MaterialTheme.typography.labelMedium.copy(
               fontWeight = FontWeight.Bold,
-              color = TextSecondaryDark,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
               letterSpacing = 1.sp
             ),
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -351,7 +351,7 @@ fun MatchesChatScreen(
             ) {
               Text(
                 text = if (searchQuery.isNotBlank()) "No conversations match '$searchQuery'" else "No messages in this filter",
-                style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondaryDark),
+                style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                 textAlign = TextAlign.Center
               )
             }
@@ -442,7 +442,7 @@ fun NewMatchAvatarItem(
       text = profile.name.split(" ").first(),
       style = MaterialTheme.typography.labelMedium.copy(
         fontWeight = FontWeight.SemiBold,
-        color = TextPrimaryDark
+        color = MaterialTheme.colorScheme.onSurface
       ),
       maxLines = 1,
       overflow = TextOverflow.Ellipsis
@@ -463,7 +463,7 @@ fun ConversationRowItem(
       .fillMaxWidth()
       .clickable(onClick = onClick)
       .testTag("conversation_row_${profile.id}"),
-    color = if (hasUnread) PeachBlush.copy(alpha = 0.25f) else Color.Transparent
+    color = if (hasUnread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else Color.Transparent
   ) {
     Row(
       modifier = Modifier
@@ -531,7 +531,7 @@ fun ConversationRowItem(
               text = profile.name,
               style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = if (hasUnread) FontWeight.ExtraBold else FontWeight.SemiBold,
-                color = TextPrimaryDark
+                color = MaterialTheme.colorScheme.onSurface
               ),
               maxLines = 1,
               overflow = TextOverflow.Ellipsis
@@ -550,7 +550,7 @@ fun ConversationRowItem(
           Text(
             text = formatConversationTime(conversation.lastMessageTimeMillis),
             style = MaterialTheme.typography.labelSmall.copy(
-              color = if (hasUnread) CoralPrimary else TextSecondaryDark,
+              color = if (hasUnread) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Normal
             )
           )
@@ -566,7 +566,7 @@ fun ConversationRowItem(
           Text(
             text = conversation.lastMessage,
             style = MaterialTheme.typography.bodyMedium.copy(
-              color = if (hasUnread) TextPrimaryDark else TextSecondaryDark,
+              color = if (hasUnread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
               fontSize = 13.sp
             ),
@@ -630,7 +630,7 @@ fun EmptyMatchesView(
         modifier = Modifier
           .size(96.dp)
           .clip(CircleShape)
-          .background(PeachBlush),
+          .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
       ) {
         Icon(
@@ -647,7 +647,7 @@ fun EmptyMatchesView(
         text = "No matches yet",
         style = MaterialTheme.typography.titleLarge.copy(
           fontWeight = FontWeight.ExtraBold,
-          color = TextPrimaryDark,
+          color = MaterialTheme.colorScheme.onSurface,
           fontSize = 22.sp
         ),
         textAlign = TextAlign.Center
@@ -658,7 +658,7 @@ fun EmptyMatchesView(
       Text(
         text = "When you match with others on Discover, they'll appear here and conversations will begin. Start swiping to find new matches!",
         style = MaterialTheme.typography.bodyMedium.copy(
-          color = TextSecondaryDark,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           lineHeight = 20.sp
         ),
         textAlign = TextAlign.Center,

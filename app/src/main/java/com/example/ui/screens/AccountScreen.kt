@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -307,14 +308,15 @@ private fun AccountMainPage(
           .fillMaxWidth()
           .shadow(4.dp, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
         Box(
           modifier = Modifier
             .fillMaxWidth()
             .background(
               Brush.horizontalGradient(
-                colors = if (!isFree) listOf(CoralDark, CoralPrimary) else listOf(PeachBlush, PeachSecondary.copy(alpha = 0.5f))
+                colors = if (!isFree) listOf(CoralDark, CoralPrimary) else listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface)
               )
             )
             .padding(18.dp)
@@ -398,7 +400,8 @@ private fun AccountMainPage(
       Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
         Column {
           // 1. Theme Option
@@ -417,7 +420,7 @@ private fun AccountMainPage(
 
           HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = MaterialTheme.colorScheme.outlineVariant
           )
 
           // 2. Settings Option
@@ -432,7 +435,7 @@ private fun AccountMainPage(
 
           HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = MaterialTheme.colorScheme.outlineVariant
           )
 
           // 3. Safety & Privacy
@@ -601,12 +604,12 @@ private fun ThemeOptionCard(
       .clickable(onClick = onClick),
     shape = RoundedCornerShape(18.dp),
     colors = CardDefaults.cardColors(
-      containerColor = if (isSelected) PeachBlush.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surface
+      containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
     ),
     border = if (isSelected) {
       androidx.compose.foundation.BorderStroke(2.dp, CoralPrimary)
     } else {
-      androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+      androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     }
   ) {
     Row(
@@ -649,7 +652,10 @@ private fun ThemeOptionCard(
       RadioButton(
         selected = isSelected,
         onClick = onClick,
-        colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary)
+        colors = RadioButtonDefaults.colors(
+          selectedColor = CoralPrimary,
+          unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
       )
     }
   }
@@ -710,7 +716,8 @@ private fun SettingsPage(
       Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
         Column(modifier = Modifier.padding(18.dp)) {
           Row(
@@ -721,13 +728,13 @@ private fun SettingsPage(
               modifier = Modifier
                 .size(42.dp)
                 .clip(CircleShape)
-                .background(if (userProfile.isAccountDisabled) Color(0xFFFFEBEE) else PeachBlush),
+                .background(if (userProfile.isAccountDisabled) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant),
               contentAlignment = Alignment.Center
             ) {
               Icon(
                 imageVector = if (userProfile.isAccountDisabled) Icons.Filled.PlayCircle else Icons.Filled.PauseCircle,
                 contentDescription = null,
-                tint = if (userProfile.isAccountDisabled) CoralPrimary else CoralDark,
+                tint = if (userProfile.isAccountDisabled) MaterialTheme.colorScheme.error else CoralPrimary,
                 modifier = Modifier.size(24.dp)
               )
             }
@@ -756,7 +763,12 @@ private fun SettingsPage(
                   onDisableAccount(false)
                 }
               },
-              colors = SwitchDefaults.colors(checkedThumbColor = CoralPrimary, checkedTrackColor = PeachBlush)
+              colors = SwitchDefaults.colors(
+                checkedThumbColor = CoralPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+              )
             )
           }
 

@@ -93,12 +93,12 @@ fun LikesYouScreen(
             text = "Likes You",
             style = MaterialTheme.typography.headlineLarge.copy(
               fontWeight = FontWeight.ExtraBold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onBackground
             )
           )
           Text(
             text = "${likedProfiles.size} people have swiped right on you",
-            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondaryDark)
+            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
           )
         }
 
@@ -126,8 +126,9 @@ fun LikesYouScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(horizontal = 20.dp, vertical = 4.dp),
-        color = PeachBlush,
-        shape = RoundedCornerShape(16.dp)
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
         Row(
           modifier = Modifier.padding(14.dp),
@@ -146,11 +147,11 @@ fun LikesYouScreen(
           Column(modifier = Modifier.weight(1f)) {
             Text(
               text = "Upgrade to Katkat Plus or VIP",
-              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = TextPrimaryDark)
+              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             )
             Text(
               text = "Unblur photos and match instantly with anyone who liked you!",
-              style = MaterialTheme.typography.bodySmall.copy(color = TextSecondaryDark, fontSize = 12.sp)
+              style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             )
           }
         }

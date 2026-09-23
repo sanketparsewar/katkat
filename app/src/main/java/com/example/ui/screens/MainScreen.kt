@@ -353,8 +353,10 @@ fun MainScreen(
   // 3. Inspect Full Profile Bottom Sheet
   val profileToInspect = inspectedProfile
   if (profileToInspect != null) {
+    val isAlreadyMatched = profileToInspect.isMutualMatch || mutualMatches.any { it.id == profileToInspect.id } || selectedChatMatch?.id == profileToInspect.id
     ProfileDetailBottomSheet(
       profile = profileToInspect,
+      isMatched = isAlreadyMatched,
       onLike = {
         viewModel.swipeRight(profileToInspect.id)
         viewModel.inspectProfile(null)

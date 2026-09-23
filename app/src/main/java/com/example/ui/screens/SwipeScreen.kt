@@ -292,7 +292,7 @@ fun EmptyDeckView(
           modifier = Modifier
             .size(70.dp)
             .clip(CircleShape)
-            .background(PeachBlush),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
           contentAlignment = Alignment.Center
         ) {
           Icon(
@@ -310,7 +310,7 @@ fun EmptyDeckView(
         text = "You've Swiped Everyone Nearby!",
         style = MaterialTheme.typography.titleLarge.copy(
           fontWeight = FontWeight.ExtraBold,
-          color = TextPrimaryDark
+          color = MaterialTheme.colorScheme.onSurface
         ),
         textAlign = TextAlign.Center
       )
@@ -320,7 +320,7 @@ fun EmptyDeckView(
       Text(
         text = "Check back soon for new profiles, or pull down to refresh the deck.",
         style = MaterialTheme.typography.bodyMedium.copy(
-          color = TextSecondaryDark,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           textAlign = TextAlign.Center,
           lineHeight = 20.sp
         ),

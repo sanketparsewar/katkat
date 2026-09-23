@@ -117,9 +117,9 @@ fun KatkatBottomNav(
         colors = NavigationBarItemDefaults.colors(
           selectedIconColor = CoralPrimary,
           selectedTextColor = CoralPrimary,
-          unselectedIconColor = TextSecondaryDark,
-          unselectedTextColor = TextSecondaryDark,
-          indicatorColor = PeachBlush.copy(alpha = 0.8f)
+          unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+          unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
         ),
         modifier = Modifier.testTag(tab.testTag)
       )

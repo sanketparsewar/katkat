@@ -237,18 +237,18 @@ fun MatchCelebrationDialog(
         OutlinedTextField(
           value = quickMessage,
           onValueChange = { quickMessage = it },
-          placeholder = { Text("Say something charming...", color = Color.Gray) },
+          placeholder = { Text("Say something charming...", color = Color.White.copy(alpha = 0.6f)) },
           modifier = Modifier
             .fillMaxWidth()
             .testTag("match_quick_message_input"),
           shape = RoundedCornerShape(28.dp),
           colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
+            focusedContainerColor = Color(0xFF2E2434),
+            unfocusedContainerColor = Color(0xFF2E2434),
             focusedBorderColor = CoralPrimary,
-            unfocusedBorderColor = Color.LightGray,
-            focusedTextColor = TextPrimaryDark,
-            unfocusedTextColor = TextPrimaryDark
+            unfocusedBorderColor = Color(0xFF4A3D52),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White
           ),
           trailingIcon = {
             IconButton(

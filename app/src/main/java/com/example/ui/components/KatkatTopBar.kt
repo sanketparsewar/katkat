@@ -1,7 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -138,8 +140,14 @@ fun KatkatTopBar(
               .testTag("swipe_counter_pill")
               .clip(RoundedCornerShape(20.dp))
               .background(
-                if (subscriptionState.hasReachedLimit) Color(0xFFFFEBEE)
-                else MaterialTheme.colorScheme.secondaryContainer
+                if (subscriptionState.hasReachedLimit) MaterialTheme.colorScheme.errorContainer
+                else MaterialTheme.colorScheme.surfaceVariant
+              )
+              .border(
+                1.dp,
+                if (subscriptionState.hasReachedLimit) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.outlineVariant,
+                RoundedCornerShape(20.dp)
               )
               .clickable { onOpenPaywall() }
               .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -149,7 +157,7 @@ fun KatkatTopBar(
               Icon(
                 imageVector = Icons.Default.LocalFireDepartment,
                 contentDescription = null,
-                tint = if (subscriptionState.hasReachedLimit) Color(0xFFFF4757) else CoralPrimary,
+                tint = if (subscriptionState.hasReachedLimit) MaterialTheme.colorScheme.error else CoralPrimary,
                 modifier = Modifier.size(16.dp)
               )
               Spacer(modifier = Modifier.width(4.dp))
@@ -157,7 +165,7 @@ fun KatkatTopBar(
                 text = "${subscriptionState.remainingSwipes} left",
                 style = MaterialTheme.typography.labelMedium.copy(
                   fontWeight = FontWeight.Bold,
-                  color = if (subscriptionState.hasReachedLimit) Color(0xFFFF4757) else TextPrimaryDark
+                  color = if (subscriptionState.hasReachedLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                 )
               )
             }

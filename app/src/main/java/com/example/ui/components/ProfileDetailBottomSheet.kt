@@ -72,12 +72,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProfileDetailBottomSheet(
   profile: DatingProfile,
-  onLike: () -> Unit,
-  onPass: () -> Unit,
-  onSuperLike: () -> Unit,
+  isMatched: Boolean = false,
+  onLike: () -> Unit = {},
+  onPass: () -> Unit = {},
+  onSuperLike: () -> Unit = {},
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  val isAlreadyMatched = profile.isMutualMatch || isMatched
   val photos = remember(profile.photos) { profile.photos.filter { it.isNotBlank() } }
   val pagerState = rememberPagerState(pageCount = { photos.size.coerceAtLeast(1) })
   val coroutineScope = rememberCoroutineScope()
@@ -278,7 +280,7 @@ fun ProfileDetailBottomSheet(
             text = profile.name,
             style = MaterialTheme.typography.headlineLarge.copy(
               fontWeight = FontWeight.ExtraBold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
           Spacer(modifier = Modifier.width(8.dp))
@@ -286,7 +288,7 @@ fun ProfileDetailBottomSheet(
             text = "${profile.age}",
             style = MaterialTheme.typography.headlineLarge.copy(
               fontWeight = FontWeight.Light,
-              color = TextSecondaryDark
+              color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           )
           if (profile.isVerified) {
@@ -314,7 +316,7 @@ fun ProfileDetailBottomSheet(
             Text(
               text = cleanOccupation,
               style = MaterialTheme.typography.bodyMedium.copy(
-                color = TextPrimaryDark,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium
               )
             )
@@ -335,7 +337,7 @@ fun ProfileDetailBottomSheet(
             Text(
               text = profile.education,
               style = MaterialTheme.typography.bodyMedium.copy(
-                color = TextPrimaryDark,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium
               )
             )
@@ -356,7 +358,7 @@ fun ProfileDetailBottomSheet(
             Text(
               text = profile.location,
               style = MaterialTheme.typography.bodyMedium.copy(
-                color = TextSecondaryDark
+                color = MaterialTheme.colorScheme.onSurfaceVariant
               )
             )
           }
@@ -370,14 +372,14 @@ fun ProfileDetailBottomSheet(
             text = "About Me",
             style = MaterialTheme.typography.titleMedium.copy(
               fontWeight = FontWeight.Bold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
           Spacer(modifier = Modifier.height(6.dp))
           Text(
             text = profile.bio,
             style = MaterialTheme.typography.bodyMedium.copy(
-              color = TextPrimaryDark,
+              color = MaterialTheme.colorScheme.onSurface,
               lineHeight = 22.sp
             )
           )
@@ -389,7 +391,7 @@ fun ProfileDetailBottomSheet(
           Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = PeachBlush)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
           ) {
             Column(modifier = Modifier.padding(16.dp)) {
               Text(
@@ -403,7 +405,7 @@ fun ProfileDetailBottomSheet(
               Text(
                 text = profile.promptAnswer,
                 style = MaterialTheme.typography.titleMedium.copy(
-                  color = TextPrimaryDark,
+                  color = MaterialTheme.colorScheme.onSurface,
                   fontWeight = FontWeight.Medium,
                   lineHeight = 22.sp
                 )
@@ -434,7 +436,7 @@ fun ProfileDetailBottomSheet(
             text = "Lifestyle & Basics",
             style = MaterialTheme.typography.titleMedium.copy(
               fontWeight = FontWeight.Bold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
           Spacer(modifier = Modifier.height(10.dp))
@@ -455,7 +457,7 @@ fun ProfileDetailBottomSheet(
             text = "Passions & Interests",
             style = MaterialTheme.typography.titleMedium.copy(
               fontWeight = FontWeight.Bold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
           Spacer(modifier = Modifier.height(10.dp))
@@ -467,14 +469,14 @@ fun ProfileDetailBottomSheet(
               Box(
                 modifier = Modifier
                   .clip(RoundedCornerShape(16.dp))
-                  .background(Color.White)
-                  .border(1.dp, Color(0xFFF0E5DF), RoundedCornerShape(16.dp))
+                  .background(MaterialTheme.colorScheme.surfaceVariant)
+                  .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                   .padding(horizontal = 14.dp, vertical = 7.dp)
               ) {
                 Text(
                   text = tag,
                   style = MaterialTheme.typography.labelMedium.copy(
-                    color = TextPrimaryDark,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold
                   )
                 )
@@ -484,83 +486,85 @@ fun ProfileDetailBottomSheet(
           Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // ── 5. Quick Floating Action Row (Pass, Superlike, Like) ────────────
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-          horizontalArrangement = Arrangement.SpaceEvenly,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          // Pass (Close) Button - Icon only, enlarged
-          Surface(
-            onClick = {
-              onPass()
-              onDismiss()
-            },
-            shape = CircleShape,
-            color = Color.White,
-            shadowElevation = 5.dp,
-            border = BorderStroke(1.5.dp, NopeRed.copy(alpha = 0.25f)),
+        if (!isAlreadyMatched) {
+          // ── 5. Quick Floating Action Row (Pass, Superlike, Like) ────────────
+          Row(
             modifier = Modifier
-              .size(62.dp)
-              .testTag("inspect_btn_pass")
+              .fillMaxWidth()
+              .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
           ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Pass",
-                tint = NopeRed,
-                modifier = Modifier.size(32.dp)
-              )
+            // Pass (Close) Button - Icon only, enlarged
+            Surface(
+              onClick = {
+                onPass()
+                onDismiss()
+              },
+              shape = CircleShape,
+              color = MaterialTheme.colorScheme.surface,
+              shadowElevation = 5.dp,
+              border = BorderStroke(1.5.dp, NopeRed.copy(alpha = 0.25f)),
+              modifier = Modifier
+                .size(62.dp)
+                .testTag("inspect_btn_pass")
+            ) {
+              Box(contentAlignment = Alignment.Center) {
+                Icon(
+                  imageVector = Icons.Default.Close,
+                  contentDescription = "Pass",
+                  tint = NopeRed,
+                  modifier = Modifier.size(32.dp)
+                )
+              }
             }
-          }
 
-          // Super Like (Star) Button - Icon only, enlarged
-          Surface(
-            onClick = {
-              onSuperLike()
-              onDismiss()
-            },
-            shape = CircleShape,
-            color = Color.White,
-            shadowElevation = 5.dp,
-            border = BorderStroke(1.5.dp, SuperlikeBlue.copy(alpha = 0.25f)),
-            modifier = Modifier
-              .size(52.dp)
-              .testTag("inspect_btn_superlike")
-          ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = "Super Like",
-                tint = SuperlikeBlue,
-                modifier = Modifier.size(26.dp)
-              )
+            // Super Like (Star) Button - Icon only, enlarged
+            Surface(
+              onClick = {
+                onSuperLike()
+                onDismiss()
+              },
+              shape = CircleShape,
+              color = MaterialTheme.colorScheme.surface,
+              shadowElevation = 5.dp,
+              border = BorderStroke(1.5.dp, SuperlikeBlue.copy(alpha = 0.25f)),
+              modifier = Modifier
+                .size(52.dp)
+                .testTag("inspect_btn_superlike")
+            ) {
+              Box(contentAlignment = Alignment.Center) {
+                Icon(
+                  imageVector = Icons.Default.Star,
+                  contentDescription = "Super Like",
+                  tint = SuperlikeBlue,
+                  modifier = Modifier.size(26.dp)
+                )
+              }
             }
-          }
 
-          // Like (Heart) Button - Icon only, enlarged
-          Surface(
-            onClick = {
-              onLike()
-              onDismiss()
-            },
-            shape = CircleShape,
-            color = Color.White,
-            shadowElevation = 5.dp,
-            border = BorderStroke(1.5.dp, CoralPrimary.copy(alpha = 0.25f)),
-            modifier = Modifier
-              .size(62.dp)
-              .testTag("inspect_btn_like")
-          ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = Icons.Default.Favorite,
-                contentDescription = "Like",
-                tint = CoralPrimary,
-                modifier = Modifier.size(32.dp)
-              )
+            // Like (Heart) Button - Icon only, enlarged
+            Surface(
+              onClick = {
+                onLike()
+                onDismiss()
+              },
+              shape = CircleShape,
+              color = MaterialTheme.colorScheme.surface,
+              shadowElevation = 5.dp,
+              border = BorderStroke(1.5.dp, CoralPrimary.copy(alpha = 0.25f)),
+              modifier = Modifier
+                .size(62.dp)
+                .testTag("inspect_btn_like")
+            ) {
+              Box(contentAlignment = Alignment.Center) {
+                Icon(
+                  imageVector = Icons.Default.Favorite,
+                  contentDescription = "Like",
+                  tint = CoralPrimary,
+                  modifier = Modifier.size(32.dp)
+                )
+              }
             }
           }
         }
@@ -574,13 +578,14 @@ fun LifestyleBadge(text: String) {
   Box(
     modifier = Modifier
       .clip(RoundedCornerShape(14.dp))
-      .background(PeachBlush)
+      .background(MaterialTheme.colorScheme.surfaceVariant)
+      .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
       .padding(horizontal = 13.dp, vertical = 7.dp)
   ) {
     Text(
       text = text,
       style = MaterialTheme.typography.labelMedium.copy(
-        color = TextPrimaryDark,
+        color = MaterialTheme.colorScheme.onSurface,
         fontWeight = FontWeight.SemiBold
       )
     )

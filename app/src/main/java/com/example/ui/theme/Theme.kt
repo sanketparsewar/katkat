@@ -54,7 +54,8 @@ private val DarkColorScheme = darkColorScheme(
   onSurface = DarkTextPrimary,
   surfaceVariant = DarkSurfaceElevated,
   onSurfaceVariant = DarkTextSecondary,
-  outline = DarkDivider
+  outline = DarkDivider,
+  outlineVariant = Color(0xFF4C3E4D)
 )
 
 @Composable

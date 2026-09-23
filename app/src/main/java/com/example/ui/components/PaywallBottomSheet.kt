@@ -123,7 +123,7 @@ fun PaywallBottomSheet(
             text = "Katkat Premium",
             style = MaterialTheme.typography.titleLarge.copy(
               fontWeight = FontWeight.ExtraBold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
         }
@@ -132,7 +132,7 @@ fun PaywallBottomSheet(
           onClick = onDismiss,
           modifier = Modifier.size(32.dp)
         ) {
-          Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+          Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
         }
       }
 
@@ -150,7 +150,7 @@ fun PaywallBottomSheet(
       Text(
         text = "Native App Store subscriptions powered by Emergent RevenueCat",
         style = MaterialTheme.typography.labelSmall.copy(
-          color = TextSecondaryDark
+          color = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 2.dp)
@@ -163,7 +163,8 @@ fun PaywallBottomSheet(
         modifier = Modifier
           .fillMaxWidth()
           .clip(RoundedCornerShape(16.dp)),
-        color = PeachBlush
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
         Row(
           modifier = Modifier
@@ -177,7 +178,7 @@ fun PaywallBottomSheet(
               text = "Annual Billing",
               style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = TextPrimaryDark
+                color = MaterialTheme.colorScheme.onSurface
               )
             )
             Text(
@@ -194,8 +195,8 @@ fun PaywallBottomSheet(
             colors = SwitchDefaults.colors(
               checkedThumbColor = Color.White,
               checkedTrackColor = CoralPrimary,
-              uncheckedThumbColor = Color.White,
-              uncheckedTrackColor = Color.LightGray
+              uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+              uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )
           )
         }
@@ -243,15 +244,15 @@ fun PaywallBottomSheet(
         modifier = Modifier
           .fillMaxWidth()
           .clip(RoundedCornerShape(16.dp)),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFF0E5DF))
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
         Column(modifier = Modifier.padding(16.dp)) {
           Text(
             text = "Included with ${selectedTier.title}:",
             style = MaterialTheme.typography.titleSmall.copy(
               fontWeight = FontWeight.Bold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
           Spacer(modifier = Modifier.height(8.dp))
@@ -280,7 +281,7 @@ fun PaywallBottomSheet(
               Text(
                 text = perk,
                 style = MaterialTheme.typography.bodyMedium.copy(
-                  color = TextPrimaryDark,
+                  color = MaterialTheme.colorScheme.onSurface,
                   fontSize = 13.sp
                 )
               )
@@ -339,7 +340,7 @@ fun PaywallBottomSheet(
         ) {
           Text(
             text = "Restore Purchases",
-            style = MaterialTheme.typography.labelMedium.copy(color = TextSecondaryDark)
+            style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
           )
         }
 
@@ -379,7 +380,7 @@ fun TierCard(
   val borderColor = when {
     isSelected && tier == SubscriptionTier.TIER_2 -> GoldVip
     isSelected -> CoralPrimary
-    else -> Color(0xFFEADBCE)
+    else -> MaterialTheme.colorScheme.outlineVariant
   }
 
   Surface(
@@ -388,7 +389,7 @@ fun TierCard(
       .clip(RoundedCornerShape(18.dp))
       .clickable(onClick = onSelect)
       .testTag("tier_card_${tier.name}"),
-    color = if (isSelected) PeachBlush else Color.White,
+    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
     shape = RoundedCornerShape(18.dp),
     border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor)
   ) {
@@ -405,7 +406,7 @@ fun TierCard(
             text = tier.title,
             style = MaterialTheme.typography.titleMedium.copy(
               fontWeight = FontWeight.Bold,
-              color = TextPrimaryDark
+              color = MaterialTheme.colorScheme.onSurface
             )
           )
           Spacer(modifier = Modifier.width(8.dp))
@@ -414,7 +415,7 @@ fun TierCard(
               .clip(RoundedCornerShape(6.dp))
               .background(
                 when (tier) {
-                  SubscriptionTier.FREE -> Color.LightGray
+                  SubscriptionTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                   SubscriptionTier.TIER_1 -> CoralPrimary
                   SubscriptionTier.TIER_2 -> GoldVip
                 }
@@ -436,7 +437,7 @@ fun TierCard(
           else if (isAnnual) tier.priceYearly
           else tier.priceMonthly,
           style = MaterialTheme.typography.bodyMedium.copy(
-            color = if (isSelected) CoralPrimary else TextSecondaryDark,
+            color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
           )
         )
@@ -450,7 +451,7 @@ fun TierCard(
           .background(
             if (isSelected) CoralPrimary else Color.Transparent
           )
-          .border(2.dp, if (isSelected) CoralPrimary else Color.LightGray, CircleShape),
+          .border(2.dp, if (isSelected) CoralPrimary else MaterialTheme.colorScheme.outlineVariant, CircleShape),
         contentAlignment = Alignment.Center
       ) {
         if (isSelected) {
