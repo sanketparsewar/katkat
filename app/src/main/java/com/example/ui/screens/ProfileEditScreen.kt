@@ -1485,75 +1485,7 @@ fun ProfileEditScreen(
       }
     }
 
-    Spacer(modifier = Modifier.height(2.dp))
-
-    // ── 12. Pause / Hide Profile Card ──────────────────────────────────
-    Card(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 6.dp)
-        .testTag("pause_profile_card"),
-      shape = RoundedCornerShape(16.dp),
-      colors = CardDefaults.cardColors(
-        containerColor = if (userProfile.isAccountDisabled) Color(0xFFFFF3E0) else MaterialTheme.colorScheme.surface
-      ),
-      elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-      border = BorderStroke(
-        1.dp,
-        if (userProfile.isAccountDisabled) Color(0xFFFFB74D) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-      )
-    ) {
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Icon(
-          imageVector = Icons.Filled.PauseCircle,
-          contentDescription = null,
-          tint = if (userProfile.isAccountDisabled) Color(0xFFE65100) else CoralPrimary,
-          modifier = Modifier.size(26.dp)
-        )
-
-        Column(
-          modifier = Modifier
-            .weight(1f)
-            .padding(horizontal = 14.dp)
-        ) {
-          Text(
-            text = if (userProfile.isAccountDisabled) "Profile Paused & Hidden" else "Pause / Hide Profile",
-            fontSize = 14.5.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (userProfile.isAccountDisabled) Color(0xFFE65100) else MaterialTheme.colorScheme.onSurface
-          )
-          Text(
-            text = if (userProfile.isAccountDisabled)
-              "Hidden from Discover. Existing matches can still chat."
-            else
-              "Temporarily hide yourself from Discover without losing chats or matches.",
-            fontSize = 11.5.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp)
-          )
-        }
-
-        Switch(
-          checked = userProfile.isAccountDisabled,
-          onCheckedChange = { isChecked ->
-            onDisableAccount(isChecked)
-          },
-          colors = SwitchDefaults.colors(
-            checkedThumbColor = Color(0xFFE65100),
-            checkedTrackColor = Color(0xFFFFCC80),
-            uncheckedThumbColor = CoralPrimary
-          ),
-          modifier = Modifier.testTag("pause_profile_switch")
-        )
-      }
-    }
-
-    Spacer(modifier = Modifier.height(28.dp))
+    Spacer(modifier = Modifier.height(24.dp))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
