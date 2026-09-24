@@ -518,23 +518,35 @@ fun ProfileDetailBottomSheet(
           Spacer(modifier = Modifier.height(20.dp))
         }
 
-        // ── 3. Lifestyle & Basics Section (FIRST) ──────────────────────────
-        val lifestyleItems = remember(profile) {
-          val items = mutableListOf<String>()
-          if (profile.datingIntention.isNotBlank()) items.add("💘 ${profile.datingIntention}")
-          if (profile.height.isNotBlank()) items.add("📏 ${profile.height}")
-          if (profile.zodiac.isNotBlank()) {
-            val zText = if (profile.zodiac.contains(Regex("[♈-♓♌♍♎♏♐♑♒]"))) profile.zodiac else "✨ ${profile.zodiac}"
-            items.add(zText)
+        // ── 3. Lifestyle & Basics Section (Descriptive with Subheadings) ──
+        val lifestyleEntries = remember(profile) {
+          val entries = mutableListOf<Pair<String, Pair<String, String>>>() // List of (Subheading, (Emoji, Value))
+          if (profile.datingIntention.isNotBlank()) {
+            entries.add("Looking For" to ("💘" to profile.datingIntention))
           }
-          if (profile.drinking.isNotBlank()) items.add("🍷 ${profile.drinking}")
-          if (profile.smoking.isNotBlank()) items.add("🚭 ${profile.smoking}")
-          if (profile.pets.isNotBlank()) items.add("🐾 ${profile.pets}")
-          if (profile.gender.isNotBlank()) items.add("👤 ${profile.gender}")
-          items
+          if (profile.height.isNotBlank()) {
+            entries.add("Height" to ("📏" to profile.height))
+          }
+          if (profile.zodiac.isNotBlank()) {
+            val zClean = profile.zodiac.replace(Regex("^[✨♈-♓♌♍♎♏♐♑♒\\s]+"), "").trim().ifBlank { profile.zodiac }
+            entries.add("Zodiac Sign" to ("✨" to zClean))
+          }
+          if (profile.drinking.isNotBlank()) {
+            entries.add("Drinking" to ("🍷" to profile.drinking))
+          }
+          if (profile.smoking.isNotBlank()) {
+            entries.add("Smoking" to ("🚭" to profile.smoking))
+          }
+          if (profile.pets.isNotBlank()) {
+            entries.add("Pets" to ("🐾" to profile.pets))
+          }
+          if (profile.gender.isNotBlank()) {
+            entries.add("Gender" to ("👤" to profile.gender))
+          }
+          entries
         }
 
-        if (lifestyleItems.isNotEmpty()) {
+        if (lifestyleEntries.isNotEmpty()) {
           Text(
             text = "Lifestyle & Basics",
             style = MaterialTheme.typography.titleMedium.copy(
@@ -542,13 +554,65 @@ fun ProfileDetailBottomSheet(
               color = MaterialTheme.colorScheme.onSurface
             )
           )
-          Spacer(modifier = Modifier.height(10.dp))
-          FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+          Spacer(modifier = Modifier.height(12.dp))
+
+          // 2-column or structured grid of descriptive detail cards with clear subheadings
+          Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth()
           ) {
-            lifestyleItems.forEach { itemText ->
-              LifestyleBadge(text = itemText)
+            lifestyleEntries.chunked(2).forEach { rowEntries ->
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+              ) {
+                rowEntries.forEach { (subheading, iconAndValue) ->
+                  val (emoji, value) = iconAndValue
+                  Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                      containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                  ) {
+                    Column(
+                      modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                      Text(
+                        text = subheading,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                          color = MaterialTheme.colorScheme.onSurfaceVariant,
+                          fontWeight = FontWeight.Medium
+                        )
+                      )
+                      Spacer(modifier = Modifier.height(4.dp))
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically
+                      ) {
+                        Text(
+                          text = emoji,
+                          fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                          text = value,
+                          style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold
+                          )
+                        )
+                      }
+                    }
+                  }
+                }
+                // If odd number of entries in the last row, place an empty spacer
+                if (rowEntries.size == 1) {
+                  Spacer(modifier = Modifier.weight(1f))
+                }
+              }
             }
           }
           Spacer(modifier = Modifier.height(20.dp))
@@ -586,74 +650,7 @@ fun ProfileDetailBottomSheet(
               }
             }
           }
-          Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        // ── 5. Safety & Trust Actions ─────────────────────────────────────
-        Spacer(modifier = Modifier.height(16.dp))
-        Card(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-          shape = RoundedCornerShape(16.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-        ) {
-          Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-              )
-              Spacer(modifier = Modifier.width(8.dp))
-              Text(
-                text = "Safety & Community",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-              )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-              OutlinedButton(
-                onClick = { showReportDialog = true },
-                modifier = Modifier
-                  .weight(1f)
-                  .testTag("btn_profile_sheet_report"),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFFE65100))
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Flag,
-                  contentDescription = null,
-                  tint = Color(0xFFE65100),
-                  modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Report", color = Color(0xFFE65100), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-              }
-
-              OutlinedButton(
-                onClick = { showBlockConfirm = true },
-                modifier = Modifier
-                  .weight(1f)
-                  .testTag("btn_profile_sheet_block"),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFFD32F2F))
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Block,
-                  contentDescription = null,
-                  tint = Color(0xFFD32F2F),
-                  modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Block", color = Color(0xFFD32F2F), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-              }
-            }
-          }
+          Spacer(modifier = Modifier.height(20.dp))
         }
 
         if (!isAlreadyMatched) {
