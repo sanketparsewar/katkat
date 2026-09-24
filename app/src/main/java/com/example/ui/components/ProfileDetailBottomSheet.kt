@@ -81,6 +81,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.model.DatingProfile
 import com.example.ui.theme.CoralPrimary
+import com.example.ui.theme.GoldVip
 import com.example.ui.theme.NopeRed
 import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.SuperlikeBlue
@@ -385,6 +386,22 @@ fun ProfileDetailBottomSheet(
               tint = SuperlikeBlue,
               modifier = Modifier.size(22.dp)
             )
+          }
+          if (profile.isVip) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(GoldVip)
+                .padding(horizontal = 7.dp, vertical = 2.dp)
+            ) {
+              Text(
+                text = "👑 VIP",
+                color = Color.Black,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold
+              )
+            }
           }
         }
 

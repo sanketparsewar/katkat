@@ -31,7 +31,8 @@ data class DatingProfile(
   val isSuperLikedByMe: Boolean = false,
   val isMutualMatch: Boolean = false,
   val matchedTimestamp: Long? = null,
-  val isAccountDisabled: Boolean = false
+  val isAccountDisabled: Boolean = false,
+  val isVip: Boolean = false
 )
 
 data class UserProfile(

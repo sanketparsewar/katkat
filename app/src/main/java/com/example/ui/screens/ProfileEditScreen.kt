@@ -1021,34 +1021,35 @@ fun ProfileEditScreen(
 
     val bannerIconColor = when {
       isVipPlan -> GoldVip
+      isPlusPlan -> Color(0xFF7B1FA2)
       else -> CoralPrimary
     }
 
     val bannerTitle = when {
-      isVipPlan -> "Active Katkat VIP"
-      isPlusPlan -> "Active Katkat Plus"
-      else -> "Upgrade to Katkat VIP"
+      isVipPlan -> "KatKat VIP"
+      isPlusPlan -> "KatKat Plus"
+      else -> "KatKat Free"
     }
 
     val bannerSubtitle = when {
-      isVipPlan -> "${subscriptionState.remainingSwipes} swipes left (${subscriptionState.swipesUsedThisMonth}/500 used) • Priority Likes & Rewinds active"
-      isPlusPlan -> "${subscriptionState.remainingSwipes} swipes left (${subscriptionState.swipesUsedThisMonth}/200 used) • Tap to upgrade to VIP (₹399/mo)"
-      else -> "${subscriptionState.swipesUsedThisMonth}/50 free swipes used • Unlock 500 swipes & see who liked you with VIP (₹399/mo)"
+      isVipPlan -> "${subscriptionState.remainingSwipes} swipes left (${subscriptionState.swipesUsedThisMonth}/300) • VIP Badge & Unlimited Rewinds"
+      isPlusPlan -> "${subscriptionState.remainingSwipes} swipes left (${subscriptionState.swipesUsedThisMonth}/150) • Tap to upgrade to VIP"
+      else -> "${subscriptionState.swipesUsedThisMonth}/50 swipes used • Unlock See Who Liked You"
     }
 
     val bannerBadgeText = when {
-      isVipPlan -> "ACTIVE VIP"
-      isPlusPlan -> "ACTIVE PLUS"
-      else -> "GET VIP"
+      isVipPlan -> "👑 VIP"
+      isPlusPlan -> "💜 PLUS"
+      else -> "✨ UPGRADE"
     }
 
     Card(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 4.dp)
+        .padding(horizontal = 14.dp, vertical = 2.dp)
         .clickable { onOpenPaywall() }
         .testTag("profile_active_plan_card"),
-      shape = RoundedCornerShape(16.dp),
+      shape = RoundedCornerShape(12.dp),
       border = bannerBorder,
       colors = CardDefaults.cardColors(containerColor = bannerContainerColor),
       elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -1056,12 +1057,12 @@ fun ProfileEditScreen(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = 14.dp, vertical = 12.dp),
+          .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
         Box(
           modifier = Modifier
-            .size(38.dp)
+            .size(28.dp)
             .clip(CircleShape)
             .background(bannerIconColor),
           contentAlignment = Alignment.Center
@@ -1069,15 +1070,15 @@ fun ProfileEditScreen(
           Icon(
             imageVector = if (isPlusPlan) Icons.Filled.ElectricBolt else Icons.Filled.WorkspacePremium,
             contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(22.dp)
+            tint = if (isVipPlan) Color.Black else Color.White,
+            modifier = Modifier.size(16.dp)
           )
         }
 
         Column(
           modifier = Modifier
             .weight(1f)
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 9.dp)
         ) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1085,42 +1086,44 @@ fun ProfileEditScreen(
           ) {
             Text(
               text = bannerTitle,
-              fontSize = 14.sp,
+              fontSize = 12.5.sp,
               fontWeight = FontWeight.Bold,
-              color = if (isVipPlan) Color(0xFF996515) else CoralPrimary
+              color = if (isVipPlan) Color(0xFF7A5200) else if (isPlusPlan) Color(0xFF512DA8) else CoralPrimary
             )
             Box(
               modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(if (isVipPlan) GoldVip else CoralPrimary)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (isVipPlan) GoldVip else if (isPlusPlan) Color(0xFF7B1FA2) else CoralPrimary)
                 .padding(horizontal = 5.dp, vertical = 1.5.dp)
             ) {
               Text(
                 text = bannerBadgeText,
-                color = Color.White,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.ExtraBold
+                color = if (isVipPlan) Color.Black else Color.White,
+                fontSize = 8.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.2.sp
               )
             }
           }
           Text(
             text = bannerSubtitle,
-            fontSize = 11.5.sp,
-            color = Color(0xFF555555),
-            modifier = Modifier.padding(top = 2.dp)
+            fontSize = 10.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 1.dp),
+            maxLines = 1
           )
         }
 
         Icon(
           imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
           contentDescription = null,
-          tint = Color(0xFF555555),
-          modifier = Modifier.size(14.dp)
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.size(11.dp)
         )
       }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(4.dp))
 
     // ── 5. My Photos Section ───────────────────────────────────────────
     val validUserPhotos = userProfile.photos.filter { it.isNotBlank() }

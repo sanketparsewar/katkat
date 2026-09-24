@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,12 +21,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ElectricBolt
-import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,10 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -50,12 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.SubscriptionState
@@ -63,12 +55,6 @@ import com.example.data.model.SubscriptionTier
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
-import com.example.ui.theme.PeachBlush
-import com.example.ui.theme.PeachSecondary
-import com.example.ui.theme.SuperlikeBlue
-import com.example.ui.theme.TextPrimaryDark
-import com.example.ui.theme.TextSecondaryDark
-import com.example.ui.theme.WarmCream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,20 +66,24 @@ fun PaywallBottomSheet(
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  var selectedTier by remember { mutableStateOf(if (subscriptionState.currentTier == SubscriptionTier.FREE) SubscriptionTier.TIER_1 else subscriptionState.currentTier) }
+  var selectedTier by remember {
+    mutableStateOf(
+      if (subscriptionState.currentTier == SubscriptionTier.FREE) SubscriptionTier.TIER_1 else subscriptionState.currentTier
+    )
+  }
   var isAnnual by remember { mutableStateOf(subscriptionState.isAnnualBilling) }
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
     containerColor = MaterialTheme.colorScheme.background,
-    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
   ) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 20.dp, vertical = 8.dp)
+        .padding(horizontal = 16.dp, vertical = 2.dp)
         .testTag("paywall_bottom_sheet"),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -106,111 +96,136 @@ fun PaywallBottomSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Box(
             modifier = Modifier
-              .size(32.dp)
+              .size(28.dp)
               .clip(CircleShape)
-              .background(CoralPrimary),
+              .background(
+                Brush.linearGradient(listOf(CoralPrimary, Color(0xFF9C27B0)))
+              ),
             contentAlignment = Alignment.Center
           ) {
             Icon(
-              imageVector = Icons.Default.ElectricBolt,
+              imageVector = Icons.Default.WorkspacePremium,
               contentDescription = null,
               tint = Color.White,
-              modifier = Modifier.size(18.dp)
+              modifier = Modifier.size(16.dp)
             )
           }
           Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Katkat Premium",
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontWeight = FontWeight.ExtraBold,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-          )
-        }
-
-        IconButton(
-          onClick = onDismiss,
-          modifier = Modifier.size(32.dp)
-        ) {
-          Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
-        }
-      }
-
-      Spacer(modifier = Modifier.height(12.dp))
-
-      Text(
-        text = "Unlock More Swipes & Find Love Faster",
-        style = MaterialTheme.typography.titleMedium.copy(
-          fontWeight = FontWeight.Bold,
-          color = CoralPrimary
-        ),
-        textAlign = TextAlign.Center
-      )
-
-      Text(
-        text = "Native App Store subscriptions powered by Emergent RevenueCat",
-        style = MaterialTheme.typography.labelSmall.copy(
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        ),
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 2.dp)
-      )
-
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // Billing Cycle Switch (Monthly vs Yearly)
-      Surface(
-        modifier = Modifier
-          .fillMaxWidth()
-          .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-      ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
           Column {
             Text(
-              text = "Annual Billing",
-              style = MaterialTheme.typography.titleSmall.copy(
-                fontWeight = FontWeight.Bold,
+              text = "KatKat Plans & Pricing",
+              style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
               )
             )
             Text(
-              text = "Save 40% with yearly subscription",
+              text = "Choose your path to more matches",
               style = MaterialTheme.typography.labelSmall.copy(
-                color = CoralPrimary,
-                fontWeight = FontWeight.SemiBold
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp
               )
             )
           }
-          Switch(
-            checked = isAnnual,
-            onCheckedChange = { isAnnual = it },
-            colors = SwitchDefaults.colors(
-              checkedThumbColor = Color.White,
-              checkedTrackColor = CoralPrimary,
-              uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-              uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+        }
+
+        IconButton(
+          onClick = onDismiss,
+          modifier = Modifier.size(28.dp)
+        ) {
+          Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Close",
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(18.dp)
           )
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(10.dp))
 
-      // 3 Tiers Cards Comparison
+      // Billing Cycle Selector Tabs (Monthly vs Yearly)
+      Surface(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(16.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(3.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          // Monthly Option
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .clip(RoundedCornerShape(13.dp))
+              .background(if (!isAnnual) CoralPrimary else Color.Transparent)
+              .clickable { isAnnual = false }
+              .padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = "Monthly",
+              style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = if (!isAnnual) FontWeight.Bold else FontWeight.Medium,
+                color = if (!isAnnual) Color.White else MaterialTheme.colorScheme.onSurface,
+                fontSize = 12.5.sp
+              )
+            )
+          }
+
+          // Yearly Option (with Savings Badge)
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .clip(RoundedCornerShape(13.dp))
+              .background(if (isAnnual) CoralPrimary else Color.Transparent)
+              .clickable { isAnnual = true }
+              .padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(
+                text = "Yearly Plan",
+                style = MaterialTheme.typography.labelLarge.copy(
+                  fontWeight = if (isAnnual) FontWeight.Bold else FontWeight.Medium,
+                  color = if (isAnnual) Color.White else MaterialTheme.colorScheme.onSurface,
+                  fontSize = 12.5.sp
+                )
+              )
+              Spacer(modifier = Modifier.width(5.dp))
+              Box(
+                modifier = Modifier
+                  .clip(RoundedCornerShape(6.dp))
+                  .background(if (isAnnual) GoldVip else Color(0xFFE91E63))
+                  .padding(horizontal = 5.dp, vertical = 1.5.dp)
+              ) {
+                Text(
+                  text = "SAVE 50%",
+                  color = if (isAnnual) Color.Black else Color.White,
+                  fontSize = 8.5.sp,
+                  fontWeight = FontWeight.ExtraBold
+                )
+              }
+            }
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(10.dp))
+
+      // 3 Tiers Cards Comparison (Compact size and reduced padding)
       Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(7.dp)
       ) {
         // Free Tier Card
-        TierCard(
+        CompactTierCard(
           tier = SubscriptionTier.FREE,
           isSelected = selectedTier == SubscriptionTier.FREE,
           isCurrent = subscriptionState.currentTier == SubscriptionTier.FREE,
@@ -218,8 +233,8 @@ fun PaywallBottomSheet(
           onSelect = { selectedTier = SubscriptionTier.FREE }
         )
 
-        // Paid Tier 1 (Katkat Plus)
-        TierCard(
+        // Paid Tier 1 (KatKat Plus)
+        CompactTierCard(
           tier = SubscriptionTier.TIER_1,
           isSelected = selectedTier == SubscriptionTier.TIER_1,
           isCurrent = subscriptionState.currentTier == SubscriptionTier.TIER_1,
@@ -227,8 +242,8 @@ fun PaywallBottomSheet(
           onSelect = { selectedTier = SubscriptionTier.TIER_1 }
         )
 
-        // Paid Tier 2 (Katkat VIP)
-        TierCard(
+        // Paid Tier 2 (KatKat VIP)
+        CompactTierCard(
           tier = SubscriptionTier.TIER_2,
           isSelected = selectedTier == SubscriptionTier.TIER_2,
           isCurrent = subscriptionState.currentTier == SubscriptionTier.TIER_2,
@@ -237,52 +252,126 @@ fun PaywallBottomSheet(
         )
       }
 
-      Spacer(modifier = Modifier.height(18.dp))
+      Spacer(modifier = Modifier.height(10.dp))
 
-      // Selected Tier Perks Breakdown
+      // Selected Tier Breakdown Box (Compact design)
       Surface(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+          .clip(RoundedCornerShape(14.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
       ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-          Text(
-            text = "Included with ${selectedTier.title}:",
-            style = MaterialTheme.typography.titleSmall.copy(
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-          )
+        Column(modifier = Modifier.padding(11.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column {
+              Text(
+                text = "${selectedTier.title} — ${selectedTier.subtitle}",
+                style = MaterialTheme.typography.titleSmall.copy(
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  fontSize = 13.sp
+                )
+              )
+              Text(
+                text = "\"${selectedTier.tagline}\"",
+                style = MaterialTheme.typography.bodySmall.copy(
+                  color = CoralPrimary,
+                  fontWeight = FontWeight.SemiBold,
+                  fontSize = 11.sp
+                )
+              )
+            }
+
+            if (selectedTier != SubscriptionTier.FREE && isAnnual) {
+              Box(
+                modifier = Modifier
+                  .clip(RoundedCornerShape(8.dp))
+                  .background(Color(0xFFE8F5E9))
+                  .padding(horizontal = 6.dp, vertical = 2.5.dp)
+              ) {
+                Text(
+                  text = selectedTier.effectiveMonthlyPrice,
+                  color = Color(0xFF2E7D32),
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 10.sp
+                )
+              }
+            }
+          }
+
+          if (isAnnual && selectedTier.yearlySavings.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFFFFF8E1))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Default.Savings,
+                contentDescription = null,
+                tint = Color(0xFFF57F17),
+                modifier = Modifier.size(13.dp)
+              )
+              Spacer(modifier = Modifier.width(5.dp))
+              Text(
+                text = selectedTier.yearlySavings,
+                style = MaterialTheme.typography.labelSmall.copy(
+                  color = Color(0xFFF57F17),
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 10.5.sp
+                )
+              )
+            }
+          }
+
           Spacer(modifier = Modifier.height(8.dp))
+
+          // Display perks in a compact format
           selectedTier.perks.forEach { perk ->
             Row(
               modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 1.5.dp),
               verticalAlignment = Alignment.CenterVertically
             ) {
               Box(
                 modifier = Modifier
-                  .size(20.dp)
+                  .size(15.dp)
                   .clip(CircleShape)
-                  .background(LikeGreen.copy(alpha = 0.15f)),
+                  .background(
+                    if (perk.contains("Locked", ignoreCase = true) || perk.contains("Ads", ignoreCase = true)) {
+                      MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                    } else {
+                      LikeGreen.copy(alpha = 0.15f)
+                    }
+                  ),
                 contentAlignment = Alignment.Center
               ) {
                 Icon(
                   imageVector = Icons.Default.Check,
                   contentDescription = null,
-                  tint = LikeGreen,
-                  modifier = Modifier.size(13.dp)
+                  tint = if (perk.contains("Locked", ignoreCase = true) || perk.contains("Ads", ignoreCase = true)) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                  } else {
+                    LikeGreen
+                  },
+                  modifier = Modifier.size(10.dp)
                 )
               }
-              Spacer(modifier = Modifier.width(10.dp))
+              Spacer(modifier = Modifier.width(7.dp))
               Text(
                 text = perk,
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodySmall.copy(
                   color = MaterialTheme.colorScheme.onSurface,
-                  fontSize = 13.sp
+                  fontSize = 11.5.sp
                 )
               )
             }
@@ -290,20 +379,31 @@ fun PaywallBottomSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(12.dp))
 
-      // Main Upgrade CTA Button
+      // Main Action CTA Button (Streamlined height)
+      val ctaText = when {
+        selectedTier == subscriptionState.currentTier && isAnnual == subscriptionState.isAnnualBilling -> "Current Plan Active"
+        selectedTier == SubscriptionTier.FREE -> "Switch to Free Tier (₹0)"
+        isAnnual -> "Get ${selectedTier.title} • ${selectedTier.priceYearly}"
+        else -> "Get ${selectedTier.title} • ${selectedTier.priceMonthly}"
+      }
+
       Button(
         onClick = {
           onSelectTier(selectedTier, isAnnual)
         },
         modifier = Modifier
           .fillMaxWidth()
-          .height(52.dp)
+          .height(46.dp)
           .testTag("btn_confirm_subscription"),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(23.dp),
         colors = ButtonDefaults.buttonColors(
-          containerColor = if (selectedTier == SubscriptionTier.TIER_2) GoldVip else CoralPrimary
+          containerColor = when (selectedTier) {
+            SubscriptionTier.TIER_2 -> GoldVip
+            SubscriptionTier.TIER_1 -> Color(0xFF7B1FA2)
+            SubscriptionTier.FREE -> CoralPrimary
+          }
         )
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,26 +411,25 @@ fun PaywallBottomSheet(
             imageVector = if (selectedTier == SubscriptionTier.FREE) Icons.Default.Check else Icons.Default.LockOpen,
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(16.dp)
           )
-          Spacer(modifier = Modifier.width(8.dp))
+          Spacer(modifier = Modifier.width(6.dp))
           Text(
-            text = if (selectedTier == subscriptionState.currentTier) "Current Plan Active"
-            else if (selectedTier == SubscriptionTier.FREE) "Switch to Free Tier"
-            else "Continue with ${selectedTier.title}",
-            style = MaterialTheme.typography.titleMedium.copy(
+            text = ctaText,
+            style = MaterialTheme.typography.titleSmall.copy(
               fontWeight = FontWeight.Bold,
-              color = Color.White
+              color = Color.White,
+              fontSize = 13.5.sp
             )
           )
         }
       }
 
-      Spacer(modifier = Modifier.height(10.dp))
-
       // Footer action links: Restore Purchases & Test Reset
       Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(top = 2.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
       ) {
@@ -340,7 +439,10 @@ fun PaywallBottomSheet(
         ) {
           Text(
             text = "Restore Purchases",
-            style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+            style = MaterialTheme.typography.labelSmall.copy(
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontSize = 11.sp
+            )
           )
         }
 
@@ -353,24 +455,27 @@ fun PaywallBottomSheet(
               imageVector = Icons.Default.Refresh,
               contentDescription = null,
               tint = CoralPrimary,
-              modifier = Modifier.size(14.dp)
+              modifier = Modifier.size(12.dp)
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(3.dp))
             Text(
               text = "Reset Swipes (Dev)",
-              style = MaterialTheme.typography.labelMedium.copy(color = CoralPrimary)
+              style = MaterialTheme.typography.labelSmall.copy(
+                color = CoralPrimary,
+                fontSize = 11.sp
+              )
             )
           }
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(10.dp))
     }
   }
 }
 
 @Composable
-fun TierCard(
+fun CompactTierCard(
   tier: SubscriptionTier,
   isSelected: Boolean,
   isCurrent: Boolean,
@@ -379,85 +484,148 @@ fun TierCard(
 ) {
   val borderColor = when {
     isSelected && tier == SubscriptionTier.TIER_2 -> GoldVip
+    isSelected && tier == SubscriptionTier.TIER_1 -> Color(0xFF9C27B0)
     isSelected -> CoralPrimary
-    else -> MaterialTheme.colorScheme.outlineVariant
+    else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+  }
+
+  val containerBg = when {
+    isSelected && tier == SubscriptionTier.TIER_2 -> Color(0xFFFFF9E6)
+    isSelected && tier == SubscriptionTier.TIER_1 -> Color(0xFFF3E5F5)
+    isSelected -> Color(0xFFFFF0F3)
+    else -> MaterialTheme.colorScheme.surface
+  }
+
+  val tierEmoji = when (tier) {
+    SubscriptionTier.FREE -> "🆓"
+    SubscriptionTier.TIER_1 -> "💜"
+    SubscriptionTier.TIER_2 -> "👑"
   }
 
   Surface(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(18.dp))
+      .clip(RoundedCornerShape(13.dp))
       .clickable(onClick = onSelect)
       .testTag("tier_card_${tier.name}"),
-    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
-    shape = RoundedCornerShape(18.dp),
-    border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor)
+    color = containerBg,
+    shape = RoundedCornerShape(13.dp),
+    border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, borderColor)
   ) {
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(14.dp),
+        .padding(horizontal = 11.dp, vertical = 9.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {
       Column(modifier = Modifier.weight(1f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+          Text(text = tierEmoji, fontSize = 13.sp)
+          Spacer(modifier = Modifier.width(5.dp))
           Text(
-            text = tier.title,
-            style = MaterialTheme.typography.titleMedium.copy(
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurface
+            text = "${tier.title} — ${tier.subtitle}",
+            style = MaterialTheme.typography.bodyMedium.copy(
+              fontWeight = FontWeight.ExtraBold,
+              color = MaterialTheme.colorScheme.onSurface,
+              fontSize = 13.sp
             )
           )
-          Spacer(modifier = Modifier.width(8.dp))
+          Spacer(modifier = Modifier.width(6.dp))
+
+          // Swipes badge
           Box(
             modifier = Modifier
-              .clip(RoundedCornerShape(6.dp))
+              .clip(RoundedCornerShape(5.dp))
               .background(
                 when (tier) {
-                  SubscriptionTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                  SubscriptionTier.TIER_1 -> CoralPrimary
+                  SubscriptionTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                  SubscriptionTier.TIER_1 -> Color(0xFF7B1FA2)
                   SubscriptionTier.TIER_2 -> GoldVip
                 }
               )
-              .padding(horizontal = 6.dp, vertical = 2.dp)
+              .padding(horizontal = 5.dp, vertical = 1.dp)
           ) {
             Text(
-              text = "${tier.monthlySwipes} SWIPES/MO",
+              text = "${tier.dailySwipes}/DAY",
               color = Color.White,
-              fontSize = 9.sp,
+              fontSize = 8.5.sp,
               fontWeight = FontWeight.ExtraBold
             )
           }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-          text = if (tier == SubscriptionTier.FREE) "Standard discovery"
-          else if (isAnnual) tier.priceYearly
-          else tier.priceMonthly,
-          style = MaterialTheme.typography.bodyMedium.copy(
-            color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          // Price display
+          if (tier == SubscriptionTier.FREE) {
+            Text(
+              text = "₹0 • Free forever",
+              style = MaterialTheme.typography.bodySmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp
+              )
+            )
+          } else if (isAnnual) {
+            Text(
+              text = tier.priceYearly,
+              style = MaterialTheme.typography.bodySmall.copy(
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 11.5.sp
+              )
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+              text = "(${tier.effectiveMonthlyPrice})",
+              style = MaterialTheme.typography.labelSmall.copy(
+                color = Color(0xFF2E7D32),
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+              )
+            )
+          } else {
+            Text(
+              text = tier.priceMonthly,
+              style = MaterialTheme.typography.bodySmall.copy(
+                color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 11.5.sp
+              )
+            )
+          }
+
+          Spacer(modifier = Modifier.width(6.dp))
+          Text(
+            text = "• ${tier.tagline}",
+            style = MaterialTheme.typography.bodySmall.copy(
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontSize = 10.5.sp
+            ),
+            maxLines = 1
           )
-        )
+        }
       }
 
-      // Radio indicator
+      Spacer(modifier = Modifier.width(8.dp))
+
+      // Selection indicator
       Box(
         modifier = Modifier
-          .size(24.dp)
+          .size(18.dp)
           .clip(CircleShape)
           .background(
-            if (isSelected) CoralPrimary else Color.Transparent
+            if (isSelected) borderColor else Color.Transparent
           )
-          .border(2.dp, if (isSelected) CoralPrimary else MaterialTheme.colorScheme.outlineVariant, CircleShape),
+          .border(1.5.dp, if (isSelected) borderColor else MaterialTheme.colorScheme.outlineVariant, CircleShape),
         contentAlignment = Alignment.Center
       ) {
         if (isSelected) {
           Box(
             modifier = Modifier
-              .size(10.dp)
+              .size(7.dp)
               .clip(CircleShape)
               .background(Color.White)
           )

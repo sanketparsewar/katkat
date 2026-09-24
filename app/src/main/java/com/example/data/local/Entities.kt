@@ -37,7 +37,8 @@ data class ProfileEntity(
   val isSuperLikedByMe: Boolean,
   val isMutualMatch: Boolean,
   val matchedTimestamp: Long?,
-  val isAccountDisabled: Boolean = false
+  val isAccountDisabled: Boolean = false,
+  val isVip: Boolean = false
 )
 
 @Entity(tableName = "user_profile")
@@ -189,7 +190,8 @@ fun ProfileEntity.toDomain(): com.example.data.model.DatingProfile =
     isSuperLikedByMe = isSuperLikedByMe,
     isMutualMatch = isMutualMatch,
     matchedTimestamp = matchedTimestamp,
-    isAccountDisabled = isAccountDisabled
+    isAccountDisabled = isAccountDisabled,
+    isVip = isVip
   )
 
 fun com.example.data.model.DatingProfile.toEntity(): ProfileEntity =
@@ -224,7 +226,8 @@ fun com.example.data.model.DatingProfile.toEntity(): ProfileEntity =
     isSuperLikedByMe = isSuperLikedByMe,
     isMutualMatch = isMutualMatch,
     matchedTimestamp = matchedTimestamp,
-    isAccountDisabled = isAccountDisabled
+    isAccountDisabled = isAccountDisabled,
+    isVip = isVip
   )
 
 @Entity(tableName = "swipe_records")

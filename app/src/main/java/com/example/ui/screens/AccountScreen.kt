@@ -317,8 +317,8 @@ private fun AccountMainPage(
       Card(
         modifier = Modifier
           .fillMaxWidth()
-          .shadow(4.dp, RoundedCornerShape(20.dp)),
-        shape = RoundedCornerShape(20.dp),
+          .shadow(2.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
@@ -330,9 +330,9 @@ private fun AccountMainPage(
                 colors = if (!isFree) listOf(CoralDark, CoralPrimary) else listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface)
               )
             )
-            .padding(18.dp)
+            .padding(13.dp)
         ) {
-          Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.SpaceBetween,
@@ -343,12 +343,12 @@ private fun AccountMainPage(
                   imageVector = if (!isFree) Icons.Filled.Star else Icons.Filled.ElectricBolt,
                   contentDescription = null,
                   tint = if (!isFree) GoldVip else CoralPrimary,
-                  modifier = Modifier.size(24.dp)
+                  modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                   text = "Current Subscription",
-                  style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                  style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.5.sp),
                   color = if (!isFree) Color.White else MaterialTheme.colorScheme.onSurface
                 )
               }
@@ -356,42 +356,49 @@ private fun AccountMainPage(
               // Active Badge
               Box(
                 modifier = Modifier
-                  .clip(RoundedCornerShape(12.dp))
+                  .clip(RoundedCornerShape(8.dp))
                   .background(if (!isFree) GoldVip else CoralPrimary)
-                  .padding(horizontal = 10.dp, vertical = 4.dp)
+                .padding(horizontal = 7.dp, vertical = 2.dp)
               ) {
                 Text(
                   text = tier.title.uppercase(),
-                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
                   color = Color.White
                 )
               }
             }
 
             Text(
-              text = if (isFree) "Free Plan • 50 swipes/month" else "${tier.title} (${tier.priceMonthly}) • ${tier.monthlySwipes} Swipes",
-              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              text = if (isFree) "KatKat Free — Explore • 50 swipes/day • ₹0"
+              else if (subscriptionState.isAnnualBilling) "${tier.title} — ${tier.subtitle} • ${tier.priceYearly} (${tier.effectiveMonthlyPrice})"
+              else "${tier.title} — ${tier.subtitle} • ${tier.priceMonthly}",
+              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, fontSize = 13.5.sp),
               color = if (!isFree) Color.White else MaterialTheme.colorScheme.onSurface
             )
 
             Text(
-              text = "Swipes used: ${subscriptionState.swipesUsedThisMonth} / ${tier.monthlySwipes} (${subscriptionState.remainingSwipes} remaining)",
-              style = MaterialTheme.typography.bodySmall,
+              text = "Daily Swipes: ${subscriptionState.swipesUsedThisMonth} / ${tier.dailySwipes} (${subscriptionState.remainingSwipes} remaining) • ${tier.superLikesPerDay} Super Likes",
+              style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
               color = if (!isFree) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Spacer(modifier = Modifier.height(2.dp))
+
             Button(
               onClick = onOpenPaywall,
-              modifier = Modifier.fillMaxWidth(),
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp),
               colors = ButtonDefaults.buttonColors(
                 containerColor = if (!isFree) Color.White else CoralPrimary,
                 contentColor = if (!isFree) CoralDark else Color.White
               ),
-              shape = RoundedCornerShape(12.dp)
+              shape = RoundedCornerShape(10.dp)
             ) {
               Text(
-                text = if (isFree) "✨ Upgrade to Katkat VIP" else "Manage Subscription Plan",
-                fontWeight = FontWeight.Bold
+                text = if (isFree) "✨ Upgrade to KatKat VIP / Plus" else "Manage / Change Subscription Plan",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.5.sp
               )
             }
           }

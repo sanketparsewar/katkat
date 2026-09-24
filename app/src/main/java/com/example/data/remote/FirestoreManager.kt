@@ -1255,6 +1255,7 @@ class FirestoreManager {
 
             val isDisabled = data["isAccountDisabled"] as? Boolean ?: (data["isPaused"] as? Boolean ?: (data["isProfileHidden"] as? Boolean ?: false))
             val isDeleted = data["isDeleted"] as? Boolean ?: false
+            val isVip = (data["isVip"] as? Boolean) ?: ((data["activePlan"] as? String) == "TIER_2" || (data["activePlanTier"] as? String) == "TIER_2")
 
             val photos = (data["photos"] as? List<*>)?.filterIsInstance<String>()?.filter { it.startsWith("http://") || it.startsWith("https://") } ?: emptyList()
 
@@ -1285,7 +1286,8 @@ class FirestoreManager {
               anthemArtist = "",
               isVerified = data["isPhoneVerified"] as? Boolean ?: true,
               likedMe = false,
-              isAccountDisabled = isDisabled || isDeleted
+              isAccountDisabled = isDisabled || isDeleted,
+              isVip = isVip
             )
           }
           trySend(profiles)
@@ -1312,13 +1314,20 @@ class FirestoreManager {
         "userId" to userId,
         "activePlanTier" to tier.name,
         "planTitle" to tier.title,
+        "planSubtitle" to tier.subtitle,
+        "planTagline" to tier.tagline,
         "planBadge" to tier.badge,
         "swipesUsedThisMonth" to subscription.swipesUsedThisMonth,
+        "dailySwipesLimit" to tier.dailySwipes,
         "monthlySwipesLimit" to tier.monthlySwipes,
+        "superLikesPerDay" to tier.superLikesPerDay,
+        "rewindsPerDay" to tier.rewindsPerDay,
         "remainingSwipes" to subscription.remainingSwipes,
         "hasReachedLimit" to subscription.hasReachedLimit,
         "priceMonthly" to tier.priceMonthly,
         "priceYearly" to tier.priceYearly,
+        "yearlySavings" to tier.yearlySavings,
+        "effectiveMonthlyPrice" to tier.effectiveMonthlyPrice,
         "savingsPercent" to tier.savingsPercent,
         "isAnnualBilling" to subscription.isAnnualBilling,
         "subscriptionExpiryDate" to subscription.subscriptionExpiryDate,
@@ -1334,7 +1343,9 @@ class FirestoreManager {
           mapOf(
             "activePlan" to tier.name,
             "activePlanTitle" to tier.title,
+            "activePlanSubtitle" to tier.subtitle,
             "swipesUsedThisMonth" to subscription.swipesUsedThisMonth,
+            "dailySwipesLimit" to tier.dailySwipes,
             "monthlySwipesLimit" to tier.monthlySwipes,
             "remainingSwipes" to subscription.remainingSwipes,
             "subscriptionExpiryDate" to subscription.subscriptionExpiryDate,

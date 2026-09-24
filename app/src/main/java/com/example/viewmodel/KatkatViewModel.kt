@@ -255,7 +255,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         }
         is SwipeResult.LimitReached -> {
           _showPaywall.value = true
-          _uiEvents.emit(UiEvent.ShowToast("Monthly swipe limit reached (${result.tier.monthlySwipes} swipes). Upgrade to continue!"))
+          _uiEvents.emit(UiEvent.ShowToast("Daily swipe limit reached (${result.tier.dailySwipes} swipes/day). Upgrade to continue!"))
         }
         is SwipeResult.Success -> {
           val feedbackType = when (action) {
@@ -335,7 +335,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.upgradeSubscription(tier, isAnnual)
       _showPaywall.value = false
-      _uiEvents.emit(UiEvent.ShowToast("✨ Upgraded to ${tier.title}! Swipe limit expanded to ${tier.monthlySwipes}/month."))
+      val planBilling = if (isAnnual) "Yearly" else "Monthly"
+      _uiEvents.emit(UiEvent.ShowToast("✨ Upgraded to ${tier.title} ($planBilling)! Swipe limit: ${tier.dailySwipes}/day."))
       _uiEvents.emit(UiEvent.VibrateFeedback("upgrade"))
     }
   }

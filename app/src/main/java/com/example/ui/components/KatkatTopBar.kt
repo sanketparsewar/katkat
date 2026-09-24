@@ -109,19 +109,24 @@ fun KatkatTopBar(
               )
               if (subscriptionState.currentTier != SubscriptionTier.FREE) {
                 Spacer(modifier = Modifier.width(6.dp))
+                val (badgeText, badgeBg, badgeTextColor) = when (subscriptionState.currentTier) {
+                  SubscriptionTier.TIER_2 -> Triple("👑 VIP", GoldVip, Color.Black)
+                  SubscriptionTier.TIER_1 -> Triple("💜 Plus", Color(0xFF7B1FA2), Color.White)
+                  SubscriptionTier.FREE -> Triple("", Color.Transparent, Color.Transparent)
+                }
                 Box(
                   modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(
-                      if (subscriptionState.currentTier == SubscriptionTier.TIER_2) GoldVip else CoralPrimary
-                    )
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(badgeBg)
+                    .clickable { onOpenPaywall() }
+                    .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                    .testTag("topbar_active_plan_badge")
                 ) {
                   Text(
-                    text = subscriptionState.currentTier.badge.uppercase(),
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
+                    text = badgeText,
+                    color = badgeTextColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold
                   )
                 }
               }

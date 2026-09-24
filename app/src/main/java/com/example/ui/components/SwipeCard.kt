@@ -69,6 +69,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.model.DatingProfile
 import com.example.ui.theme.CoralPrimary
+import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 import com.example.ui.theme.NopeRed
 import com.example.ui.theme.PeachBlush
@@ -418,6 +419,43 @@ fun SwipeCard(
                   )
               )
             }
+          }
+        }
+      }
+
+      // Top-Right VIP Badge for VIP Subscribed Profiles
+      if (profile.isVip) {
+        Box(
+          modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(top = if (photos.size > 1) 22.dp else 12.dp, end = 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+              Brush.horizontalGradient(
+                listOf(GoldVip, Color(0xFFFFB300), Color(0xFFFF8F00))
+              )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(12.dp))
+            .shadow(4.dp, RoundedCornerShape(12.dp))
+            .padding(horizontal = 8.dp, vertical = 3.5.dp)
+            .testTag("vip_badge_top_right_${profile.id}"),
+          contentAlignment = Alignment.Center
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+          ) {
+            Text(
+              text = "👑",
+              fontSize = 11.sp
+            )
+            Text(
+              text = "VIP",
+              color = Color.Black,
+              fontWeight = FontWeight.ExtraBold,
+              fontSize = 10.5.sp,
+              letterSpacing = 0.5.sp
+            )
           }
         }
       }
