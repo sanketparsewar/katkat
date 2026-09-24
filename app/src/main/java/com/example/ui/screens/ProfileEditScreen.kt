@@ -1082,7 +1082,7 @@ fun ProfileEditScreen(
         ) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
           ) {
             Text(
               text = bannerTitle,
@@ -1092,14 +1092,14 @@ fun ProfileEditScreen(
             )
             Box(
               modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(5.dp))
                 .background(if (isVipPlan) GoldVip else if (isPlusPlan) Color(0xFF7B1FA2) else CoralPrimary)
-                .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                .padding(horizontal = 4.5.dp, vertical = 1.dp)
             ) {
               Text(
                 text = bannerBadgeText,
                 color = if (isVipPlan) Color.Black else Color.White,
-                fontSize = 8.5.sp,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.2.sp
               )

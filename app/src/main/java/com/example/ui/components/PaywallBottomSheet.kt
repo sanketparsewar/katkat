@@ -382,8 +382,9 @@ fun PaywallBottomSheet(
       Spacer(modifier = Modifier.height(12.dp))
 
       // Main Action CTA Button (Streamlined height)
+      val isCurrentPlanSelected = selectedTier == subscriptionState.currentTier && (selectedTier == SubscriptionTier.FREE || isAnnual == subscriptionState.isAnnualBilling)
       val ctaText = when {
-        selectedTier == subscriptionState.currentTier && isAnnual == subscriptionState.isAnnualBilling -> "Current Plan Active"
+        isCurrentPlanSelected -> "Current Plan Active"
         selectedTier == SubscriptionTier.FREE -> "Switch to Free Tier (₹0)"
         isAnnual -> "Get ${selectedTier.title} • ${selectedTier.priceYearly}"
         else -> "Get ${selectedTier.title} • ${selectedTier.priceMonthly}"
@@ -391,8 +392,11 @@ fun PaywallBottomSheet(
 
       Button(
         onClick = {
-          onSelectTier(selectedTier, isAnnual)
+          if (!isCurrentPlanSelected) {
+            onSelectTier(selectedTier, isAnnual)
+          }
         },
+        enabled = !isCurrentPlanSelected,
         modifier = Modifier
           .fillMaxWidth()
           .height(46.dp)
@@ -403,14 +407,17 @@ fun PaywallBottomSheet(
             SubscriptionTier.TIER_2 -> GoldVip
             SubscriptionTier.TIER_1 -> Color(0xFF7B1FA2)
             SubscriptionTier.FREE -> CoralPrimary
-          }
+          },
+          disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+          contentColor = Color.White,
+          disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         )
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Icon(
-            imageVector = if (selectedTier == SubscriptionTier.FREE) Icons.Default.Check else Icons.Default.LockOpen,
+            imageVector = if (isCurrentPlanSelected || selectedTier == SubscriptionTier.FREE) Icons.Default.Check else Icons.Default.LockOpen,
             contentDescription = null,
-            tint = Color.White,
+            tint = if (isCurrentPlanSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else Color.White,
             modifier = Modifier.size(16.dp)
           )
           Spacer(modifier = Modifier.width(6.dp))
@@ -418,7 +425,7 @@ fun PaywallBottomSheet(
             text = ctaText,
             style = MaterialTheme.typography.titleSmall.copy(
               fontWeight = FontWeight.Bold,
-              color = Color.White,
+              color = if (isCurrentPlanSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else Color.White,
               fontSize = 13.5.sp
             )
           )
@@ -522,7 +529,7 @@ fun CompactTierCard(
       Column(modifier = Modifier.weight(1f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Text(text = tierEmoji, fontSize = 13.sp)
-          Spacer(modifier = Modifier.width(5.dp))
+          Spacer(modifier = Modifier.width(4.dp))
           Text(
             text = "${tier.title} — ${tier.subtitle}",
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -531,12 +538,30 @@ fun CompactTierCard(
               fontSize = 13.sp
             )
           )
-          Spacer(modifier = Modifier.width(6.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+
+          // Active Plan Badge or Swipes badge
+          if (isCurrent) {
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color(0xFF2E7D32))
+                .padding(horizontal = 4.5.dp, vertical = 1.dp)
+            ) {
+              Text(
+                text = "ACTIVE",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.ExtraBold
+              )
+            }
+            Spacer(modifier = Modifier.width(3.dp))
+          }
 
           // Swipes badge
           Box(
             modifier = Modifier
-              .clip(RoundedCornerShape(5.dp))
+              .clip(RoundedCornerShape(4.dp))
               .background(
                 when (tier) {
                   SubscriptionTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
@@ -544,12 +569,12 @@ fun CompactTierCard(
                   SubscriptionTier.TIER_2 -> GoldVip
                 }
               )
-              .padding(horizontal = 5.dp, vertical = 1.dp)
+              .padding(horizontal = 4.5.dp, vertical = 1.dp)
           ) {
             Text(
               text = "${tier.dailySwipes}/DAY",
-              color = Color.White,
-              fontSize = 8.5.sp,
+              color = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White,
+              fontSize = 8.sp,
               fontWeight = FontWeight.ExtraBold
             )
           }
