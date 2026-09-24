@@ -320,7 +320,7 @@ class KatkatRepository(
         }
       }
 
-      // 8. Observe community profiles in real-time to immediately filter and reflect paused/hidden/unpaused status everywhere without refresh
+      // 8. Observe community profiles in real-time to immediately sync any profile edits (photos, bio, prompts, VIP, status, etc.) across all users without refresh
       launch {
         firestoreManager.observeCommunityProfiles(currentUserId).collect { remoteProfiles ->
           val blockedOrDeleted = if (firestoreManager.isAvailable) {
@@ -340,8 +340,18 @@ class KatkatRepository(
               }
             } else {
               if (existing != null) {
-                if (existing.isAccountDisabled) {
-                  dao.setProfileDisabledStatus(remote.id, false)
+                // Update all profile attributes in real time while preserving the user's existing swipe/match state
+                val updatedEntity = remote.toEntity().copy(
+                  likedMe = existing.likedMe,
+                  isLikedByMe = existing.isLikedByMe,
+                  isPassedByMe = existing.isPassedByMe,
+                  isSuperLikedByMe = existing.isSuperLikedByMe,
+                  isMutualMatch = existing.isMutualMatch,
+                  matchedTimestamp = existing.matchedTimestamp,
+                  isAccountDisabled = false
+                )
+                if (existing != updatedEntity) {
+                  dao.insertProfile(updatedEntity)
                 }
               } else {
                 dao.insertProfile(remote.toEntity())
@@ -2588,6 +2598,10 @@ class KatkatRepository(
       return dao.getProfileById(candidate.id)?.toDomain()
     }
     return null
+  }
+
+  fun getProfileFlow(profileId: String): Flow<DatingProfile?> {
+    return dao.getProfileByIdFlow(profileId).map { it?.toDomain() }
   }
 
   // Profile update with real-time Firestore sync and community discovery publishing

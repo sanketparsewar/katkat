@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -149,16 +150,46 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _showPaywall = MutableStateFlow(false)
   val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
 
-  // Profile detail bottom sheet
-  private val _inspectedProfile = MutableStateFlow<DatingProfile?>(null)
-  val inspectedProfile: StateFlow<DatingProfile?> = _inspectedProfile.asStateFlow()
+  // Profile detail bottom sheet (real-time synced with database updates)
+  private val _inspectedProfileId = MutableStateFlow<String?>(null)
+  private val _inspectedProfileFallback = MutableStateFlow<DatingProfile?>(null)
+  val inspectedProfile: StateFlow<DatingProfile?> = _inspectedProfileId
+    .flatMapLatest { id ->
+      if (id != null) {
+        repository.getProfileFlow(id).map { liveProfile ->
+          liveProfile ?: _inspectedProfileFallback.value
+        }
+      } else {
+        flowOf(null)
+      }
+    }
+    .stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5000),
+      initialValue = null
+    )
 
-  // Selected chat profile
-  private val _selectedChatMatch = MutableStateFlow<DatingProfile?>(null)
-  val selectedChatMatch: StateFlow<DatingProfile?> = _selectedChatMatch.asStateFlow()
+  // Selected chat profile (real-time synced with database updates)
+  private val _selectedChatMatchId = MutableStateFlow<String?>(null)
+  private val _selectedChatMatchFallback = MutableStateFlow<DatingProfile?>(null)
+  val selectedChatMatch: StateFlow<DatingProfile?> = _selectedChatMatchId
+    .flatMapLatest { id ->
+      if (id != null) {
+        repository.getProfileFlow(id).map { liveMatch ->
+          liveMatch ?: _selectedChatMatchFallback.value
+        }
+      } else {
+        flowOf(null)
+      }
+    }
+    .stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5000),
+      initialValue = null
+    )
 
   // Active chat messages
-  val activeChatMessages: StateFlow<List<ChatMessage>> = _selectedChatMatch
+  val activeChatMessages: StateFlow<List<ChatMessage>> = selectedChatMatch
     .flatMapLatest { profile ->
       if (profile != null) {
         repository.getMessages(profile.id)
@@ -199,8 +230,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     // Listen for real-time blocks to dismiss chat if blocked
     viewModelScope.launch {
       repository.realtimeBlockedEvent.collect { blockedId ->
-        if (_selectedChatMatch.value?.id == blockedId) {
-          _selectedChatMatch.value = null
+        if (_selectedChatMatchId.value == blockedId) {
+          closeChat()
           _uiEvents.emit(UiEvent.ShowToast("This conversation is no longer available."))
         }
       }
@@ -355,7 +386,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun inspectProfile(profile: DatingProfile?) {
-    _inspectedProfile.value = profile
+    _inspectedProfileFallback.value = profile
+    _inspectedProfileId.value = profile?.id
   }
 
   fun dismissMatchCelebration() {
@@ -363,7 +395,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun openChat(profile: DatingProfile) {
-    _selectedChatMatch.value = profile
+    _selectedChatMatchFallback.value = profile
+    _selectedChatMatchId.value = profile.id
     _activeMatchCelebration.value = null
     viewModelScope.launch {
       repository.markMessagesRead(profile.id)
@@ -371,11 +404,12 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun closeChat() {
-    _selectedChatMatch.value = null
+    _selectedChatMatchFallback.value = null
+    _selectedChatMatchId.value = null
   }
 
   fun sendMessage(text: String, photoUri: String? = null, targetMatchId: String? = null) {
-    val currentMatchId = targetMatchId ?: _selectedChatMatch.value?.id ?: return
+    val currentMatchId = targetMatchId ?: _selectedChatMatchId.value ?: return
     if (text.isBlank() && photoUri == null) return
 
     viewModelScope.launch {
@@ -396,11 +430,11 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       repository.reportProfile(matchId, reason, details)
       if (blockAfterReport) {
         repository.blockProfile(matchId)
-        if (_selectedChatMatch.value?.id == matchId) {
-          _selectedChatMatch.value = null
+        if (_selectedChatMatchId.value == matchId) {
+          closeChat()
         }
-        if (_inspectedProfile.value?.id == matchId) {
-          _inspectedProfile.value = null
+        if (_inspectedProfileId.value == matchId) {
+          inspectProfile(null)
         }
         _uiEvents.emit(UiEvent.ShowToast("Report submitted & user blocked."))
       } else {
@@ -413,11 +447,11 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun unmatch(matchId: String) {
     viewModelScope.launch {
       repository.unmatch(matchId)
-      if (_selectedChatMatch.value?.id == matchId) {
-        _selectedChatMatch.value = null
+      if (_selectedChatMatchId.value == matchId) {
+        closeChat()
       }
-      if (_inspectedProfile.value?.id == matchId) {
-        _inspectedProfile.value = null
+      if (_inspectedProfileId.value == matchId) {
+        inspectProfile(null)
       }
       _uiEvents.emit(UiEvent.ShowToast("Unmatched profile"))
       _uiEvents.emit(UiEvent.VibrateFeedback("click"))
@@ -427,11 +461,11 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun blockUser(matchId: String) {
     viewModelScope.launch {
       repository.blockProfile(matchId)
-      if (_selectedChatMatch.value?.id == matchId) {
-        _selectedChatMatch.value = null
+      if (_selectedChatMatchId.value == matchId) {
+        closeChat()
       }
-      if (_inspectedProfile.value?.id == matchId) {
-        _inspectedProfile.value = null
+      if (_inspectedProfileId.value == matchId) {
+        inspectProfile(null)
       }
       _uiEvents.emit(UiEvent.ShowToast("Profile blocked"))
       _uiEvents.emit(UiEvent.VibrateFeedback("click"))

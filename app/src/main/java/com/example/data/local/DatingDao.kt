@@ -40,6 +40,9 @@ interface DatingDao {
   @Query("SELECT * FROM dating_profiles WHERE id = :id")
   suspend fun getProfileById(id: String): ProfileEntity?
 
+  @Query("SELECT * FROM dating_profiles WHERE id = :id")
+  fun getProfileByIdFlow(id: String): Flow<ProfileEntity?>
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertProfiles(profiles: List<ProfileEntity>)
 
