@@ -15,6 +15,7 @@ import com.example.data.model.UserProfile
 import com.example.data.repository.KatkatRepository
 import com.example.data.repository.SwipeAction
 import com.example.data.repository.SwipeResult
+import com.example.util.NetworkMonitor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,29 @@ sealed class UiEvent {
 class KatkatViewModel(application: Application) : AndroidViewModel(application) {
   private val database = KatkatDatabase.getDatabase(application)
   private val repository = KatkatRepository.getInstance(application)
+  private val networkMonitor = NetworkMonitor(application)
+
+  val isOnline: StateFlow<Boolean> = networkMonitor.isOnlineFlow.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = networkMonitor.isCurrentlyConnected()
+  )
+
+  // Explicit Screen Error & State Trackers
+  private val _deckErrorMessage = MutableStateFlow<String?>(null)
+  val deckErrorMessage: StateFlow<String?> = _deckErrorMessage.asStateFlow()
+
+  private val _likesErrorMessage = MutableStateFlow<String?>(null)
+  val likesErrorMessage: StateFlow<String?> = _likesErrorMessage.asStateFlow()
+
+  private val _matchesErrorMessage = MutableStateFlow<String?>(null)
+  val matchesErrorMessage: StateFlow<String?> = _matchesErrorMessage.asStateFlow()
+
+  private val _profileErrorMessage = MutableStateFlow<String?>(null)
+  val profileErrorMessage: StateFlow<String?> = _profileErrorMessage.asStateFlow()
+
+  private val _isDeckInitialLoading = MutableStateFlow(false)
+  val isDeckInitialLoading: StateFlow<Boolean> = _isDeckInitialLoading.asStateFlow()
 
   val activeProfiles: StateFlow<List<DatingProfile>> = repository.activeProfiles.stateIn(
     scope = viewModelScope,
@@ -700,20 +724,74 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   fun resetDeck() {
     viewModelScope.launch {
       _isRefreshingDeck.value = true
+      _deckErrorMessage.value = null
       _currentPage.value = 1
       _hasMoreProfiles.value = true
-      kotlinx.coroutines.delay(650)
-      val currentUserId = getEffectiveUserId()
-      repository.resetDeckForTesting(currentUserId)
-      repository.loadDiscoverPage(page = 1, pageSize = 20)
-      _isRefreshingDeck.value = false
-      _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed! ✨"))
-      _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))
+      try {
+        if (!networkMonitor.isCurrentlyConnected() && activeProfiles.value.isEmpty()) {
+          _deckErrorMessage.value = "Unable to load profiles. Please check your network connection."
+        } else {
+          kotlinx.coroutines.delay(400)
+          val currentUserId = getEffectiveUserId()
+          repository.resetDeckForTesting(currentUserId)
+          repository.loadDiscoverPage(page = 1, pageSize = 20)
+          _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed! ✨"))
+          _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))
+        }
+      } catch (e: Exception) {
+        _deckErrorMessage.value = "Unable to load profiles."
+      } finally {
+        _isRefreshingDeck.value = false
+      }
     }
   }
 
   fun refreshDeck() {
     resetDeck()
+  }
+
+  fun retryLoadProfiles() {
+    _deckErrorMessage.value = null
+    resetDeck()
+  }
+
+  fun retryLoadLikes() {
+    viewModelScope.launch {
+      _likesErrorMessage.value = null
+      val currentUserId = getEffectiveUserId()
+      try {
+        if (currentUserId.isNotBlank()) {
+          repository.syncCommunityRegisteredUsers(currentUserId)
+        }
+      } catch (e: Exception) {
+        _likesErrorMessage.value = "Unable to load likes. Please check connection."
+      }
+    }
+  }
+
+  fun retryLoadMatches() {
+    viewModelScope.launch {
+      _matchesErrorMessage.value = null
+      val currentUserId = getEffectiveUserId()
+      try {
+        if (currentUserId.isNotBlank()) {
+          repository.syncCommunityRegisteredUsers(currentUserId)
+        }
+      } catch (e: Exception) {
+        _matchesErrorMessage.value = "Unable to load matches. Please check connection."
+      }
+    }
+  }
+
+  fun retryLoadProfile() {
+    viewModelScope.launch {
+      _profileErrorMessage.value = null
+      try {
+        repository.saveUserProfile(userProfile.value)
+      } catch (e: Exception) {
+        _profileErrorMessage.value = "Unable to sync profile."
+      }
+    }
   }
 
   // --- Notification Actions ---

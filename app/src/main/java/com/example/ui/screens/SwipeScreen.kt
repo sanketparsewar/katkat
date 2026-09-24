@@ -57,6 +57,9 @@ import com.example.data.model.DatingProfile
 import com.example.data.model.SubscriptionState
 import com.example.ui.components.ActionButtonsBar
 import com.example.ui.components.CardSwipeDirection
+import com.example.ui.components.ErrorStateView
+import com.example.ui.components.LoadingStateView
+import com.example.ui.components.OfflineBanner
 import com.example.ui.components.SwipeCard
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.PeachBlush
@@ -84,6 +87,9 @@ fun SwipeScreen(
   onLoadMore: () -> Unit = {},
   isAccountPaused: Boolean = false,
   onUnpauseAccount: () -> Unit = {},
+  isOnline: Boolean = true,
+  errorMessage: String? = null,
+  onRetry: () -> Unit = onRefresh,
   modifier: Modifier = Modifier
 ) {
   val refreshState = rememberPullToRefreshState()
@@ -151,6 +157,12 @@ fun SwipeScreen(
       modifier = Modifier.fillMaxSize(),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
+      // Real-time Offline Warning Banner
+      OfflineBanner(
+        isOnline = isOnline,
+        onRetry = onRetry
+      )
+
       // Pause Alert Banner on Discovery Feed if user's own profile is paused
       if (isAccountPaused) {
         androidx.compose.material3.Surface(
@@ -199,8 +211,21 @@ fun SwipeScreen(
           }
         }
       }
-      if (profiles.isNotEmpty()) {
-        // Swipe Deck Box
+
+      // Main Content Switching: Error vs Loading vs Content vs Empty
+      if (!errorMessage.isNullOrBlank() && profiles.isEmpty()) {
+        // Network Failure / Error State
+        ErrorStateView(
+          title = "Network failure",
+          message = errorMessage,
+          retryButtonText = "Retry",
+          onRetry = onRetry,
+          modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+        )
+      } else if (profiles.isNotEmpty()) {
+        // Swipe Deck Box (Success State)
         Box(
           modifier = Modifier
             .fillMaxWidth()

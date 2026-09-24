@@ -93,6 +93,7 @@ import coil.compose.AsyncImage
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
+import com.example.ui.components.OfflineBanner
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.CoralDark
 import com.example.ui.theme.CoralPrimary
@@ -118,26 +119,35 @@ fun AccountScreen(
   onDisableAccount: (Boolean) -> Unit,
   onDeleteAccount: () -> Unit,
   onLogout: () -> Unit,
+  isOnline: Boolean = true,
+  errorMessage: String? = null,
+  onRetry: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   var currentPage by remember { mutableStateOf(AccountSubPage.MAIN) }
 
-  AnimatedContent(
-    targetState = currentPage,
-    transitionSpec = {
-      if (targetState != AccountSubPage.MAIN) {
-        slideInHorizontally { width -> width } + fadeIn() togetherWith
-            slideOutHorizontally { width -> -width } + fadeOut()
-      } else {
-        slideInHorizontally { width -> -width } + fadeIn() togetherWith
-            slideOutHorizontally { width -> width } + fadeOut()
-      }
-    },
-    label = "account_page_transition",
-    modifier = modifier.fillMaxSize()
-  ) { page ->
-    when (page) {
-      AccountSubPage.MAIN -> {
+  Column(modifier = modifier.fillMaxSize()) {
+    OfflineBanner(
+      isOnline = isOnline,
+      onRetry = onRetry
+    )
+
+    AnimatedContent(
+      targetState = currentPage,
+      transitionSpec = {
+        if (targetState != AccountSubPage.MAIN) {
+          slideInHorizontally { width -> width } + fadeIn() togetherWith
+              slideOutHorizontally { width -> -width } + fadeOut()
+        } else {
+          slideInHorizontally { width -> -width } + fadeIn() togetherWith
+              slideOutHorizontally { width -> width } + fadeOut()
+        }
+      },
+      label = "account_page_transition",
+      modifier = Modifier.fillMaxSize()
+    ) { page ->
+      when (page) {
+        AccountSubPage.MAIN -> {
         AccountMainPage(
           userProfile = userProfile,
           subscriptionState = subscriptionState,
@@ -167,6 +177,7 @@ fun AccountScreen(
       }
     }
   }
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

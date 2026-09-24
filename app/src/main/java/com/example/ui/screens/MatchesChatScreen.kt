@@ -65,6 +65,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.model.DatingProfile
 import com.example.data.model.MatchConversation
+import com.example.ui.components.ErrorStateView
+import com.example.ui.components.LoadingStateView
+import com.example.ui.components.OfflineBanner
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.PeachBlush
 import com.example.ui.theme.PeachSecondary
@@ -86,6 +89,10 @@ fun MatchesChatScreen(
   onSelectMatch: (DatingProfile) -> Unit,
   onNavigateToDiscover: () -> Unit,
   onCreateTestMatch: (() -> Unit)? = null,
+  isLoading: Boolean = false,
+  isOnline: Boolean = true,
+  errorMessage: String? = null,
+  onRetry: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   var searchQuery by remember { mutableStateOf("") }
@@ -136,6 +143,12 @@ fun MatchesChatScreen(
       .background(MaterialTheme.colorScheme.background)
       .testTag("matches_chat_screen")
   ) {
+    // Offline Banner
+    OfflineBanner(
+      isOnline = isOnline,
+      onRetry = onRetry
+    )
+
     // ── Header ────────────────────────────────────────────────────────
     Row(
       modifier = Modifier
@@ -358,6 +371,26 @@ fun MatchesChatScreen(
           }
         }
       }
+    } else if (!errorMessage.isNullOrBlank() && matches.isEmpty()) {
+      // Error State
+      ErrorStateView(
+        title = "Unable to load matches",
+        message = errorMessage,
+        retryButtonText = "Retry",
+        onRetry = onRetry,
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f)
+      )
+    } else if (isLoading && matches.isEmpty()) {
+      // Loading State
+      LoadingStateView(
+        message = "Loading matches & messages...",
+        subtitle = "Syncing your active connections",
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f)
+      )
     } else {
       // Empty Matches State
       EmptyMatchesView(

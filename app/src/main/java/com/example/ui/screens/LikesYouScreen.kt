@@ -61,6 +61,9 @@ import coil.request.ImageRequest
 import com.example.data.model.DatingProfile
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
+import com.example.ui.components.ErrorStateView
+import com.example.ui.components.LoadingStateView
+import com.example.ui.components.OfflineBanner
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.NopeRed
@@ -75,6 +78,10 @@ fun LikesYouScreen(
   onPassProfile: (DatingProfile) -> Unit,
   onInspectProfile: (DatingProfile) -> Unit,
   onNavigateToDiscover: () -> Unit,
+  isLoading: Boolean = false,
+  isOnline: Boolean = true,
+  errorMessage: String? = null,
+  onRetry: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val isLocked = subscriptionState.currentTier == SubscriptionTier.FREE
@@ -85,6 +92,12 @@ fun LikesYouScreen(
       .background(MaterialTheme.colorScheme.background)
       .testTag("likes_you_screen")
   ) {
+    // Offline Banner
+    OfflineBanner(
+      isOnline = isOnline,
+      onRetry = onRetry
+    )
+
     // Header
     Column(
       modifier = Modifier
@@ -128,7 +141,27 @@ fun LikesYouScreen(
       }
     }
 
-    if (isLocked && likedProfiles.isNotEmpty()) {
+    if (!errorMessage.isNullOrBlank() && likedProfiles.isEmpty()) {
+      // Error State
+      ErrorStateView(
+        title = "Unable to load likes",
+        message = errorMessage,
+        retryButtonText = "Retry",
+        onRetry = onRetry,
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f)
+      )
+    } else if (isLoading && likedProfiles.isEmpty()) {
+      // Loading State
+      LoadingStateView(
+        message = "Checking who liked you...",
+        subtitle = "Syncing latest interactions",
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f)
+      )
+    } else if (isLocked && likedProfiles.isNotEmpty()) {
       // Locked Banner
       Surface(
         modifier = Modifier

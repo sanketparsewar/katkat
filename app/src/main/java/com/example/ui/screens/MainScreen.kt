@@ -92,6 +92,13 @@ fun MainScreen(
   val notifications by viewModel.notifications.collectAsStateWithLifecycle()
   val unreadNotificationCount by viewModel.unreadNotificationCount.collectAsStateWithLifecycle()
 
+  // Real-time network and error states
+  val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
+  val deckErrorMessage by viewModel.deckErrorMessage.collectAsStateWithLifecycle()
+  val likesErrorMessage by viewModel.likesErrorMessage.collectAsStateWithLifecycle()
+  val matchesErrorMessage by viewModel.matchesErrorMessage.collectAsStateWithLifecycle()
+  val profileErrorMessage by viewModel.profileErrorMessage.collectAsStateWithLifecycle()
+
   // Calculate actual unread conversation count for bottom navigation badge
   val unreadConversationsCount = remember(conversations) {
     conversations.count { it.unreadCount > 0 }
@@ -232,7 +239,10 @@ fun MainScreen(
               isLoadingMore = isLoadingMoreProfiles,
               onLoadMore = { viewModel.loadNextPage() },
               isAccountPaused = userProfile.isAccountDisabled,
-              onUnpauseAccount = { viewModel.disableAccount(false) }
+              onUnpauseAccount = { viewModel.disableAccount(false) },
+              isOnline = isOnline,
+              errorMessage = deckErrorMessage,
+              onRetry = { viewModel.retryLoadProfiles() }
             )
           }
 
@@ -248,7 +258,10 @@ fun MainScreen(
                 viewModel.passFromLikes(profile.id)
               },
               onInspectProfile = { profile -> viewModel.inspectProfile(profile) },
-              onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER }
+              onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER },
+              isOnline = isOnline,
+              errorMessage = likesErrorMessage,
+              onRetry = { viewModel.retryLoadLikes() }
             )
           }
 
@@ -258,7 +271,10 @@ fun MainScreen(
               conversations = conversations,
               onSelectMatch = { profile -> viewModel.openChat(profile) },
               onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER },
-              onCreateTestMatch = { viewModel.createTestMatch() }
+              onCreateTestMatch = { viewModel.createTestMatch() },
+              isOnline = isOnline,
+              errorMessage = matchesErrorMessage,
+              onRetry = { viewModel.retryLoadMatches() }
             )
           }
 
@@ -318,7 +334,10 @@ fun MainScreen(
               onOpenPaywall = { viewModel.openPaywall() },
               onDisableAccount = { disabled -> viewModel.disableAccount(disabled) },
               onDeleteAccount = { viewModel.deleteAccount() },
-              onLogout = { viewModel.logout() }
+              onLogout = { viewModel.logout() },
+              isOnline = isOnline,
+              errorMessage = profileErrorMessage,
+              onRetry = { viewModel.retryLoadProfile() }
             )
           }
         }
