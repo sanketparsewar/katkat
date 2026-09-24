@@ -104,6 +104,8 @@ fun MainScreen(
     conversations.count { it.unreadCount > 0 }
   }
 
+  var showDiscoveryPreferences by remember { mutableStateOf(false) }
+
   // Intercept system back gestures to prevent app closing:
   // 1. If chat is open, back takes user back to chats list
   BackHandler(enabled = selectedChatMatch != null) {
@@ -120,13 +122,18 @@ fun MainScreen(
     viewModel.dismissPaywall()
   }
 
-  // 4. If match celebration dialog is open, dismiss it
+  // 4. If discovery preferences sheet is open, dismiss it
+  BackHandler(enabled = showDiscoveryPreferences) {
+    showDiscoveryPreferences = false
+  }
+
+  // 5. If match celebration dialog is open, dismiss it
   BackHandler(enabled = activeMatchCelebration != null) {
     viewModel.dismissMatchCelebration()
   }
 
-  // 5. If user is on a secondary tab (Likes, Profile, Account), back returns to Chats or Discover
-  BackHandler(enabled = selectedChatMatch == null && inspectedProfile == null && !showPaywall && activeMatchCelebration == null && currentTab != KatkatTab.DISCOVER) {
+  // 6. If user is on a secondary tab (Likes, Profile, Account), back returns to Chats or Discover
+  BackHandler(enabled = selectedChatMatch == null && inspectedProfile == null && !showPaywall && !showDiscoveryPreferences && activeMatchCelebration == null && currentTab != KatkatTab.DISCOVER) {
     if (currentTab == KatkatTab.PROFILE || currentTab == KatkatTab.ACCOUNT) {
       currentTab = KatkatTab.MATCHES
     } else {
@@ -201,7 +208,8 @@ fun MainScreen(
         if (currentTab != KatkatTab.PROFILE && currentTab != KatkatTab.ACCOUNT) {
           KatkatTopBar(
             subscriptionState = subscriptionState,
-            onOpenPaywall = { viewModel.openPaywall() }
+            onOpenPaywall = { viewModel.openPaywall() },
+            onOpenFilter = { showDiscoveryPreferences = true }
           )
         }
       },
@@ -413,6 +421,24 @@ fun MainScreen(
       },
       onDismiss = {
         viewModel.inspectProfile(null)
+      }
+    )
+  }
+
+  // 4. Discovery & Preferences Bottom Sheet
+  if (showDiscoveryPreferences) {
+    com.example.ui.components.DiscoveryPreferencesBottomSheet(
+      userProfile = userProfile,
+      subscriptionState = subscriptionState,
+      onSavePreferences = { updated ->
+        viewModel.updateProfile(updated)
+      },
+      onOpenPaywall = {
+        showDiscoveryPreferences = false
+        viewModel.openPaywall()
+      },
+      onDismiss = {
+        showDiscoveryPreferences = false
       }
     )
   }

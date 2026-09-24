@@ -2966,159 +2966,16 @@ fun ProfileEditScreen(
 
   // 9. Dating Preferences Sheet
   if (showPreferencesSheet) {
-    ModalBottomSheet(
-      onDismissRequest = { showPreferencesSheet = false },
-      sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ) {
-      val defaultInterestedIn = when {
-        userProfile.interestedInGender.isNotBlank() -> userProfile.interestedInGender
-        userProfile.gender.equals("Man", ignoreCase = true) -> "Women"
-        userProfile.gender.equals("Woman", ignoreCase = true) || userProfile.gender.equals("Women", ignoreCase = true) -> "Men"
-        else -> "Everyone"
-      }
-
-      var distanceKm by remember(userProfile.maxDistanceKm) {
-        mutableFloatStateOf(if (userProfile.maxDistanceKm > 0) userProfile.maxDistanceKm.toFloat() else 50f)
-      }
-      var minAge by remember(userProfile.minAgePreference) {
-        mutableFloatStateOf(if (userProfile.minAgePreference in 18..100) userProfile.minAgePreference.toFloat() else 18f)
-      }
-      var maxAge by remember(userProfile.maxAgePreference) {
-        mutableFloatStateOf(if (userProfile.maxAgePreference in 18..100) userProfile.maxAgePreference.toFloat() else 35f)
-      }
-      var interestedIn by remember(userProfile.interestedInGender, userProfile.gender) {
-        mutableStateOf(defaultInterestedIn)
-      }
-
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(20.dp)
-          .verticalScroll(rememberScrollState())
-      ) {
-        Text("Discovery Preferences", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Distance Slider
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            "Maximum Distance",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          Text(
-            "${distanceKm.toInt()} km",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = CoralPrimary
-          )
-        }
-        Slider(
-          value = distanceKm,
-          onValueChange = { distanceKm = it },
-          valueRange = 5f..150f,
-          colors = SliderDefaults.colors(
-            thumbColor = CoralPrimary,
-            activeTrackColor = CoralPrimary
-          )
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Age Range Slider
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            "Age Range",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          Text(
-            "${minAge.toInt()} – ${maxAge.toInt()} years",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = CoralPrimary
-          )
-        }
-        RangeSlider(
-          value = minAge..maxAge,
-          onValueChange = { range ->
-            minAge = range.start.coerceIn(18f, 65f)
-            maxAge = range.endInclusive.coerceIn(18f, 65f)
-          },
-          valueRange = 18f..65f,
-          steps = 46,
-          colors = SliderDefaults.colors(
-            thumbColor = CoralPrimary,
-            activeTrackColor = CoralPrimary
-          )
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text("Interested In", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          listOf("Women", "Men", "Everyone").forEach { genderOption ->
-            val selected = interestedIn == genderOption
-            Surface(
-              shape = RoundedCornerShape(16.dp),
-              color = if (selected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-              modifier = Modifier
-                .weight(1f)
-                .clickable { interestedIn = genderOption }
-            ) {
-              Text(
-                text = genderOption,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 10.dp)
-              )
-            }
-          }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-          onClick = {
-            val updated = userProfile.copy(
-              maxDistanceKm = distanceKm.toInt(),
-              minAgePreference = minAge.toInt(),
-              maxAgePreference = maxAge.toInt(),
-              interestedInGender = interestedIn
-            )
-            onSaveProfile(updated)
-            showPreferencesSheet = false
-            Toast.makeText(context, "Discovery preferences saved ✨", Toast.LENGTH_SHORT).show()
-          },
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-          shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
-        ) {
-          Text("Save Preferences", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-      }
-    }
+    com.example.ui.components.DiscoveryPreferencesBottomSheet(
+      userProfile = userProfile,
+      subscriptionState = subscriptionState,
+      onSavePreferences = { updated ->
+        onSaveProfile(updated)
+        Toast.makeText(context, "Discovery preferences saved ✨", Toast.LENGTH_SHORT).show()
+      },
+      onOpenPaywall = onOpenPaywall,
+      onDismiss = { showPreferencesSheet = false }
+    )
   }
 
   // 10. Settings Modal Sheet (WITHOUT "Update Complete Profile")

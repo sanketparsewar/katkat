@@ -1906,8 +1906,35 @@ class KatkatRepository(
     entity?.toDomain() ?: UserProfile(isOnboardingCompleted = false)
   }
 
+  // Subscription State combined with monthly swipe record counts
+  val subscriptionState: Flow<SubscriptionState> = combine(
+    dao.getSubscriptionFlow(),
+    dao.getMonthlySwipeCountFlow("2026-09")
+  ) { subEntity, recordedSwipes ->
+    val tier = try {
+      SubscriptionTier.valueOf(subEntity?.tierName ?: SubscriptionTier.FREE.name)
+    } catch (_: Exception) {
+      SubscriptionTier.FREE
+    }
+    val effectiveSwipesUsed = maxOf(subEntity?.swipesUsedThisMonth ?: 0, recordedSwipes)
+    SubscriptionState(
+      currentTier = tier,
+      swipesUsedThisMonth = effectiveSwipesUsed,
+      currentMonthKey = subEntity?.currentMonthKey ?: "2026-09",
+      isAnnualBilling = subEntity?.isAnnualBilling ?: false,
+      subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "Renews Oct 16, 2026",
+      isRevenueCatConnected = true
+    )
+  }
+
   // Active Discover Deck (strictly excluding current user's profile and filtered by Discovery Preferences)
-  val activeProfiles: Flow<List<DatingProfile>> = userProfile.flatMapLatest { currentUser ->
+  val activeProfiles: Flow<List<DatingProfile>> = combine(
+    userProfile,
+    subscriptionState
+  ) { currentUser, subState ->
+    Pair(currentUser, subState)
+  }.flatMapLatest { (currentUser, subState) ->
+    val isVip = subState.currentTier == SubscriptionTier.TIER_2
     val authUid = phoneAuthManager.currentUserId
     val excludeId = when {
       !authUid.isNullOrBlank() -> authUid
@@ -1952,7 +1979,7 @@ class KatkatRepository(
           if (currentUser.age > 0 && entity.age == currentUser.age) return@mapNotNull null
         }
 
-        // 4. Filter by Age Preference
+        // 4. Filter by Age Preference (18 to 75+)
         if (entity.age > 0 && (entity.age < minAge || entity.age > maxAge)) {
           return@mapNotNull null
         }
@@ -1971,6 +1998,30 @@ class KatkatRepository(
               !entity.gender.equals("Men", ignoreCase = true) &&
               !entity.gender.equals("Male", ignoreCase = true)) {
             return@mapNotNull null
+          }
+        }
+
+        // 6. VIP Extra Preference Filtering (Only active for VIP tier)
+        if (isVip) {
+          if (currentUser.datingIntention.isNotBlank() && !currentUser.datingIntention.equals("Any", ignoreCase = true)) {
+            if (entity.datingIntention.isNotBlank() && !entity.datingIntention.equals(currentUser.datingIntention, ignoreCase = true)) {
+              return@mapNotNull null
+            }
+          }
+          if (currentUser.drinking.isNotBlank() && !currentUser.drinking.equals("Any", ignoreCase = true)) {
+            if (entity.drinking.isNotBlank() && !entity.drinking.equals(currentUser.drinking, ignoreCase = true)) {
+              return@mapNotNull null
+            }
+          }
+          if (currentUser.smoking.isNotBlank() && !currentUser.smoking.equals("Any", ignoreCase = true)) {
+            if (entity.smoking.isNotBlank() && !entity.smoking.equals(currentUser.smoking, ignoreCase = true)) {
+              return@mapNotNull null
+            }
+          }
+          if (currentUser.zodiac.isNotBlank() && !currentUser.zodiac.equals("Any", ignoreCase = true)) {
+            if (entity.zodiac.isNotBlank() && !entity.zodiac.equals(currentUser.zodiac, ignoreCase = true)) {
+              return@mapNotNull null
+            }
           }
         }
 
@@ -2062,27 +2113,6 @@ class KatkatRepository(
         }
       }
     }
-  }
-
-  // Subscription State combined with monthly swipe record counts
-  val subscriptionState: Flow<SubscriptionState> = combine(
-    dao.getSubscriptionFlow(),
-    dao.getMonthlySwipeCountFlow("2026-09")
-  ) { subEntity, recordedSwipes ->
-    val tier = try {
-      SubscriptionTier.valueOf(subEntity?.tierName ?: SubscriptionTier.FREE.name)
-    } catch (_: Exception) {
-      SubscriptionTier.FREE
-    }
-    val effectiveSwipesUsed = maxOf(subEntity?.swipesUsedThisMonth ?: 0, recordedSwipes)
-    SubscriptionState(
-      currentTier = tier,
-      swipesUsedThisMonth = effectiveSwipesUsed,
-      currentMonthKey = subEntity?.currentMonthKey ?: "2026-09",
-      isAnnualBilling = subEntity?.isAnnualBilling ?: false,
-      subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "Renews Oct 16, 2026",
-      isRevenueCatConnected = true
-    )
   }
 
   suspend fun processSwipe(
@@ -2681,9 +2711,10 @@ class KatkatRepository(
 
     val currentUserId = getEffectiveCurrentUserId()
     phoneAuthManager.signOut()
-    // Delete active user_profile, local cached chats, swipe history, notifications, and profiles deck
-    // so no previous user's chat or match data remains on the device.
+    // Delete active user_profile, subscription, local cached chats, swipe history, notifications, and profiles deck
+    // so no previous user's chat, match, or subscription data remains on the device.
     dao.deleteUserProfile()
+    dao.deleteSubscription()
     dao.deleteAllMessages()
     dao.deleteAllNotifications(currentUserId)
     dao.deleteAllSwipeRecords()

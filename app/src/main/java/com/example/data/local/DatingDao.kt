@@ -164,6 +164,9 @@ interface DatingDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun saveSubscription(subscription: SubscriptionEntity)
 
+  @Query("DELETE FROM subscription_info")
+  suspend fun deleteSubscription()
+
   @Query("SELECT COUNT(*) FROM dating_profiles")
   suspend fun getProfilesCount(): Int
 

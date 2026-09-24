@@ -176,12 +176,12 @@ fun KatkatTopBar(
             }
           }
 
-          // Paywall / Tier Upgrade button
+          // Discovery & Preferences button (opens Discovery Preferences & Filters)
           IconButton(
-            onClick = onOpenPaywall,
+            onClick = onOpenFilter,
             modifier = Modifier
               .size(38.dp)
-              .testTag("btn_upgrade_topbar")
+              .testTag("btn_preferences_topbar")
               .clip(CircleShape)
               .background(
                 Brush.horizontalGradient(
@@ -190,8 +190,8 @@ fun KatkatTopBar(
               )
           ) {
             Icon(
-              imageVector = Icons.Default.Stars,
-              contentDescription = "Subscription Plans",
+              imageVector = Icons.Default.Tune,
+              contentDescription = "Discovery Preferences",
               tint = Color.White,
               modifier = Modifier.size(20.dp)
             )
