@@ -1936,10 +1936,25 @@ fun ProfileEditScreen(
         // Bio Field
         OutlinedTextField(
           value = editBio,
-          onValueChange = { editBio = it },
+          onValueChange = {
+            if (it.length <= 500) {
+              editBio = it
+            } else {
+              editBio = it.take(500)
+            }
+          },
           label = { Text("About Me / Bio") },
           minLines = 3,
           maxLines = 5,
+          supportingText = {
+            Text(
+              text = "${editBio.length}/500",
+              modifier = Modifier.fillMaxWidth(),
+              textAlign = TextAlign.End,
+              style = MaterialTheme.typography.bodySmall,
+              color = if (editBio.length >= 500) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          },
           modifier = Modifier.fillMaxWidth(),
           colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )
@@ -2628,11 +2643,26 @@ fun ProfileEditScreen(
 
         OutlinedTextField(
           value = editAnswer,
-          onValueChange = { editAnswer = it },
+          onValueChange = {
+            if (it.length <= 200) {
+              editAnswer = it
+            } else {
+              editAnswer = it.take(200)
+            }
+          },
           label = { Text("Your Answer") },
           placeholder = { Text("Write something genuine, witty, or intriguing...") },
           minLines = 3,
           maxLines = 5,
+          supportingText = {
+            Text(
+              text = "${editAnswer.length}/200",
+              modifier = Modifier.fillMaxWidth(),
+              textAlign = TextAlign.End,
+              style = MaterialTheme.typography.bodySmall,
+              color = if (editAnswer.length >= 200) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          },
           modifier = Modifier.fillMaxWidth(),
           colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CoralPrimary)
         )

@@ -2811,10 +2811,25 @@ private fun LifestylePromptsStep(
 
       OutlinedTextField(
         value = promptAnswer,
-        onValueChange = onPromptAnswerChange,
+        onValueChange = {
+          if (it.length <= 200) {
+            onPromptAnswerChange(it)
+          } else {
+            onPromptAnswerChange(it.take(200))
+          }
+        },
         modifier = Modifier.fillMaxWidth(),
         placeholder = { Text("Write your witty or genuine answer here...") },
         minLines = 3,
+        supportingText = {
+          Text(
+            text = "${promptAnswer.length}/200",
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (promptAnswer.length >= 200) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        },
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
           focusedBorderColor = CoralPrimary,
@@ -2822,7 +2837,7 @@ private fun LifestylePromptsStep(
         )
       )
 
-      Spacer(modifier = Modifier.height(18.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       // About Me Bio
       Text(
@@ -2835,10 +2850,25 @@ private fun LifestylePromptsStep(
 
       OutlinedTextField(
         value = bio,
-        onValueChange = onBioChange,
+        onValueChange = {
+          if (it.length <= 500) {
+            onBioChange(it)
+          } else {
+            onBioChange(it.take(500))
+          }
+        },
         modifier = Modifier.fillMaxWidth(),
         placeholder = { Text("About Me Bio...") },
         minLines = 3,
+        supportingText = {
+          Text(
+            text = "${bio.length}/500",
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (bio.length >= 500) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        },
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
           focusedBorderColor = CoralPrimary,
@@ -2846,7 +2876,7 @@ private fun LifestylePromptsStep(
         )
       )
 
-      Spacer(modifier = Modifier.height(18.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       // Height (Scrolling Selector)
       Text(
