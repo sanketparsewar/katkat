@@ -95,6 +95,10 @@ class FirestoreManager {
         "minAgePreference" to profile.minAgePreference,
         "maxAgePreference" to profile.maxAgePreference,
         "interestedInGender" to profile.interestedInGender,
+        "preferDatingIntention" to profile.preferDatingIntention,
+        "preferDrinking" to profile.preferDrinking,
+        "preferSmoking" to profile.preferSmoking,
+        "preferZodiac" to profile.preferZodiac,
         "updatedAt" to System.currentTimeMillis()
       )
       db.collection("users")
@@ -114,28 +118,104 @@ class FirestoreManager {
 
   /**
    * Permanently deletes a user's account and all associated data from Cloud Firestore.
-   * Cleans up profile, discovery profile, likes, passes, matches, chats, and records in deleted_accounts.
+   * Cleans up profile from users, discovery_profiles, likes, passes,
+   * matches, chats, conversations, notifications, and moves that profile with its full data
+   * to the deleted_accounts collection.
    */
-  suspend fun deleteUserProfile(userId: String): Boolean {
+  suspend fun deleteUserProfile(userId: String, profile: UserProfile? = null): Boolean {
     val db = firestore ?: return false
     if (userId.isBlank()) return false
     return try {
-      // 1. Delete user document from "users"
+      // Fetch user profile from "users" if not passed in
+      val existingDoc = try {
+        db.collection("users").document(userId).get().await()
+      } catch (_: Exception) { null }
+      val fetchedProfile = if (existingDoc?.exists() == true) {
+        existingDoc.data?.let { parseUserProfileData(userId, it, "+91") }
+      } else null
+      val targetProfile = profile ?: fetchedProfile
+
+      val cleanDigits = targetProfile?.phoneNumber?.filter { it.isDigit() }.orEmpty()
+      val rawPhone = targetProfile?.phoneNumber.orEmpty()
+      val countryCode = targetProfile?.countryCode ?: "+91"
+      val cleanCountryCode = countryCode.filter { it.isDigit() }
+      val fullWithPlus = if (rawPhone.startsWith("+")) rawPhone else "+$cleanCountryCode$cleanDigits"
+
+      // 1. Move that profile to "deleted_accounts" collection with all its profile data
+      try {
+        val deletedRecord = mutableMapOf<String, Any?>(
+          "id" to userId,
+          "userId" to userId,
+          "phoneNumber" to rawPhone,
+          "cleanPhone" to cleanDigits,
+          "fullPhoneNumber" to fullWithPlus,
+          "countryCode" to countryCode,
+          "deletedTimestamp" to System.currentTimeMillis()
+        )
+        if (targetProfile != null) {
+          deletedRecord["name"] = targetProfile.name
+          deletedRecord["age"] = targetProfile.age
+          deletedRecord["gender"] = targetProfile.gender
+          deletedRecord["pronouns"] = targetProfile.pronouns
+          deletedRecord["bio"] = targetProfile.bio
+          deletedRecord["occupation"] = targetProfile.occupation
+          deletedRecord["education"] = targetProfile.education
+          deletedRecord["hometown"] = targetProfile.hometown
+          deletedRecord["height"] = targetProfile.height
+          deletedRecord["zodiac"] = targetProfile.zodiac
+          deletedRecord["datingIntention"] = targetProfile.datingIntention
+          deletedRecord["drinking"] = targetProfile.drinking
+          deletedRecord["smoking"] = targetProfile.smoking
+          deletedRecord["pets"] = targetProfile.pets
+          deletedRecord["passions"] = targetProfile.passions
+          deletedRecord["photos"] = targetProfile.photos
+          deletedRecord["promptQuestion"] = targetProfile.promptQuestion
+          deletedRecord["promptAnswer"] = targetProfile.promptAnswer
+          deletedRecord["email"] = targetProfile.email
+          deletedRecord["dob"] = targetProfile.dob
+          deletedRecord["currentLocationCity"] = targetProfile.currentLocationCity
+          deletedRecord["currentLocationCountry"] = targetProfile.currentLocationCountry
+          deletedRecord["latitude"] = targetProfile.latitude
+          deletedRecord["longitude"] = targetProfile.longitude
+          deletedRecord["isPhoneVerified"] = targetProfile.isPhoneVerified
+          deletedRecord["isOnboardingCompleted"] = targetProfile.isOnboardingCompleted
+        }
+
+        db.collection("deleted_accounts").document(userId).set(deletedRecord, SetOptions.merge()).await()
+        if (cleanDigits.isNotBlank() && cleanDigits != userId) {
+          db.collection("deleted_accounts").document("deleted_$cleanDigits").set(deletedRecord, SetOptions.merge()).await()
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Notice archiving profile to deleted_accounts: ${e.message}")
+      }
+
+      // 2. Delete user document from "users"
       try {
         db.collection("users").document(userId).delete().await()
+        if (cleanDigits.isNotBlank()) {
+          db.collection("users").document("user_$cleanDigits").delete().await()
+        }
       } catch (_: Exception) {}
 
-      // 2. Delete discovery profile from "discovery_profiles"
+      // 3. Delete discovery profile from canonical "discovery_profiles" (and purge from legacy "discovery_profile" if present)
       try {
         db.collection("discovery_profiles").document(userId).delete().await()
+        try { db.collection("discovery_profile").document(userId).delete().await() } catch (_: Exception) {}
+        if (cleanDigits.isNotBlank()) {
+          db.collection("discovery_profiles").document("user_$cleanDigits").delete().await()
+          try { db.collection("discovery_profile").document("user_$cleanDigits").delete().await() } catch (_: Exception) {}
+        }
       } catch (_: Exception) {}
 
-      // 3. Delete from "dating_pool" if any
+      // 4. Delete from "dating_pool" if any
       try {
         db.collection("dating_pool").document(userId).delete().await()
+        if (cleanDigits.isNotBlank()) {
+          db.collection("dating_pool").document("user_$cleanDigits").delete().await()
+        }
       } catch (_: Exception) {}
 
-      // 4. Delete likes sent by user or sent to user
+      // 5. Delete likes sent by user or sent to user
       try {
         val likesFrom = db.collection("likes").whereEqualTo("fromUserId", userId).get().await()
         likesFrom.documents.forEach { it.reference.delete() }
@@ -143,7 +223,7 @@ class FirestoreManager {
         likesTo.documents.forEach { it.reference.delete() }
       } catch (_: Exception) {}
 
-      // 5. Delete passes sent by user or sent to user
+      // 6. Delete passes sent by user or sent to user
       try {
         val passesFrom = db.collection("passes").whereEqualTo("fromUserId", userId).get().await()
         passesFrom.documents.forEach { it.reference.delete() }
@@ -151,7 +231,7 @@ class FirestoreManager {
         passesTo.documents.forEach { it.reference.delete() }
       } catch (_: Exception) {}
 
-      // 6. Delete mutual matches involving user
+      // 7. Delete mutual matches involving user
       try {
         val matches1 = db.collection("matches").whereEqualTo("user1Id", userId).get().await()
         matches1.documents.forEach { it.reference.delete() }
@@ -159,7 +239,7 @@ class FirestoreManager {
         matches2.documents.forEach { it.reference.delete() }
       } catch (_: Exception) {}
 
-      // 7. Delete blocks involving user
+      // 8. Delete blocks involving user
       try {
         val blocks1 = db.collection("blocks").whereEqualTo("fromUserId", userId).get().await()
         blocks1.documents.forEach { it.reference.delete() }
@@ -167,16 +247,49 @@ class FirestoreManager {
         blocks2.documents.forEach { it.reference.delete() }
       } catch (_: Exception) {}
 
-      // 8. Record in "deleted_accounts" so other users / future queries immediately ignore this account
+      // 9. Delete reports involving user
       try {
-        val deleteRecord = mapOf(
-          "userId" to userId,
-          "deletedTimestamp" to System.currentTimeMillis()
-        )
-        db.collection("deleted_accounts").document(userId).set(deleteRecord, SetOptions.merge()).await()
+        val rep1 = db.collection("reports").whereEqualTo("reporterUserId", userId).get().await()
+        rep1.documents.forEach { it.reference.delete() }
+        val rep2 = db.collection("reports").whereEqualTo("reportedUserId", userId).get().await()
+        rep2.documents.forEach { it.reference.delete() }
       } catch (_: Exception) {}
 
-      Log.d(tag, "Successfully wiped all cloud data for deleted user: $userId")
+      // 10. Delete chat_messages and messages involving user
+      try {
+        for (coll in listOf("chat_messages", "messages")) {
+          val msgsSender = db.collection(coll).whereEqualTo("senderId", userId).get().await()
+          msgsSender.documents.forEach { it.reference.delete() }
+          val msgsRecip = db.collection(coll).whereEqualTo("recipientId", userId).get().await()
+          msgsRecip.documents.forEach { it.reference.delete() }
+          val msgsMatch = db.collection(coll).whereEqualTo("matchId", userId).get().await()
+          msgsMatch.documents.forEach { it.reference.delete() }
+        }
+      } catch (_: Exception) {}
+
+      // 11. Delete conversations involving user
+      try {
+        val conv1 = db.collection("conversations").whereEqualTo("matchId", userId).get().await()
+        conv1.documents.forEach { it.reference.delete() }
+        val conv2 = db.collection("conversations").whereEqualTo("currentUserId", userId).get().await()
+        conv2.documents.forEach { it.reference.delete() }
+        val conv3 = db.collection("conversations").whereEqualTo("user1Id", userId).get().await()
+        conv3.documents.forEach { it.reference.delete() }
+        val conv4 = db.collection("conversations").whereEqualTo("user2Id", userId).get().await()
+        conv4.documents.forEach { it.reference.delete() }
+      } catch (_: Exception) {}
+
+      // 12. Delete notifications / app_notifications involving user
+      try {
+        for (coll in listOf("notifications", "app_notifications")) {
+          val notifsUser = db.collection(coll).whereEqualTo("userId", userId).get().await()
+          notifsUser.documents.forEach { it.reference.delete() }
+          val notifsSender = db.collection(coll).whereEqualTo("senderId", userId).get().await()
+          notifsSender.documents.forEach { it.reference.delete() }
+        }
+      } catch (_: Exception) {}
+
+      Log.d(tag, "Successfully wiped active cloud data and moved profile to deleted_accounts: $userId")
       true
     } catch (e: Exception) {
       Log.w(tag, "Notice deleting user profile: ${e.message}")
@@ -184,10 +297,192 @@ class FirestoreManager {
     }
   }
 
+  /**
+   * Checks if a previously deleted profile exists in deleted_accounts for the given phone number.
+   */
+  suspend fun fetchDeletedAccountByPhone(phoneNumber: String, countryCode: String = "+91"): UserProfile? {
+    val db = firestore ?: return null
+    val cleanDigits = phoneNumber.filter { it.isDigit() }
+    val cleanCountryCode = countryCode.filter { it.isDigit() }
+    val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "+$cleanCountryCode$cleanDigits"
+    val fullWithSpace = "$countryCode $phoneNumber"
+
+    // 1. Direct document lookups in "deleted_accounts"
+    val docIdsToTry = listOf(
+      "user_$cleanDigits",
+      "deleted_$cleanDigits",
+      "user_$cleanCountryCode$cleanDigits",
+      "deleted_$cleanCountryCode$cleanDigits",
+      "user_${phoneNumber.trim()}",
+      "user_$fullWithPlus"
+    ).distinct()
+
+    for (docId in docIdsToTry) {
+      try {
+        val doc = db.collection("deleted_accounts").document(docId).get().await()
+        if (doc.exists()) {
+          val data = doc.data
+          if (data != null) {
+            val user = parseUserProfileData(doc.id, data, countryCode)
+            if (user.name.isNotBlank()) {
+              Log.d(tag, "Found deleted account by docId '$docId': ${user.name}")
+              return user.copy(isOnboardingCompleted = true)
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Notice checking deleted account by docId '$docId': ${e.message}")
+      }
+    }
+
+    // 2. Query candidates by phoneNumber, cleanPhone, fullPhoneNumber in deleted_accounts
+    val candidates = listOf(
+      phoneNumber.trim(),
+      cleanDigits,
+      fullWithPlus,
+      fullWithSpace,
+      "$cleanCountryCode$cleanDigits",
+      "+$cleanCountryCode$cleanDigits"
+    ).distinct()
+
+    for (candidate in candidates) {
+      try {
+        val querySnapshot = db.collection("deleted_accounts")
+          .whereEqualTo("phoneNumber", candidate)
+          .limit(1)
+          .get()
+          .await()
+        val doc = querySnapshot.documents.firstOrNull()
+        if (doc != null) {
+          val data = doc.data ?: continue
+          val user = parseUserProfileData(doc.id, data, countryCode)
+          if (user.name.isNotBlank()) {
+            Log.d(tag, "Found deleted account by phoneNumber field '$candidate': ${user.name}")
+            return user.copy(isOnboardingCompleted = true)
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Notice checking deleted account by candidate '$candidate': ${e.message}")
+      }
+    }
+
+    // 3. Query by cleanPhone field in deleted_accounts
+    if (cleanDigits.isNotBlank()) {
+      try {
+        val querySnapshot = db.collection("deleted_accounts")
+          .whereEqualTo("cleanPhone", cleanDigits)
+          .limit(1)
+          .get()
+          .await()
+        val doc = querySnapshot.documents.firstOrNull()
+        if (doc != null) {
+          val data = doc.data
+          if (data != null) {
+            val user = parseUserProfileData(doc.id, data, countryCode)
+            if (user.name.isNotBlank()) {
+              Log.d(tag, "Found deleted account by cleanPhone '$cleanDigits': ${user.name}")
+              return user.copy(isOnboardingCompleted = true)
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "Notice checking deleted account by cleanPhone: ${e.message}")
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Restores a previously deleted user profile into active collections and removes from deleted_accounts.
+   */
+  suspend fun restoreDeletedAccount(profile: UserProfile): Boolean {
+    val db = firestore ?: return false
+    return try {
+      val completedProfile = profile.copy(isOnboardingCompleted = true, isAccountDisabled = false)
+      // 1. Save user back to users collection
+      syncUserProfile(completedProfile)
+
+      // 2. Publish back to canonical discovery_profiles
+      publishUserToDiscovery(completedProfile)
+
+      // 3. Remove entry from deleted_accounts
+      permanentlyDeleteFromDeletedAccounts(
+        userId = completedProfile.id,
+        phoneNumber = completedProfile.phoneNumber,
+        countryCode = completedProfile.countryCode
+      )
+
+      Log.d(tag, "Successfully restored user account: ${completedProfile.id} (${completedProfile.name})")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice restoring deleted account: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Permanently removes a previously deleted account from deleted_accounts collection.
+   * Invoked when user chooses "Create New" upon re-entering with the same mobile number.
+   */
+  suspend fun permanentlyDeleteFromDeletedAccounts(userId: String, phoneNumber: String, countryCode: String = "+91"): Boolean {
+    val db = firestore ?: return false
+    val cleanDigits = phoneNumber.filter { it.isDigit() }
+    val cleanCountryCode = countryCode.filter { it.isDigit() }
+    val fullWithPlus = if (phoneNumber.startsWith("+")) phoneNumber else "+$cleanCountryCode$cleanDigits"
+
+    return try {
+      val docIdsToDelete = listOf(
+        userId,
+        "user_$cleanDigits",
+        "deleted_$cleanDigits",
+        "user_$cleanCountryCode$cleanDigits",
+        "deleted_$cleanCountryCode$cleanDigits"
+      ).filter { it.isNotBlank() }.distinct()
+
+      for (id in docIdsToDelete) {
+        try {
+          db.collection("deleted_accounts").document(id).delete().await()
+        } catch (_: Exception) {}
+      }
+
+      val candidates = listOf(
+        phoneNumber.trim(),
+        cleanDigits,
+        fullWithPlus,
+        "$cleanCountryCode$cleanDigits",
+        "+$cleanCountryCode$cleanDigits"
+      ).distinct()
+
+      for (cand in candidates) {
+        try {
+          val docs = db.collection("deleted_accounts").whereEqualTo("phoneNumber", cand).get().await()
+          docs.documents.forEach { it.reference.delete() }
+        } catch (_: Exception) {}
+      }
+
+      if (cleanDigits.isNotBlank()) {
+        try {
+          val docs = db.collection("deleted_accounts").whereEqualTo("cleanPhone", cleanDigits).get().await()
+          docs.documents.forEach { it.reference.delete() }
+        } catch (_: Exception) {}
+      }
+
+      Log.d(tag, "Permanently removed previous profile from deleted_accounts for phone: $phoneNumber")
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice permanently deleting from deleted_accounts: ${e.message}")
+      false
+    }
+  }
+
   private fun parseUserProfileData(docId: String, data: Map<String, Any?>, fallbackCountryCode: String): UserProfile {
     @Suppress("UNCHECKED_CAST")
+    val restoredId = (data["id"] as? String)?.takeIf { it.isNotBlank() && !it.startsWith("deleted_") }
+      ?: ((data["userId"] as? String)?.takeIf { it.isNotBlank() && !it.startsWith("deleted_") }
+      ?: docId.removePrefix("deleted_"))
     return UserProfile(
-      id = docId,
+      id = restoredId,
       name = data["name"] as? String ?: "",
       age = (data["age"] as? Number)?.toInt() ?: 0,
       gender = data["gender"] as? String ?: "",
@@ -220,7 +515,11 @@ class FirestoreManager {
       maxDistanceKm = (data["maxDistanceKm"] as? Number)?.toInt() ?: 50,
       minAgePreference = (data["minAgePreference"] as? Number)?.toInt() ?: 18,
       maxAgePreference = (data["maxAgePreference"] as? Number)?.toInt() ?: 35,
-      interestedInGender = data["interestedInGender"] as? String ?: ""
+      interestedInGender = data["interestedInGender"] as? String ?: "",
+      preferDatingIntention = data["preferDatingIntention"] as? String ?: "",
+      preferDrinking = data["preferDrinking"] as? String ?: "",
+      preferSmoking = data["preferSmoking"] as? String ?: "",
+      preferZodiac = data["preferZodiac"] as? String ?: ""
     )
   }
 
@@ -332,39 +631,7 @@ class FirestoreManager {
         try {
           val data = snapshot.data
           if (data != null) {
-            @Suppress("UNCHECKED_CAST")
-            val profile = UserProfile(
-              id = snapshot.id,
-              name = data["name"] as? String ?: "Alex Rivera",
-              age = (data["age"] as? Number)?.toInt() ?: 24,
-              gender = data["gender"] as? String ?: "Non-binary",
-              pronouns = data["pronouns"] as? String ?: "They/Them",
-              bio = data["bio"] as? String ?: "",
-              occupation = data["occupation"] as? String ?: "",
-              education = data["education"] as? String ?: "",
-              hometown = data["hometown"] as? String ?: "",
-              height = data["height"] as? String ?: "5'9\"",
-              zodiac = data["zodiac"] as? String ?: "Sagittarius ♐",
-              datingIntention = data["datingIntention"] as? String ?: "Long-term relationship 💖",
-              drinking = data["drinking"] as? String ?: "Socially 🍷",
-              smoking = data["smoking"] as? String ?: "Never 🚭",
-              pets = data["pets"] as? String ?: "Have 2 rescue cats 🐾",
-              passions = (data["passions"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-              photos = (data["photos"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-              promptQuestion = data["promptQuestion"] as? String ?: "My simple pleasures in life...",
-              promptAnswer = data["promptAnswer"] as? String ?: "Freshly baked croissants, golden hour light, and warm purring cats on a Sunday morning.",
-              isOnboardingCompleted = data["isOnboardingCompleted"] as? Boolean ?: false,
-              phoneNumber = data["phoneNumber"] as? String ?: "",
-              countryCode = data["countryCode"] as? String ?: "+91",
-              email = data["email"] as? String ?: "",
-              dob = data["dob"] as? String ?: "",
-              currentLocationCity = data["currentLocationCity"] as? String ?: "",
-              currentLocationCountry = data["currentLocationCountry"] as? String ?: "",
-              latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
-              longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
-              isPhoneVerified = data["isPhoneVerified"] as? Boolean ?: false,
-              isAccountDisabled = data["isAccountDisabled"] as? Boolean ?: (data["isPaused"] as? Boolean ?: (data["isProfileHidden"] as? Boolean ?: false))
-            )
+            val profile = parseUserProfileData(snapshot.id, data, "+91")
             trySend(profile)
           }
         } catch (e: Exception) {
@@ -449,6 +716,57 @@ class FirestoreManager {
         Log.w(tag, "Firestore message send notice: ${e.message}")
       }
       false
+    }
+  }
+
+  suspend fun fetchChatMessages(matchId: String, myUserId: String = ""): List<ChatMessage> {
+    val db = firestore ?: return emptyList()
+    if (myUserId.isBlank() || matchId.isBlank()) return emptyList()
+    return try {
+      val targetChatId = getCanonicalChatId(myUserId, matchId)
+      val snapshot = db.collection("chats")
+        .document(targetChatId)
+        .collection("messages")
+        .orderBy("timestamp", Query.Direction.ASCENDING)
+        .get()
+        .await()
+
+      snapshot.documents.mapNotNull { doc ->
+        val data = doc.data ?: return@mapNotNull null
+        val senderId = data["senderId"] as? String ?: ""
+        val recipientId = data["recipientId"] as? String ?: ""
+        val isAuthorizedParticipant = (senderId == myUserId || senderId == matchId) &&
+            (recipientId.isBlank() || recipientId == myUserId || recipientId == matchId)
+        if (!isAuthorizedParticipant) return@mapNotNull null
+
+        val isMine = senderId == myUserId
+        val isReadCloud = (data["isRead"] as? Boolean) ?: false
+        val rawText = data["text"] as? String ?: ""
+        val decryptedText = try {
+          com.example.util.EndToEndEncryptionHelper.decryptMessage(rawText, myUserId, matchId)
+        } catch (_: Exception) {
+          rawText
+        }
+
+        ChatMessage(
+          id = doc.id,
+          conversationId = targetChatId,
+          matchId = matchId,
+          senderId = senderId,
+          recipientId = recipientId.ifBlank { if (isMine) matchId else myUserId },
+          senderName = (data["senderName"] as? String) ?: (if (isMine) "You" else "Match"),
+          text = decryptedText,
+          photoUri = data["photoUri"] as? String,
+          timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+          isFromMe = isMine,
+          isRead = if (isMine) isReadCloud else true,
+          isSending = false,
+          isFailed = false
+        )
+      }
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching chat messages: ${e.message}")
+      emptyList()
     }
   }
 
@@ -784,6 +1102,62 @@ class FirestoreManager {
   }
 
   /**
+   * Directly fetches all incoming likes for the current user from Firestore in real time.
+   * Invoked during pull-to-sync to refresh the Likes page with latest data.
+   */
+  suspend fun fetchIncomingLikesNow(myUserId: String): List<CloudLike> {
+    val db = firestore ?: return emptyList()
+    if (myUserId.isBlank()) return emptyList()
+    return try {
+      val snapshot = db.collection("likes")
+        .whereEqualTo("toUserId", myUserId)
+        .get()
+        .await()
+      snapshot.documents.mapNotNull { doc ->
+        val data = doc.data ?: return@mapNotNull null
+        CloudLike(
+          fromUserId = data["fromUserId"] as? String ?: return@mapNotNull null,
+          toUserId = data["toUserId"] as? String ?: myUserId,
+          isSuperLike = data["isSuperLike"] as? Boolean ?: false,
+          timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+        )
+      }
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching incoming likes: ${e.message}")
+      emptyList()
+    }
+  }
+
+  /**
+   * Directly fetches all mutual matches involving the current user from Firestore in real time.
+   * Invoked during pull-to-sync to refresh the Chats/Matches page with latest data.
+   */
+  suspend fun fetchMutualMatchesNow(myUserId: String): List<CloudMatch> {
+    val db = firestore ?: return emptyList()
+    if (myUserId.isBlank()) return emptyList()
+    return try {
+      val snapshot = db.collection("matches")
+        .whereArrayContains("users", myUserId)
+        .get()
+        .await()
+      snapshot.documents.mapNotNull { doc ->
+        val data = doc.data ?: return@mapNotNull null
+        val users = (data["users"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        val user1 = data["user1Id"] as? String ?: users.getOrNull(0) ?: ""
+        val user2 = data["user2Id"] as? String ?: users.getOrNull(1) ?: ""
+        CloudMatch(
+          user1Id = user1,
+          user2Id = user2,
+          matchedTimestamp = (data["matchedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+        )
+      }
+    } catch (e: Exception) {
+      Log.w(tag, "Notice fetching mutual matches: ${e.message}")
+      emptyList()
+    }
+  }
+
+  /**
    * Fetches the set of user IDs that the current user has already passed in Firestore.
    */
   suspend fun fetchOutgoingPassedUserIds(myUserId: String): Set<String> {
@@ -1065,7 +1439,10 @@ class FirestoreManager {
     if (userId.isBlank()) return false
     return try {
       db.collection("discovery_profiles").document(userId).delete().await()
-      Log.d(tag, "User unpublished from discovery: $userId")
+      try {
+        db.collection("discovery_profile").document(userId).delete().await()
+      } catch (_: Exception) {}
+      Log.d(tag, "User unpublished from discovery_profiles: $userId")
       true
     } catch (e: Exception) {
       Log.w(tag, "Notice unpublishing user from discovery: ${e.message}")
@@ -1113,9 +1490,36 @@ class FirestoreManager {
       db.collection("discovery_profiles").document(profile.id)
         .set(data, SetOptions.merge())
         .await()
+      // Clean up legacy collection "discovery_profile" if a document was created there previously
+      try {
+        db.collection("discovery_profile").document(profile.id).delete().await()
+      } catch (_: Exception) {}
       true
     } catch (e: Exception) {
       Log.w(tag, "Failed to publish user to discovery: ${e.message}")
+      false
+    }
+  }
+
+  /**
+   * Purges all documents from the erroneous/legacy "discovery_profile" collection,
+   * completely deleting that collection from Firestore so only "discovery_profiles" is used.
+   */
+  suspend fun purgeLegacyDiscoveryProfileCollection(): Boolean {
+    val db = firestore ?: return false
+    return try {
+      val snapshot = db.collection("discovery_profile").get().await()
+      if (!snapshot.isEmpty) {
+        val batch = db.batch()
+        snapshot.documents.forEach { doc ->
+          batch.delete(doc.reference)
+        }
+        batch.commit().await()
+        Log.d(tag, "Successfully purged ${snapshot.size()} document(s) from legacy discovery_profile collection.")
+      }
+      true
+    } catch (e: Exception) {
+      Log.w(tag, "Notice purging legacy discovery_profile: ${e.message}")
       false
     }
   }
@@ -1132,6 +1536,28 @@ class FirestoreManager {
       Log.w(tag, "Notice fetching deleted accounts: ${e.message}")
       emptySet()
     }
+  }
+
+  /**
+   * Observes deleted account IDs in real time so deletions are immediately synchronized.
+   */
+  fun observeDeletedAccountIds(): Flow<Set<String>> = callbackFlow {
+    val db = firestore
+    if (db == null) {
+      trySend(emptySet())
+      close()
+      return@callbackFlow
+    }
+    val listener = db.collection("deleted_accounts")
+      .addSnapshotListener { snapshot, error ->
+        if (error != null) {
+          Log.w(tag, "observeDeletedAccountIds notice: ${error.message}")
+          return@addSnapshotListener
+        }
+        val ids = snapshot?.documents?.mapNotNull { it.id }?.filter { it.isNotBlank() }?.toSet().orEmpty()
+        trySend(ids)
+      }
+    awaitClose { listener.remove() }
   }
 
   /**

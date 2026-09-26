@@ -52,6 +52,8 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.core.content.FileProvider
@@ -243,6 +245,37 @@ fun OnboardingProfileSetupScreen(
   var isVerifyingOtp by remember { mutableStateOf(false) }
   var otpResendCountdown by remember { mutableIntStateOf(60) }
   var isOtpTimerRunning by remember { mutableStateOf(false) }
+
+  // State for previously deleted profile restoration or deletion
+  var pendingDeletedProfile by remember { mutableStateOf<UserProfile?>(null) }
+  var showRestoreDeletedDialog by remember { mutableStateOf(false) }
+  var isProcessingDeletedAction by remember { mutableStateOf(false) }
+
+  val checkUserStatusAndProceed: (String, String) -> Unit = { natNumber, cCode ->
+    coroutineScope.launch {
+      // 1. Check if user already exists with an active completed profile
+      val existing = viewModel?.checkExistingUser(natNumber, cCode)
+      if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
+        isVerifyingOtp = false
+        onExistingUserFound(existing)
+        return@launch
+      }
+
+      // 2. Check if a previously deleted profile exists in deleted_accounts collection
+      val deleted = viewModel?.checkDeletedAccount(natNumber, cCode)
+      if (deleted != null && deleted.name.isNotBlank()) {
+        isVerifyingOtp = false
+        pendingDeletedProfile = deleted
+        showRestoreDeletedDialog = true
+        return@launch
+      }
+
+      // 3. Otherwise brand new profile setup
+      isVerifyingOtp = false
+      Toast.makeText(context, "✓ Phone verified! Please complete your profile ✨", Toast.LENGTH_SHORT).show()
+      currentStep = OnboardingFlowStep.PERSONAL_INFO
+    }
+  }
 
   // 2. Personal Information State (Blank by default)
   var name by remember { mutableStateOf("") }
@@ -749,15 +782,7 @@ fun OnboardingProfileSetupScreen(
                         isSendingOtp = false
                         isPhoneVerified = true
                         phoneNumber = nationalNumber
-                        coroutineScope.launch {
-                          val existing = viewModel.checkExistingUser(nationalNumber, selectedCountryCode)
-                          if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
-                            onExistingUserFound(existing)
-                          } else {
-                            Toast.makeText(context, "✓ Phone verified! Please complete your profile ✨", Toast.LENGTH_SHORT).show()
-                            currentStep = OnboardingFlowStep.PERSONAL_INFO
-                          }
-                        }
+                        checkUserStatusAndProceed(nationalNumber, selectedCountryCode)
                       },
                       onError = { errorMsg ->
                         isSendingOtp = false
@@ -830,14 +855,8 @@ fun OnboardingProfileSetupScreen(
                     },
                     onAutoVerified = {
                       isPhoneVerified = true
-                      coroutineScope.launch {
-                        val existing = viewModel.checkExistingUser(nationalNumber, selectedCountryCode)
-                        if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
-                          onExistingUserFound(existing)
-                        } else {
-                          currentStep = OnboardingFlowStep.PERSONAL_INFO
-                        }
-                      }
+                      phoneNumber = nationalNumber
+                      checkUserStatusAndProceed(nationalNumber, selectedCountryCode)
                     },
                     onError = { err ->
                       Toast.makeText(context, "Resend notice: $err", Toast.LENGTH_SHORT).show()
@@ -867,25 +886,15 @@ fun OnboardingProfileSetupScreen(
 
                 val handleVerificationSuccess: () -> Unit = {
                   isPhoneVerified = true
-                  coroutineScope.launch {
-                    val digitsOnly = phoneNumber.filter { it.isDigit() }
-                    val codeDigits = selectedCountryCode.filter { it.isDigit() }
-                    val nationalNumber = if (digitsOnly.startsWith(codeDigits) && digitsOnly.length > codeDigits.length) {
-                      digitsOnly.substring(codeDigits.length)
-                    } else {
-                      digitsOnly
-                    }
-                    phoneNumber = nationalNumber
-
-                    val existing = viewModel?.checkExistingUser(nationalNumber, selectedCountryCode)
-                    if (existing != null && existing.isOnboardingCompleted && existing.name.isNotBlank()) {
-                      onExistingUserFound(existing)
-                    } else {
-                      isVerifyingOtp = false
-                      Toast.makeText(context, "✓ Phone verified! Please complete your profile ✨", Toast.LENGTH_SHORT).show()
-                      currentStep = OnboardingFlowStep.PERSONAL_INFO
-                    }
+                  val digitsOnly = phoneNumber.filter { it.isDigit() }
+                  val codeDigits = selectedCountryCode.filter { it.isDigit() }
+                  val nationalNumber = if (digitsOnly.startsWith(codeDigits) && digitsOnly.length > codeDigits.length) {
+                    digitsOnly.substring(codeDigits.length)
+                  } else {
+                    digitsOnly
                   }
+                  phoneNumber = nationalNumber
+                  checkUserStatusAndProceed(nationalNumber, selectedCountryCode)
                 }
 
                 if (viewModel != null) {
@@ -1238,6 +1247,168 @@ fun OnboardingProfileSetupScreen(
         dismissButton = {
           TextButton(onClick = { showPhotoSourceDialog = false }) {
             Text("Cancel", color = CoralPrimary)
+          }
+        }
+      )
+    }
+
+    // Previously Deleted Account Pop-up Dialog
+    if (showRestoreDeletedDialog && pendingDeletedProfile != null) {
+      val deletedProfile = pendingDeletedProfile!!
+      AlertDialog(
+        onDismissRequest = {
+          // Keep dialog open until user selects an action
+        },
+        icon = {
+          Icon(
+            imageVector = Icons.Default.Restore,
+            contentDescription = null,
+            tint = CoralPrimary,
+            modifier = Modifier.size(34.dp)
+          )
+        },
+        title = {
+          Text(
+            text = "Previous Profile Found",
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge
+          )
+        },
+        text = {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+            Text(
+              text = "A previously deleted profile was found for this mobile number ($selectedCountryCode $phoneNumber).",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Preview card of the found deleted profile
+            Surface(
+              shape = RoundedCornerShape(14.dp),
+              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+              ) {
+                if (deletedProfile.photos.isNotEmpty()) {
+                  AsyncImage(
+                    model = deletedProfile.photos.first(),
+                    contentDescription = deletedProfile.name,
+                    modifier = Modifier
+                      .size(54.dp)
+                      .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                  )
+                } else {
+                  Surface(
+                    shape = CircleShape,
+                    color = CoralPrimary.copy(alpha = 0.2f),
+                    modifier = Modifier.size(54.dp)
+                  ) {
+                    Box(contentAlignment = Alignment.Center) {
+                      Text(
+                        text = deletedProfile.name.take(1).uppercase(),
+                        fontWeight = FontWeight.Bold,
+                        color = CoralPrimary,
+                        fontSize = 22.sp
+                      )
+                    }
+                  }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = "${deletedProfile.name}${if (deletedProfile.age > 0) ", ${deletedProfile.age}" else ""}",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  if (deletedProfile.occupation.isNotBlank()) {
+                    Text(
+                      text = deletedProfile.occupation,
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      maxLines = 1,
+                      overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                  }
+                  if (deletedProfile.bio.isNotBlank()) {
+                    Text(
+                      text = deletedProfile.bio,
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                      maxLines = 2,
+                      overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                  }
+                }
+              }
+            }
+
+            Text(
+              text = "Would you like to get your previously deleted profile or create a new one? Selecting 'Create New' will permanently delete your previous profile data.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          }
+        },
+        confirmButton = {
+          Button(
+            onClick = {
+              if (isProcessingDeletedAction) return@Button
+              isProcessingDeletedAction = true
+              coroutineScope.launch {
+                viewModel?.restoreDeletedAccount(deletedProfile)
+                isProcessingDeletedAction = false
+                showRestoreDeletedDialog = false
+                Toast.makeText(context, "✓ Welcome back, ${deletedProfile.name}! Profile restored ✨", Toast.LENGTH_SHORT).show()
+                onExistingUserFound(deletedProfile)
+              }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+            modifier = Modifier.testTag("btn_restore_deleted_profile")
+          ) {
+            if (isProcessingDeletedAction) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = androidx.compose.ui.graphics.Color.White,
+                strokeWidth = 2.dp
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text("Get Previously Deleted Profile", fontWeight = FontWeight.Bold)
+          }
+        },
+        dismissButton = {
+          OutlinedButton(
+            onClick = {
+              if (isProcessingDeletedAction) return@OutlinedButton
+              isProcessingDeletedAction = true
+              coroutineScope.launch {
+                viewModel?.permanentlyDeleteDeletedAccount(
+                  userId = deletedProfile.id,
+                  phone = phoneNumber,
+                  countryCode = selectedCountryCode
+                )
+                isProcessingDeletedAction = false
+                showRestoreDeletedDialog = false
+                pendingDeletedProfile = null
+                Toast.makeText(context, "Previous profile permanently removed. Let's create your new profile! ✨", Toast.LENGTH_SHORT).show()
+                currentStep = OnboardingFlowStep.PERSONAL_INFO
+              }
+            },
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            modifier = Modifier.testTag("btn_create_new_profile")
+          ) {
+            Text("Create New")
           }
         }
       )

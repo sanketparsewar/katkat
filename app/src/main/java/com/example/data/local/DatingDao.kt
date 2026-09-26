@@ -31,6 +31,12 @@ interface DatingDao {
   @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
   fun getMutualMatches(): Flow<List<ProfileEntity>>
 
+  @Query("SELECT * FROM dating_profiles WHERE isMutualMatch = 1 ORDER BY matchedTimestamp DESC")
+  suspend fun getMutualMatchesList(): List<ProfileEntity>
+
+  @Query("DELETE FROM dating_profiles WHERE id LIKE 'profile_%'")
+  suspend fun deleteMockProfiles()
+
   @Query("SELECT * FROM dating_profiles WHERE likedMe = 1 AND isMutualMatch = 0 AND isPassedByMe = 0 AND isLikedByMe = 0 AND isAccountDisabled = 0 ORDER BY id ASC")
   fun getProfilesWhoLikedMe(): Flow<List<ProfileEntity>>
 

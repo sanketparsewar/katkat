@@ -81,6 +81,10 @@ class KatkatRepository(
   init {
     appScope.launch {
       try {
+        if (firestoreManager.isAvailable) {
+          firestoreManager.purgeLegacyDiscoveryProfileCollection()
+        }
+
         // Initialize default subscription if missing
         dao.saveSubscription(
           SubscriptionEntity(
@@ -93,11 +97,8 @@ class KatkatRepository(
           )
         )
 
-        // Seed default discover profiles if database is fresh
-        val totalCount = dao.getProfilesCount()
-        if (totalCount == 0) {
-          seedDefaultProfiles()
-        }
+        // Delete any mock/sample profiles from local database so everything comes purely from database
+        dao.deleteMockProfiles()
 
         // Start listening to user profile changes to attach real-time likes & match listeners
         dao.getUserProfileFlow().collect { userEntity ->
@@ -299,6 +300,16 @@ class KatkatRepository(
         }
       }
 
+      // 6. Observe deleted accounts in real time so deletions are purged immediately without refresh
+      launch {
+        firestoreManager.observeDeletedAccountIds().collect { deletedIds ->
+          deletedIds.forEach { dId ->
+            dao.deleteProfileById(dId)
+            dao.deleteMessagesForMatch(dId)
+          }
+        }
+      }
+
       // 6. Observe and stream user profile directly from backend database as the source of truth
       launch {
         firestoreManager.observeUserProfile(currentUserId).collect { remoteUserProfile ->
@@ -375,1361 +386,8 @@ class KatkatRepository(
    * Subsequent pages: procedurally generated high-quality profiles.
    */
   fun generatePageCandidates(page: Int, pageSize: Int = DEFAULT_PAGE_SIZE): List<ProfileEntity> {
-    val masterCatalog = listOf(
-      // === PAGE 1 (Profiles 1 - 20) ===
-      ProfileEntity(
-        id = "profile_maya_1",
-        name = "Maya Lin",
-        age = 24,
-        gender = "Women",
-        occupation = "UI/UX Designer",
-        company = "Studio Origami",
-        education = "Rhode Island School of Design",
-        location = "Indiranagar, Bengaluru (4 km away)",
-        latitude = 12.9716,
-        longitude = 77.5946,
-        bio = "Analog photography addict & matcha latte connoisseur 🍵 Always down for an impromptu art gallery stroll or thrift shopping!",
-        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My simple pleasures in life...",
-        promptAnswer = "Sunday morning coffee, finding a rare vinyl record, and rainy city walks 🌧️",
-        passionsJoined = "Photography|||Design|||Art Galleries|||Coffee|||Vinyl Records",
-        zodiac = "Libra",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Good Days",
-        anthemArtist = "SZA",
-        isVerified = true,
-        likedMe = true,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_lucas_2",
-        name = "Lucas Thorne",
-        age = 27,
-        gender = "Men",
-        occupation = "Sound Designer & Musician",
-        company = "Waveform Studios",
-        education = "Berklee College of Music",
-        location = "Koramangala, Bengaluru (6 km away)",
-        latitude = 12.9352,
-        longitude = 77.6245,
-        bio = "Producing indie tracks by day, testing ramen recipes by night 🍜 Let's exchange Spotify playlists or hit an indie concert.",
-        photosJoined = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Together, we could...",
-        promptAnswer = "Build the ultimate synthwave playlist and drive with the windows down at midnight 🌌",
-        passionsJoined = "Music Production|||Live Gigs|||Ramen|||Travel|||Guitar",
-        zodiac = "Scorpio",
-        height = "6'0\" (183 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "On special occasions",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Midnight City",
-        anthemArtist = "M83",
-        isVerified = true,
-        likedMe = true,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_chloe_3",
-        name = "Chloe Dubois",
-        age = 25,
-        gender = "Women",
-        occupation = "Artisan Baker & Pastry Chef",
-        company = "Le Petit Croissant",
-        education = "Le Cordon Bleu",
-        location = "Lavelle Road, Bengaluru (2 km away)",
-        latitude = 12.9719,
-        longitude = 77.5997,
-        bio = "Sourdough whisperer 🥐 You will always have warm fresh pastries on weekends. Looking for someone who appreciates good food and great humor.",
-        photosJoined = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "The hallmark of a great date is...",
-        promptAnswer = "Losing track of time because the conversation was that effortless and fun ✨",
-        passionsJoined = "Baking|||Cooking|||Wine Tasting|||Book Clubs|||Film",
-        zodiac = "Taurus",
-        height = "5'5\" (165 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Have pets",
-        anthemSong = "La Vie En Rose",
-        anthemArtist = "Emily Watts",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_aarav_4",
-        name = "Aarav Sharma",
-        age = 28,
-        gender = "Men",
-        occupation = "Tech Lead & Angel Investor",
-        company = "HyperScale Labs",
-        education = "IIT Delhi",
-        location = "HSR Layout, Bengaluru (8 km away)",
-        latitude = 12.9121,
-        longitude = 77.6446,
-        bio = "Building smart tech & climbing boulders on weekends 🧗 Loves espresso, deep philosophical conversations, and spontaneous weekend road trips.",
-        photosJoined = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I geek out on...",
-        promptAnswer = "Space exploration tech, vintage mechanical watches, and specialty pour-over coffee ☕",
-        passionsJoined = "Rock Climbing|||Startups|||Coffee|||Hiking|||Reading",
-        zodiac = "Capricorn",
-        height = "5'11\" (180 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Love all pets",
-        anthemSong = "Stargazing",
-        anthemArtist = "Kygo",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_priya_5",
-        name = "Priya Patel",
-        age = 26,
-        gender = "Women",
-        occupation = "Architect & Ceramicist",
-        company = "Terra Studio",
-        education = "National Institute of Design",
-        location = "Sadashivanagar, Bengaluru (5 km away)",
-        latitude = 13.0068,
-        longitude = 77.5813,
-        bio = "Designing sustainable homes & throwing pottery clay on weekends 🏺 Let's find the best sunset viewpoint in the city.",
-        photosJoined = "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My love language is...",
-        promptAnswer = "Quality time, homemade artisanal pasta, and making each other laugh till our cheeks hurt 😊",
-        passionsJoined = "Ceramics|||Architecture|||Yoga|||Plants|||Travel",
-        zodiac = "Virgo",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Sunflower",
-        anthemArtist = "Post Malone",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_rohan_6",
-        name = "Rohan Mehta",
-        age = 29,
-        gender = "Men",
-        occupation = "Documentary Filmmaker",
-        company = "Nomad Media",
-        education = "FTII Pune",
-        location = "Whitefield, Bengaluru (18 km away)",
-        latitude = 12.9698,
-        longitude = 77.7500,
-        bio = "Telling stories around the world 🎬 Coffee aficionado, vinyl collector, and avid cyclist.",
-        photosJoined = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Best travel memory...",
-        promptAnswer = "Watching the Northern Lights from a cozy wooden cabin in Norway ❄️",
-        passionsJoined = "Filmmaking|||Cycling|||Coffee|||Cinema|||Photography",
-        zodiac = "Leo",
-        height = "6'1\" (185 cm)",
-        datingIntention = "Open to possibilities",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Dreams",
-        anthemArtist = "Fleetwood Mac",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_dev_7",
-        name = "Dev Malhotra",
-        age = 30,
-        gender = "Men",
-        occupation = "Venture Partner & Triathlete",
-        company = "Peak Velocity Fund",
-        education = "Stanford University",
-        location = "Devanahalli, Bengaluru (32 km away)",
-        latitude = 13.2483,
-        longitude = 77.7126,
-        bio = "Training for my next triathlon 🏃‍♂️ Tech nerd at heart, lover of good sushi and deep conversations over pour-over coffee.",
-        photosJoined = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "A life goal of mine is...",
-        promptAnswer = "Run a marathon on every continent and build a sustainable tech foundation 🌍",
-        passionsJoined = "Triathlon|||Venture Capital|||Sushi|||Running|||Books",
-        zodiac = "Aries",
-        height = "6'2\" (188 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "On special occasions",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Adventure of a Lifetime",
-        anthemArtist = "Coldplay",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_elena_8",
-        name = "Elena Roy",
-        age = 26,
-        gender = "Women",
-        occupation = "Wildlife Biologist & Writer",
-        company = "Ecosphere Institute",
-        education = "Oxford University",
-        location = "Electronic City, Bengaluru (18 km away)",
-        latitude = 12.8399,
-        longitude = 77.6770,
-        bio = "Documenting bird migrations and writing field guides 🦅 Plant mom to 20+ succulents and always looking for weekend trail partners.",
-        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "The best way to spend a Saturday...",
-        promptAnswer = "Morning trail run, iced matcha, and exploring an antique bookstore 🌿",
-        passionsJoined = "Wildlife|||Hiking|||Reading|||Sustainability|||Writing",
-        zodiac = "Sagittarius",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Love all pets",
-        anthemSong = "Holocene",
-        anthemArtist = "Bon Iver",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_samira_9",
-        name = "Samira Sen",
-        age = 28,
-        gender = "Women",
-        occupation = "Astrophysics Researcher",
-        company = "Cosmic Observations Lab",
-        education = "Cambridge University",
-        location = "Nandi Hills, Bengaluru (45 km away)",
-        latitude = 13.3702,
-        longitude = 77.6835,
-        bio = "Mapping stellar clusters by night 🔭 Stargazing trips, sci-fi marathons, and board game nights are my favorite things.",
-        photosJoined = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I won't shut up about...",
-        promptAnswer = "James Webb Space Telescope discoveries and the mysteries of dark matter 🌌",
-        passionsJoined = "Astronomy|||Sci-Fi|||Board Games|||Coffee|||Hiking",
-        zodiac = "Aquarius",
-        height = "5'8\" (173 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Space Oddity",
-        anthemArtist = "David Bowie",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_ananya_10",
-        name = "Ananya Bose",
-        age = 25,
-        gender = "Women",
-        occupation = "Illustrator & Animator",
-        company = "PixelBloom Studio",
-        education = "Srishti Institute of Art",
-        location = "Frazer Town, Bengaluru (5 km away)",
-        latitude = 12.9981,
-        longitude = 77.6142,
-        bio = "Sketching cute webcomics and petting neighborhood street cats 🎨 Tell me your favorite animated movie!",
-        photosJoined = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Together we could...",
-        promptAnswer = "Paint watercolors in Cubbon Park on Sunday afternoons 🍃",
-        passionsJoined = "Illustration|||Animation|||Cats|||Tea|||Comics",
-        zodiac = "Cancer",
-        height = "5'4\" (163 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat lover",
-        anthemSong = "Bags",
-        anthemArtist = "Clairo",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_kabir_11",
-        name = "Kabir Varma",
-        age = 29,
-        gender = "Men",
-        occupation = "Chef & Culinary Explorer",
-        company = "Artisan Kitchen",
-        education = "Culinary Institute of America",
-        location = "MG Road, Bengaluru (3 km away)",
-        latitude = 12.9756,
-        longitude = 77.6066,
-        bio = "Fermenting hot sauces & hosting private tasting dinners 🌶️ Let's find Bengaluru's hidden food gems.",
-        photosJoined = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My best culinary secret...",
-        promptAnswer = "A pinch of smoked sea salt turns everything into gourmet perfection 🍲",
-        passionsJoined = "Cooking|||Foodie|||Wine|||Travel|||Hospitality",
-        zodiac = "Gemini",
-        height = "6'0\" (183 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Passionfruit",
-        anthemArtist = "Drake",
-        isVerified = true,
-        likedMe = true,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_tara_12",
-        name = "Tara Nair",
-        age = 27,
-        gender = "Women",
-        occupation = "Marine Conservationist",
-        company = "Blue Ocean Foundation",
-        education = "James Cook University",
-        location = "Jayanagar, Bengaluru (7 km away)",
-        latitude = 12.9308,
-        longitude = 77.5838,
-        bio = "Scuba dive instructor & coral reef protector 🤿 Happiness is clear ocean waters and warm sunny days.",
-        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I feel most alive when...",
-        promptAnswer = "Diving with manta rays and listening to ocean swells 🌊",
-        passionsJoined = "Scuba Diving|||Ocean|||Sustainability|||Surfing|||Nature",
-        zodiac = "Pisces",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Love animals",
-        anthemSong = "Beyond",
-        anthemArtist = "Leon Bridges",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_neil_13",
-        name = "Neil Sengupta",
-        age = 28,
-        gender = "Men",
-        occupation = "Robotics Engineer",
-        company = "Autonomous Dynamics",
-        education = "Carnegie Mellon",
-        location = "Domlur, Bengaluru (5 km away)",
-        latitude = 12.9609,
-        longitude = 77.6387,
-        bio = "Teaching machines to navigate the world 🤖 Coffee enthusiast, amateur tennis player, and board game geek.",
-        photosJoined = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My typical Sunday looks like...",
-        promptAnswer = "Morning tennis match, pour-over brew, and tinkering with open-source code 🎾",
-        passionsJoined = "Robotics|||Tennis|||Coffee|||Chess|||Tech",
-        zodiac = "Libra",
-        height = "5'10\" (178 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Electric Feel",
-        anthemArtist = "MGMT",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_kavya_14",
-        name = "Kavya Menon",
-        age = 26,
-        gender = "Women",
-        occupation = "Classical Dancer & Choreographer",
-        company = "Natya Collective",
-        education = "Kalakshetra Foundation",
-        location = "Malleswaram, Bengaluru (6 km away)",
-        latitude = 13.0031,
-        longitude = 77.5643,
-        bio = "Bharatanatyam dancer reimagining classical arts 💃 Coffee dates, temple architecture, and soulful Carnatic fusions.",
-        photosJoined = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "The key to my heart is...",
-        promptAnswer = "Appreciating live music, deep conversations, and sharing filter coffee ☕",
-        passionsJoined = "Dance|||Music|||Culture|||Yoga|||Art",
-        zodiac = "Taurus",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Cat lover",
-        anthemSong = "Nagada Sang Dhol",
-        anthemArtist = "Shreya Ghoshal",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_arjun_15",
-        name = "Arjun Kapoor",
-        age = 31,
-        gender = "Men",
-        occupation = "Landscape Photographer",
-        company = "Wild Horizon",
-        education = "National Geographic Expeditions",
-        location = "Hebbal, Bengaluru (12 km away)",
-        latitude = 13.0358,
-        longitude = 77.5970,
-        bio = "Chasing mountain sunsets and fog in the Western Ghats 🏔️ 4x4 road trips, campfires, and storytelling under the stars.",
-        photosJoined = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Best road trip tip...",
-        promptAnswer = "Never rush the scenic route and always stop for local roadside tea stalls 🚙",
-        passionsJoined = "Photography|||Camping|||Trekking|||Road Trips|||Mountains",
-        zodiac = "Leo",
-        height = "6'1\" (185 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog lover",
-        anthemSong = "Society",
-        anthemArtist = "Eddie Vedder",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_riya_16",
-        name = "Riya Singhania",
-        age = 25,
-        gender = "Women",
-        occupation = "Fashion Stylist & Creative Director",
-        company = "Vogue Aesthetics",
-        education = "London College of Fashion",
-        location = "Lavelle Road, Bengaluru (2 km away)",
-        latitude = 12.9720,
-        longitude = 77.5985,
-        bio = "Vintage silhouettes & modern streetwear 👗 Let's grab iced lattes and check out the new design exhibits.",
-        photosJoined = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Dating me is like...",
-        promptAnswer = "Always having the best dressed partner and knowing the most aesthetic spots in town ✨",
-        passionsJoined = "Fashion|||Design|||Coffee|||Travel|||Pop Culture",
-        zodiac = "Libra",
-        height = "5'8\" (173 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Levitating",
-        anthemArtist = "Dua Lipa",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_vikram_17",
-        name = "Vikram Reddy",
-        age = 29,
-        gender = "Men",
-        occupation = "Product Manager & Coffee Roaster",
-        company = "Roast & Flow Labs",
-        education = "ISB Hyderabad",
-        location = "Koramangala 4th Block, Bengaluru (5 km away)",
-        latitude = 12.9340,
-        longitude = 77.6290,
-        bio = "Cupping specialty beans on Saturday mornings ☕ Crafting digital experiences by weekday. Let's do a blind coffee tasting!",
-        photosJoined = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My non-negotiable is...",
-        promptAnswer = "High emotional intelligence and a good sense of humor 😊",
-        passionsJoined = "Coffee|||Product|||Running|||Cooking|||Podcasts",
-        zodiac = "Virgo",
-        height = "5'11\" (180 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Sunday Best",
-        anthemArtist = "Surfaces",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_zoya_18",
-        name = "Zoya Merchant",
-        age = 27,
-        gender = "Women",
-        occupation = "Environmental Lawyer",
-        company = "Green Justice Alliance",
-        education = "NLSIU Bengaluru",
-        location = "Richmond Town, Bengaluru (3 km away)",
-        latitude = 12.9644,
-        longitude = 77.5991,
-        bio = "Defending forests and waterways by day 🌿 Weekend marathon runner and indie film lover. Let's debate anything and everything.",
-        photosJoined = "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I value...",
-        promptAnswer = "Integrity, curiosity, empathy, and making a meaningful impact on our planet 🌍",
-        passionsJoined = "Law|||Environment|||Running|||Books|||Debate",
-        zodiac = "Scorpio",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat lover",
-        anthemSong = "Dog Days Are Over",
-        anthemArtist = "Florence + The Machine",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_siddharth_19",
-        name = "Siddharth Rao",
-        age = 28,
-        gender = "Men",
-        occupation = "Game Developer & Pixel Artist",
-        company = "IndieForge Games",
-        education = "DigiPen Institute",
-        location = "JP Nagar, Bengaluru (9 km away)",
-        latitude = 12.9063,
-        longitude = 77.5857,
-        bio = "Creating cozy indie RPG games 🎮 Synth music, retro arcades, and making the best homemade sourdough pizza.",
-        photosJoined = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Let's debate...",
-        promptAnswer = "What makes a game truly unforgettable: gameplay loop or emotional narrative? 🕹️",
-        passionsJoined = "Gaming|||Game Dev|||Pizza|||Music|||Sci-Fi",
-        zodiac = "Aquarius",
-        height = "5'10\" (178 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Resonance",
-        anthemArtist = "HOME",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_natasha_20",
-        name = "Natasha D'Souza",
-        age = 26,
-        gender = "Women",
-        occupation = "Sommelier & Mixologist",
-        company = "The Botanist Lounge",
-        education = "Court of Master Sommeliers",
-        location = "Indiranagar 100ft Rd, Bengaluru (4 km away)",
-        latitude = 12.9733,
-        longitude = 77.6408,
-        bio = "Curating craft cocktails with local botanical infusions 🍸 Great food, jazz vinyl, and spontaneous travels.",
-        photosJoined = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "First round is on me if...",
-        promptAnswer = "You can recommend a cocktail ingredient I haven't experimented with yet 🍹",
-        passionsJoined = "Mixology|||Wine|||Jazz|||Dining|||Travel",
-        zodiac = "Leo",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Feeling Good",
-        anthemArtist = "Nina Simone",
-        isVerified = true,
-        likedMe = true,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-
-      // === PAGE 2 (Profiles 21 - 40) ===
-      ProfileEntity(
-        id = "profile_ishaan_21",
-        name = "Ishaan Joshi",
-        age = 27,
-        gender = "Men",
-        occupation = "Neurologist & Marathoner",
-        company = "NIMHANS Research",
-        education = "AIIMS New Delhi",
-        location = "Bannerghatta Rd, Bengaluru (11 km away)",
-        latitude = 12.8942,
-        longitude = 77.5982,
-        bio = "Studying brain neuroplasticity by day 🧠 Training for the Boston Marathon on mornings. Deep thinker with an easy laugh.",
-        photosJoined = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I'm fascinated by...",
-        promptAnswer = "How memory works and how music triggers profound emotional connections 🎶",
-        passionsJoined = "Medicine|||Running|||Science|||Coffee|||Philosophy",
-        zodiac = "Capricorn",
-        height = "6'0\" (183 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Fix You",
-        anthemArtist = "Coldplay",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_tanvi_22",
-        name = "Tanvi Hegde",
-        age = 24,
-        gender = "Women",
-        occupation = "Botanist & Urban Farmer",
-        company = "Verdant Roots",
-        education = "UAS Bengaluru",
-        location = "Yelahanka, Bengaluru (16 km away)",
-        latitude = 13.1007,
-        longitude = 77.5963,
-        bio = "Growing heirloom tomatoes and creating rooftop greenhouse sanctuaries 🍅 Seed collector, tea lover, and nature advocate.",
-        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My dream weekend...",
-        promptAnswer = "Visiting an organic farm, foraging fresh berries, and cooking an outdoor feast 🌿",
-        passionsJoined = "Botany|||Gardening|||Cooking|||Sustainability|||Tea",
-        zodiac = "Taurus",
-        height = "5'5\" (165 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Love all pets",
-        anthemSong = "Bloom",
-        anthemArtist = "The Paper Kites",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_karan_23",
-        name = "Karan Bhatia",
-        age = 30,
-        gender = "Men",
-        occupation = "Aerospace Systems Architect",
-        company = "SkyOrbit Technologies",
-        education = "ISRO & Purdue",
-        location = "HAL Airport Rd, Bengaluru (6 km away)",
-        latitude = 12.9568,
-        longitude = 77.6631,
-        bio = "Designing satellite telemetry systems 🛰️ Amateur astronomer, mountain trekker, and sourdough baker on Sundays.",
-        photosJoined = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Best stargazing location...",
-        promptAnswer = "Hanle observatory under the pitch-black Himalayan skies 🌌",
-        passionsJoined = "Space|||Aerospace|||Trekking|||Baking|||Astronomy",
-        zodiac = "Sagittarius",
-        height = "6'2\" (188 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Cosmic Girl",
-        anthemArtist = "Jamiroquai",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_meera_24",
-        name = "Meera Krishnan",
-        age = 26,
-        gender = "Women",
-        occupation = "Podcast Host & Journalist",
-        company = "Stories of Tomorrow",
-        education = "Columbia Journalism School",
-        location = "Cunningham Rd, Bengaluru (3 km away)",
-        latitude = 12.9856,
-        longitude = 77.5950,
-        bio = "Interviewing innovators, artists, and climate pioneers 🎙️ Avid reader, specialty coffee lover, and collector of vintage postcards.",
-        photosJoined = "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "A podcast you must listen to...",
-        promptAnswer = "Anything that challenges how you see the world and leaves you with new empathy 💡",
-        passionsJoined = "Podcasting|||Journalism|||Books|||Coffee|||Documentaries",
-        zodiac = "Gemini",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Landslide",
-        anthemArtist = "Fleetwood Mac",
-        isVerified = true,
-        likedMe = true,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_yash_25",
-        name = "Yash Nambiar",
-        age = 28,
-        gender = "Men",
-        occupation = "Architect & Urban Sketcher",
-        company = "Gridworks Design",
-        education = "CEPT Ahmedabad",
-        location = "Basavanagudi, Bengaluru (6 km away)",
-        latitude = 12.9419,
-        longitude = 77.5746,
-        bio = "Carrying a fountain pen and sketchbook wherever I go ✍️ Heritage walks, old Bengaluru cafes, and thoughtful architecture.",
-        photosJoined = "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My favorite city corner...",
-        promptAnswer = "Sitting beneath a 100-year-old banyan tree with a warm cup of coffee ☕",
-        passionsJoined = "Sketching|||Architecture|||History|||Coffee|||Art",
-        zodiac = "Pisces",
-        height = "5'11\" (180 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Cat lover",
-        anthemSong = "Harvest Moon",
-        anthemArtist = "Neil Young",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_simran_26",
-        name = "Simran Kaur",
-        age = 27,
-        gender = "Women",
-        occupation = "Pediatric Surgeon",
-        company = "Rainbow Children's Hospital",
-        education = "CMC Vellore",
-        location = "Marathahalli, Bengaluru (12 km away)",
-        latitude = 12.9591,
-        longitude = 77.6974,
-        bio = "Healing little smiles by day 🩺 Weekend baker, dog foster parent, and classical sitar learner.",
-        photosJoined = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "What inspires me...",
-        promptAnswer = "Resilience, kindness without condition, and children's pure optimism ✨",
-        passionsJoined = "Medicine|||Dogs|||Music|||Baking|||Volunteering",
-        zodiac = "Aries",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog foster mom",
-        anthemSong = "Better Together",
-        anthemArtist = "Jack Johnson",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_aditya_27",
-        name = "Aditya Chawla",
-        age = 29,
-        gender = "Men",
-        occupation = "Fintech Founder",
-        company = "CredFlow Labs",
-        education = "Wharton School",
-        location = "UB City, Bengaluru (2 km away)",
-        latitude = 12.9715,
-        longitude = 77.5956,
-        bio = "Simplifying cross-border payments 🚀 Tennis, squash, espresso martinis, and weekend sailing trips.",
-        photosJoined = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I nerd out on...",
-        promptAnswer = "Macroeconomics, high-tempo racquet sports, and Italian cuisine 🍝",
-        passionsJoined = "Startups|||Tennis|||Squash|||Sailing|||Wine",
-        zodiac = "Leo",
-        height = "6'1\" (185 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Can't Stop",
-        anthemArtist = "Red Hot Chili Peppers",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_divya_28",
-        name = "Divya Ramesh",
-        age = 25,
-        gender = "Women",
-        occupation = "Cognitive AI Scientist",
-        company = "DeepReason AI",
-        education = "IISc Bengaluru",
-        location = "Sadashivanagar, Bengaluru (4 km away)",
-        latitude = 13.0070,
-        longitude = 77.5800,
-        bio = "Researching neural reasoning models 🧠 Loves indie board games, cozy rainy evenings, and spicy ramen.",
-        photosJoined = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My golden rule...",
-        promptAnswer = "Never stop asking 'why' and always be willing to change your mind when presented with better evidence 🔬",
-        passionsJoined = "AI|||Science|||Board Games|||Ramen|||Reading",
-        zodiac = "Aquarius",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Paranoid Android",
-        anthemArtist = "Radiohead",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_rohit_29",
-        name = "Rohit Das",
-        age = 27,
-        gender = "Men",
-        occupation = "Wildlife Filmmaker",
-        company = "Jungle Lore Films",
-        education = "Bristol Film School",
-        location = "Kanakapura Rd, Bengaluru (14 km away)",
-        latitude = 12.8752,
-        longitude = 77.5521,
-        bio = "Tracking leopards and wild elephants through the Nilgiris 🐆 Camping enthusiast, kayaker, and campfire guitarist.",
-        photosJoined = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Craziest experience...",
-        promptAnswer = "Spending 48 hours in a canopy treehouse filming hornbill nesting rituals 🦤",
-        passionsJoined = "Wildlife|||Filmmaking|||Kayaking|||Guitar|||Nature",
-        zodiac = "Scorpio",
-        height = "5'11\" (180 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Love all animals",
-        anthemSong = "Wild World",
-        anthemArtist = "Cat Stevens",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_alisha_30",
-        name = "Alisha Roy",
-        age = 26,
-        gender = "Women",
-        occupation = "Architectural Conservator",
-        company = "Heritage Trust India",
-        education = "Courtauld Institute",
-        location = "Ulsoor, Bengaluru (3 km away)",
-        latitude = 12.9817,
-        longitude = 77.6289,
-        bio = "Restoring historical stone monuments & stained glass windows 🏰 Tea collector, pottery student, and amateur botanist.",
-        photosJoined = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "I feel most at peace...",
-        promptAnswer = "Walking along the quiet shores of Ulsoor Lake at sunrise 🌅",
-        passionsJoined = "History|||Art|||Pottery|||Tea|||Architecture",
-        zodiac = "Libra",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat lover",
-        anthemSong = "Mystery of Love",
-        anthemArtist = "Sufjan Stevens",
-        isVerified = true,
-        likedMe = true,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_varun_31",
-        name = "Varun Dixit",
-        age = 31,
-        gender = "Men",
-        occupation = "Renewable Energy Engineer",
-        company = "Solaris Grid Systems",
-        education = "IIT Madras",
-        location = "Electronic City Phase 1, Bengaluru (17 km away)",
-        latitude = 12.8452,
-        longitude = 77.6602,
-        bio = "Building smart solar microgrids for rural communities ☀️ Long-distance cycling, specialty tea, and weekend woodworking.",
-        photosJoined = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "A cause close to my heart...",
-        promptAnswer = "Clean energy access and climate resilience for every family on the planet 🌍",
-        passionsJoined = "Clean Energy|||Cycling|||Woodworking|||Engineering|||Reading",
-        zodiac = "Virgo",
-        height = "6'0\" (183 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Here Comes The Sun",
-        anthemArtist = "The Beatles",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_shreya_32",
-        name = "Shreya Deshmukh",
-        age = 24,
-        gender = "Women",
-        occupation = "Contemporary Ceramic Artist",
-        company = "Earthen Glaze Studio",
-        education = "NID Ahmedabad",
-        location = "Cooke Town, Bengaluru (5 km away)",
-        latitude = 12.9972,
-        longitude = 77.6258,
-        bio = "Handcrafting organic pottery bowls & vases 🏺 Coffee, indie folk records, and laughing until my stomach hurts.",
-        photosJoined = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My simple pleasure...",
-        promptAnswer = "Morning filter coffee while clay dries in the sunlight ☕",
-        passionsJoined = "Ceramics|||Pottery|||Art|||Coffee|||Plants",
-        zodiac = "Taurus",
-        height = "5'5\" (165 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Rivers and Roads",
-        anthemArtist = "The Head and the Heart",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_manav_33",
-        name = "Manav Chopra",
-        age = 28,
-        gender = "Men",
-        occupation = "Sports Physiotherapist",
-        company = "Elite Athletic Institute",
-        education = "University of Melbourne",
-        location = "Kalyan Nagar, Bengaluru (8 km away)",
-        latitude = 13.0189,
-        longitude = 77.6432,
-        bio = "Rehabilitating pro athletes & training for half-ironman events 🏊‍♂️ Love good espresso, swimming, and lively dinner banter.",
-        photosJoined = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Favorite workout routine...",
-        promptAnswer = "Early morning ocean swim followed by warm croissants and pour-over coffee 🥐",
-        passionsJoined = "Fitness|||Swimming|||Physiotherapy|||Coffee|||Running",
-        zodiac = "Aries",
-        height = "6'1\" (185 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Midnight City",
-        anthemArtist = "M83",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_pooja_34",
-        name = "Pooja Hegde",
-        age = 27,
-        gender = "Women",
-        occupation = "Culinary Anthropologist & Food Writer",
-        company = "Spice & Origin Press",
-        education = "SOAS University of London",
-        location = "Koramangala 3rd Block, Bengaluru (5 km away)",
-        latitude = 12.9312,
-        longitude = 77.6225,
-        bio = "Tracing the history of South Asian spice routes 🌶️ Sourdough baker, cookbook addict, and weekend dinner host.",
-        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Best food travel memory...",
-        promptAnswer = "Eating freshly steamed momos on a misty morning in Darjeeling 🥟",
-        passionsJoined = "Food Writing|||Cooking|||Spices|||Travel|||History",
-        zodiac = "Cancer",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Sweet Creature",
-        anthemArtist = "Harry Styles",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_kunal_35",
-        name = "Kunal Kapoor",
-        age = 30,
-        gender = "Men",
-        occupation = "Jazz Pianist & Music Producer",
-        company = "Blue Horizon Sessions",
-        education = "Manhattan School of Music",
-        location = "Indiranagar, Bengaluru (4 km away)",
-        latitude = 12.9710,
-        longitude = 77.6415,
-        bio = "Improvising jazz chords & scoring indie cinema 🎹 Always looking for someone to share good vinyl records and midnight drives.",
-        photosJoined = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Song that gives me chills...",
-        promptAnswer = "Miles Davis - So What on a warm summer night 🎺",
-        passionsJoined = "Jazz|||Piano|||Cinema|||Vinyl|||Music",
-        zodiac = "Gemini",
-        height = "5'11\" (180 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Take Five",
-        anthemArtist = "Dave Brubeck",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_kriti_36",
-        name = "Kriti Sanon",
-        age = 25,
-        gender = "Women",
-        occupation = "Sustainable Fashion Designer",
-        company = "Khadi Revival Studio",
-        education = "NIFT Delhi",
-        location = "Commercial Street, Bengaluru (3 km away)",
-        latitude = 12.9822,
-        longitude = 77.6083,
-        bio = "Weaving indigenous organic textiles into contemporary silhouettes 👗 Plant lover, matcha drinker, and film enthusiast.",
-        photosJoined = "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "My style philosophy...",
-        promptAnswer = "Wear what makes you feel fearless and kind ✨",
-        passionsJoined = "Fashion|||Design|||Sustainability|||Textiles|||Art",
-        zodiac = "Leo",
-        height = "5'8\" (173 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Golden",
-        anthemArtist = "Harry Styles",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_samarth_37",
-        name = "Samarth Jain",
-        age = 28,
-        gender = "Men",
-        occupation = "Applied Mathematician",
-        company = "Quantum Dynamics",
-        education = "Cambridge & ISI",
-        location = "Malleshwaram, Bengaluru (5 km away)",
-        latitude = 13.0045,
-        longitude = 77.5712,
-        bio = "Exploring algebraic geometry & playing tournament chess ♟️ Pour-over coffee connoisseur and lover of classical literature.",
-        photosJoined = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "A great conversation starts with...",
-        promptAnswer = "An open mind and a question you don't know the answer to ☕",
-        passionsJoined = "Math|||Chess|||Books|||Coffee|||Philosophy",
-        zodiac = "Capricorn",
-        height = "5'10\" (178 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Dog person",
-        anthemSong = "Clair de Lune",
-        anthemArtist = "Claude Debussy",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_radhika_38",
-        name = "Radhika Apte",
-        age = 27,
-        gender = "Women",
-        occupation = "Theatre Director & Playwright",
-        company = "Rangashankara Repertory",
-        education = "National School of Drama",
-        location = "JP Nagar 2nd Phase, Bengaluru (8 km away)",
-        latitude = 12.9102,
-        longitude = 77.5891,
-        bio = "Staging contemporary theatre & writing scripts 🎭 Chai stall discussions, monologues, and soulful acoustic concerts.",
-        photosJoined = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Theatre taught me...",
-        promptAnswer = "How to truly listen and be fully present in every moment ✨",
-        passionsJoined = "Theatre|||Writing|||Drama|||Literature|||Chai",
-        zodiac = "Virgo",
-        height = "5'6\" (168 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Love pets",
-        anthemSong = "The Sound of Silence",
-        anthemArtist = "Simon & Garfunkel",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_rahul_39",
-        name = "Rahul Nambisan",
-        age = 29,
-        gender = "Men",
-        occupation = "Bicycle Frame Builder",
-        company = "Velocraft Bicycles",
-        education = "Brunel Design School",
-        location = "Hennur, Bengaluru (10 km away)",
-        latitude = 13.0360,
-        longitude = 77.6390,
-        bio = "Welding custom steel bike frames & gravel riding through coffee estates 🚴‍♂️ Coffee lover, camper, and jazz enthusiast.",
-        photosJoined = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "Best weekend adventure...",
-        promptAnswer = "Bikepacking across the Western Ghats with a small tent and a french press 🏕️",
-        passionsJoined = "Cycling|||Craftsmanship|||Camping|||Coffee|||Outdoors",
-        zodiac = "Sagittarius",
-        height = "6'0\" (183 cm)",
-        datingIntention = "Long-term relationship",
-        drinking = "Socially",
-        smoking = "Never",
-        pets = "Dog lover",
-        anthemSong = "Go Your Own Way",
-        anthemArtist = "Fleetwood Mac",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      ),
-      ProfileEntity(
-        id = "profile_eshita_40",
-        name = "Eshita Bhattacharya",
-        age = 26,
-        gender = "Women",
-        occupation = "Ethnomusicologist & Sitarist",
-        company = "Raga Heritage Sound",
-        education = "Santiniketan Visva-Bharati",
-        location = "Sadashivanagar, Bengaluru (5 km away)",
-        latitude = 13.0080,
-        longitude = 77.5830,
-        bio = "Recording folk music traditions across India 🎶 Lover of old books, monsoon rains, and cozy book cafes.",
-        photosJoined = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80|||https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80",
-        promptQuestion = "What makes life beautiful...",
-        promptAnswer = "A cup of hot darjeeling tea, falling rain, and sincere conversations 🌧️",
-        passionsJoined = "Music|||Sitar|||Culture|||Books|||Tea",
-        zodiac = "Pisces",
-        height = "5'7\" (170 cm)",
-        datingIntention = "Looking for love",
-        drinking = "Never",
-        smoking = "Never",
-        pets = "Cat person",
-        anthemSong = "Raag Yaman",
-        anthemArtist = "Pandit Ravi Shankar",
-        isVerified = true,
-        likedMe = false,
-        isLikedByMe = false,
-        isPassedByMe = false,
-        isSuperLikedByMe = false,
-        isMutualMatch = false,
-        matchedTimestamp = null
-      )
-    )
-
-    val startIndex = (page - 1) * pageSize
-    val endIndex = startIndex + pageSize
-
-    if (startIndex < masterCatalog.size) {
-      val slice = masterCatalog.subList(startIndex, minOf(endIndex, masterCatalog.size))
-      if (slice.size >= pageSize || slice.isNotEmpty()) {
-        return slice
-      }
-    }
-
-    // Dynamic generator for higher pages (Page 3: 41-60, Page 4: 61-80, etc.)
-    val proceduralCandidates = mutableListOf<ProfileEntity>()
-    val firstNames = listOf("Aanya", "Dhruv", "Isha", "Rhea", "Armaan", "Mira", "Adil", "Kiara", "Devansh", "Avani", "Rehan", "Suhana")
-    val lastNames = listOf("Verma", "Kapoor", "Nair", "Iyer", "Banerjee", "Fernandes", "Desai", "Rao", "Choudhury", "Bose")
-    val occupations = listOf("Architect", "AI Researcher", "Photographer", "Chef", "Product Designer", "Writer", "Data Scientist", "Filmmaker")
-    val photos = listOf(
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&auto=format&fit=crop&q=80"
-    )
-
-    for (i in 0 until pageSize) {
-      val profileNum = (page - 1) * pageSize + (i + 1)
-      val name = "${firstNames[i % firstNames.size]} ${lastNames[i % lastNames.size]}"
-      val gender = if (i % 2 == 0) "Women" else "Men"
-      val age = 22 + (profileNum % 10)
-      val occ = occupations[i % occupations.size]
-      val photo1 = photos[i % photos.size]
-      val photo2 = photos[(i + 1) % photos.size]
-
-      proceduralCandidates.add(
-        ProfileEntity(
-          id = "profile_candidate_$profileNum",
-          name = name,
-          age = age,
-          gender = gender,
-          occupation = occ,
-          company = "Studio $occ",
-          education = "University of Design & Arts",
-          location = "Bengaluru (${3 + (profileNum % 12)} km away)",
-          latitude = 12.9716 + (profileNum * 0.002),
-          longitude = 77.5946 + (profileNum * 0.002),
-          bio = "Passionate about $occ & specialty coffee ☕ Exploring the city's hidden art spots and weekend trails.",
-          photosJoined = "$photo1|||$photo2",
-          promptQuestion = "My simple pleasures...",
-          promptAnswer = "Sunday mornings, good music, and deep conversations ✨",
-          passionsJoined = "Design|||Coffee|||Travel|||Art|||Music",
-          zodiac = "Libra",
-          height = "5'8\" (173 cm)",
-          datingIntention = "Long-term relationship",
-          drinking = "Socially",
-          smoking = "Never",
-          pets = "Dog person",
-          anthemSong = "Sunflower",
-          anthemArtist = "Post Malone",
-          isVerified = true,
-          likedMe = false,
-          isLikedByMe = false,
-          isPassedByMe = false,
-          isSuperLikedByMe = false,
-          isMutualMatch = false,
-          matchedTimestamp = null
-        )
-      )
-    }
-    return proceduralCandidates
+    // All mock/sample data removed; candidates are loaded purely from database
+    return emptyList()
   }
 
   /**
@@ -1745,6 +403,7 @@ class KatkatRepository(
    */
   suspend fun loadDiscoverPage(page: Int, pageSize: Int = DEFAULT_PAGE_SIZE): List<DatingProfile> {
     val currentUser = dao.getUserProfileFlow().firstOrNull()?.toDomain() ?: UserProfile()
+    val isVip = dao.getSubscriptionFlow().firstOrNull()?.tierName == com.example.data.model.SubscriptionTier.TIER_2.name
     val myUserId = getEffectiveCurrentUserId()
 
     // 1. Gather all excluded IDs across local and remote sources:
@@ -1780,11 +439,10 @@ class KatkatRepository(
     val allExcludedIds = likedIds + passedIds + matchedIds + blockedIds + deletedIds +
         outgoingLiked + outgoingPassed + mutualMatched + setOf(myUserId, "my_profile")
 
-    // 2. Fetch raw page candidates (from master catalog, procedural generator, and cloud community profiles)
-    val rawPageCandidates = generatePageCandidates(page, pageSize).toMutableList()
+    // 2. Fetch real candidate profiles purely from database (Firestore discovery_profiles + local Room)
+    val rawPageCandidates = mutableListOf<ProfileEntity>()
 
-    // On initial pages, also merge any active community profiles from Firestore
-    if (page == 1 && firestoreManager.isAvailable && myUserId.isNotBlank()) {
+    if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
       try {
         val cloudProfiles = firestoreManager.fetchAllCommunityProfiles(
           excludeUserId = myUserId,
@@ -1794,11 +452,22 @@ class KatkatRepository(
         )
         for (cp in cloudProfiles) {
           if (!rawPageCandidates.any { it.id == cp.id }) {
-            rawPageCandidates.add(0, cp.toEntity())
+            rawPageCandidates.add(cp.toEntity())
           }
         }
       } catch (e: Exception) {
         android.util.Log.w("KatkatRepository", "Notice fetching cloud community profiles: ${e.message}")
+      }
+    }
+
+    val localDeckProfiles = dao.getActiveDeckProfilesPaged(
+      excludeUserId = myUserId,
+      limit = pageSize,
+      offset = (page - 1) * pageSize
+    )
+    for (lp in localDeckProfiles) {
+      if (!rawPageCandidates.any { it.id == lp.id }) {
+        rawPageCandidates.add(lp)
       }
     }
 
@@ -1851,6 +520,30 @@ class KatkatRepository(
       val maxAge = if (currentUser.maxAgePreference in 18..100) currentUser.maxAgePreference else 35
       if (candidate.age in 18..100 && (candidate.age < minAge || candidate.age > maxAge)) {
         return@mapNotNull null
+      }
+
+      // Exclusion 4b: VIP Extra Preference Filtering (Only active for VIP tier)
+      if (isVip) {
+        if (currentUser.preferDatingIntention.isNotBlank() && !currentUser.preferDatingIntention.equals("Any", ignoreCase = true)) {
+          if (candidate.datingIntention.isNotBlank() && !candidate.datingIntention.equals(currentUser.preferDatingIntention, ignoreCase = true)) {
+            return@mapNotNull null
+          }
+        }
+        if (currentUser.preferDrinking.isNotBlank() && !currentUser.preferDrinking.equals("Any", ignoreCase = true)) {
+          if (candidate.drinking.isNotBlank() && !candidate.drinking.equals(currentUser.preferDrinking, ignoreCase = true)) {
+            return@mapNotNull null
+          }
+        }
+        if (currentUser.preferSmoking.isNotBlank() && !currentUser.preferSmoking.equals("Any", ignoreCase = true)) {
+          if (candidate.smoking.isNotBlank() && !candidate.smoking.equals(currentUser.preferSmoking, ignoreCase = true)) {
+            return@mapNotNull null
+          }
+        }
+        if (currentUser.preferZodiac.isNotBlank() && !currentUser.preferZodiac.equals("Any", ignoreCase = true)) {
+          if (candidate.zodiac.isNotBlank() && !candidate.zodiac.equals(currentUser.preferZodiac, ignoreCase = true)) {
+            return@mapNotNull null
+          }
+        }
       }
 
       // Exclusion 5: Filter by Distance Preference
@@ -2003,23 +696,23 @@ class KatkatRepository(
 
         // 6. VIP Extra Preference Filtering (Only active for VIP tier)
         if (isVip) {
-          if (currentUser.datingIntention.isNotBlank() && !currentUser.datingIntention.equals("Any", ignoreCase = true)) {
-            if (entity.datingIntention.isNotBlank() && !entity.datingIntention.equals(currentUser.datingIntention, ignoreCase = true)) {
+          if (currentUser.preferDatingIntention.isNotBlank() && !currentUser.preferDatingIntention.equals("Any", ignoreCase = true)) {
+            if (entity.datingIntention.isNotBlank() && !entity.datingIntention.equals(currentUser.preferDatingIntention, ignoreCase = true)) {
               return@mapNotNull null
             }
           }
-          if (currentUser.drinking.isNotBlank() && !currentUser.drinking.equals("Any", ignoreCase = true)) {
-            if (entity.drinking.isNotBlank() && !entity.drinking.equals(currentUser.drinking, ignoreCase = true)) {
+          if (currentUser.preferDrinking.isNotBlank() && !currentUser.preferDrinking.equals("Any", ignoreCase = true)) {
+            if (entity.drinking.isNotBlank() && !entity.drinking.equals(currentUser.preferDrinking, ignoreCase = true)) {
               return@mapNotNull null
             }
           }
-          if (currentUser.smoking.isNotBlank() && !currentUser.smoking.equals("Any", ignoreCase = true)) {
-            if (entity.smoking.isNotBlank() && !entity.smoking.equals(currentUser.smoking, ignoreCase = true)) {
+          if (currentUser.preferSmoking.isNotBlank() && !currentUser.preferSmoking.equals("Any", ignoreCase = true)) {
+            if (entity.smoking.isNotBlank() && !entity.smoking.equals(currentUser.preferSmoking, ignoreCase = true)) {
               return@mapNotNull null
             }
           }
-          if (currentUser.zodiac.isNotBlank() && !currentUser.zodiac.equals("Any", ignoreCase = true)) {
-            if (entity.zodiac.isNotBlank() && !entity.zodiac.equals(currentUser.zodiac, ignoreCase = true)) {
+          if (currentUser.preferZodiac.isNotBlank() && !currentUser.preferZodiac.equals("Any", ignoreCase = true)) {
+            if (entity.zodiac.isNotBlank() && !entity.zodiac.equals(currentUser.preferZodiac, ignoreCase = true)) {
               return@mapNotNull null
             }
           }
@@ -2620,13 +1313,7 @@ class KatkatRepository(
   }
 
   suspend fun createSimulatedTestMatch(): DatingProfile? {
-    val nonMatches = dao.getActiveDeckProfiles().firstOrNull()?.filter { !it.isMutualMatch }
-    val candidate = nonMatches?.firstOrNull()
-    if (candidate != null) {
-      val now = System.currentTimeMillis()
-      dao.markLiked(candidate.id, isMutual = true, matchedTimestamp = now)
-      return dao.getProfileById(candidate.id)?.toDomain()
-    }
+    // Mock test matches removed - everything must come from real database
     return null
   }
 
@@ -2638,10 +1325,10 @@ class KatkatRepository(
   suspend fun saveUserProfile(profile: UserProfile) {
     val cleanPhone = profile.phoneNumber.filter { it.isDigit() }
     val authUid = phoneAuthManager.currentUserId
-    val uniqueId = if (!authUid.isNullOrBlank()) {
-      authUid
-    } else if (profile.id.isNotBlank() && profile.id != "my_profile") {
+    val uniqueId = if (profile.id.isNotBlank() && profile.id != "my_profile") {
       profile.id
+    } else if (!authUid.isNullOrBlank()) {
+      authUid
     } else if (cleanPhone.isNotBlank()) {
       "user_$cleanPhone"
     } else {
@@ -2768,6 +1455,39 @@ class KatkatRepository(
   }
 
   /**
+   * Checks if a previously deleted account exists in deleted_accounts for the given phone number.
+   */
+  suspend fun checkDeletedAccountByPhone(phoneNumber: String, countryCode: String): UserProfile? {
+    if (!firestoreManager.isAvailable) return null
+    return firestoreManager.fetchDeletedAccountByPhone(phoneNumber, countryCode)
+  }
+
+  /**
+   * Restores a previously deleted account into active collections and local database.
+   */
+  suspend fun restoreDeletedAccount(profile: UserProfile): Boolean {
+    val completed = profile.copy(isOnboardingCompleted = true, isAccountDisabled = false)
+    if (firestoreManager.isAvailable) {
+      firestoreManager.restoreDeletedAccount(completed)
+    }
+    dao.deleteUserProfile()
+    dao.deleteAllMessages()
+    dao.deleteAllSwipeRecords()
+    dao.deleteAllProfiles()
+    dao.saveUserProfile(completed.toEntity())
+    syncCommunityRegisteredUsers(completed.id)
+    return true
+  }
+
+  /**
+   * Permanently deletes a previously deleted account from deleted_accounts collection.
+   */
+  suspend fun permanentlyDeleteDeletedAccount(userId: String, phoneNumber: String, countryCode: String): Boolean {
+    if (!firestoreManager.isAvailable) return true
+    return firestoreManager.permanentlyDeleteFromDeletedAccounts(userId, phoneNumber, countryCode)
+  }
+
+  /**
    * Syncs all other registered users from Firestore into the local discovery pool.
    * Every registered user becomes a dating profile for other users.
    */
@@ -2848,6 +1568,59 @@ class KatkatRepository(
     }
   }
 
+  /**
+   * Refreshes all incoming likes directly from Firestore into the local database.
+   * Invoked when user pulls to sync on the Likes page.
+   */
+  suspend fun refreshLikesFromDatabase(currentUserId: String) {
+    if (!firestoreManager.isAvailable || currentUserId.isBlank()) return
+    try {
+      syncCommunityRegisteredUsers(currentUserId)
+      val incoming = firestoreManager.fetchIncomingLikesNow(currentUserId)
+      for (like in incoming) {
+        val senderId = like.fromUserId
+        if (senderId.isBlank() || senderId == currentUserId) continue
+        val profileEntity = dao.getProfileById(senderId)
+        if (profileEntity != null) {
+          dao.markIncomingLike(senderId)
+        }
+      }
+      Log.d("KatkatRepository", "Refreshed ${incoming.size} incoming likes from Firestore.")
+    } catch (e: Exception) {
+      Log.w("KatkatRepository", "Error refreshing likes from database: ${e.message}")
+    }
+  }
+
+  /**
+   * Refreshes all mutual matches and conversation messages directly from Firestore.
+   * Invoked when user pulls to sync on the Chats / Matches page.
+   */
+  suspend fun refreshMatchesAndChatsFromDatabase(currentUserId: String) {
+    if (!firestoreManager.isAvailable || currentUserId.isBlank()) return
+    try {
+      syncCommunityRegisteredUsers(currentUserId)
+      val cloudMatches = firestoreManager.fetchMutualMatchesNow(currentUserId)
+      for (cm in cloudMatches) {
+        val otherUserId = if (cm.user1Id == currentUserId) cm.user2Id else cm.user1Id
+        if (otherUserId.isBlank() || otherUserId == currentUserId) continue
+        val profileEntity = dao.getProfileById(otherUserId)
+        if (profileEntity != null && !profileEntity.isMutualMatch) {
+          dao.markMutualMatch(otherUserId, cm.matchedTimestamp)
+        }
+      }
+      val currentMatches = dao.getMutualMatchesList()
+      for (m in currentMatches) {
+        val messages = firestoreManager.fetchChatMessages(m.id, currentUserId)
+        messages.forEach { msg ->
+          dao.insertMessage(msg.toEntity(ownerUserId = currentUserId))
+        }
+      }
+      Log.d("KatkatRepository", "Refreshed matches and chats from Firestore.")
+    } catch (e: Exception) {
+      Log.w("KatkatRepository", "Error refreshing matches/chats from database: ${e.message}")
+    }
+  }
+
   private fun calculateHaversineDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val r = 6371.0 // Earth radius in km
     val dLat = Math.toRadians(lat2 - lat1)
@@ -2922,9 +1695,10 @@ class KatkatRepository(
 
   suspend fun deleteAccount(): Boolean {
     val current = dao.getUserProfileFlow().firstOrNull()?.toDomain()
-    if (current != null && firestoreManager.isAvailable) {
+    val effectiveUserId = getEffectiveCurrentUserId()
+    if (firestoreManager.isAvailable) {
       try {
-        firestoreManager.deleteUserProfile(current.id)
+        firestoreManager.deleteUserProfile(effectiveUserId, current)
       } catch (e: Exception) {
         Log.w("KatkatRepository", "Notice deleting user in Firestore: ${e.message}")
       }
@@ -2971,7 +1745,7 @@ class KatkatRepository(
     return true
   }
 
-  suspend fun resetDeckForTesting(currentUserId: String? = null) {
+  suspend fun syncDeck(currentUserId: String? = null) {
     // Sync newly discovered community profiles while keeping all passed and liked profiles filtered
     val uid = currentUserId ?: getEffectiveCurrentUserId()
     if (firestoreManager.isAvailable && uid.isNotBlank()) {

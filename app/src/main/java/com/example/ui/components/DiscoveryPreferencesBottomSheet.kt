@@ -97,17 +97,18 @@ fun DiscoveryPreferencesBottomSheet(
   }
 
   // VIP Advanced Filter States
-  var filterIntention by remember(userProfile.datingIntention) {
-    mutableStateOf(if (isVip) userProfile.datingIntention else "")
+  // Initially, all categories are selected as "Any" and saved in preferences only
+  var filterIntention by remember(userProfile.preferDatingIntention) {
+    mutableStateOf(if (isVip) userProfile.preferDatingIntention else "")
   }
-  var filterDrinking by remember(userProfile.drinking) {
-    mutableStateOf(if (isVip) userProfile.drinking else "")
+  var filterDrinking by remember(userProfile.preferDrinking) {
+    mutableStateOf(if (isVip) userProfile.preferDrinking else "")
   }
-  var filterSmoking by remember(userProfile.smoking) {
-    mutableStateOf(if (isVip) userProfile.smoking else "")
+  var filterSmoking by remember(userProfile.preferSmoking) {
+    mutableStateOf(if (isVip) userProfile.preferSmoking else "")
   }
-  var filterZodiac by remember(userProfile.zodiac) {
-    mutableStateOf(if (isVip) userProfile.zodiac else "")
+  var filterZodiac by remember(userProfile.preferZodiac) {
+    mutableStateOf(if (isVip) userProfile.preferZodiac else "")
   }
 
   ModalBottomSheet(
@@ -389,7 +390,7 @@ fun DiscoveryPreferencesBottomSheet(
           ) {
             val intentionOptions = listOf("Any") + AllDatingIntentionsList
             intentionOptions.forEach { opt ->
-              val isSelected = if (opt == "Any") filterIntention.isBlank() else filterIntention.equals(opt, ignoreCase = true)
+              val isSelected = if (opt == "Any") filterIntention.isBlank() || filterIntention.equals("Any", ignoreCase = true) else filterIntention.equals(opt, ignoreCase = true)
               Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = when {
@@ -402,7 +403,7 @@ fun DiscoveryPreferencesBottomSheet(
                   if (isSelected && isVip) Color(0xFFB8860B) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 ),
                 modifier = Modifier.clickable(enabled = isVip) {
-                  filterIntention = if (opt == "Any") "" else opt
+                  filterIntention = if (opt == "Any" || isSelected) "" else opt
                 }
               ) {
                 Text(
@@ -437,7 +438,7 @@ fun DiscoveryPreferencesBottomSheet(
           ) {
             val drinkingOptions = listOf("Any") + DrinkingHabitsList
             drinkingOptions.forEach { opt ->
-              val isSelected = if (opt == "Any") filterDrinking.isBlank() else filterDrinking.equals(opt, ignoreCase = true)
+              val isSelected = if (opt == "Any") filterDrinking.isBlank() || filterDrinking.equals("Any", ignoreCase = true) else filterDrinking.equals(opt, ignoreCase = true)
               Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = when {
@@ -450,7 +451,7 @@ fun DiscoveryPreferencesBottomSheet(
                   if (isSelected && isVip) Color(0xFFB8860B) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 ),
                 modifier = Modifier.clickable(enabled = isVip) {
-                  filterDrinking = if (opt == "Any") "" else opt
+                  filterDrinking = if (opt == "Any" || isSelected) "" else opt
                 }
               ) {
                 Text(
@@ -485,7 +486,7 @@ fun DiscoveryPreferencesBottomSheet(
           ) {
             val smokingOptions = listOf("Any") + SmokingHabitsList
             smokingOptions.forEach { opt ->
-              val isSelected = if (opt == "Any") filterSmoking.isBlank() else filterSmoking.equals(opt, ignoreCase = true)
+              val isSelected = if (opt == "Any") filterSmoking.isBlank() || filterSmoking.equals("Any", ignoreCase = true) else filterSmoking.equals(opt, ignoreCase = true)
               Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = when {
@@ -498,7 +499,7 @@ fun DiscoveryPreferencesBottomSheet(
                   if (isSelected && isVip) Color(0xFFB8860B) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 ),
                 modifier = Modifier.clickable(enabled = isVip) {
-                  filterSmoking = if (opt == "Any") "" else opt
+                  filterSmoking = if (opt == "Any" || isSelected) "" else opt
                 }
               ) {
                 Text(
@@ -533,7 +534,7 @@ fun DiscoveryPreferencesBottomSheet(
           ) {
             val zodiacOptions = listOf("Any") + AllZodiacList
             zodiacOptions.forEach { opt ->
-              val isSelected = if (opt == "Any") filterZodiac.isBlank() else filterZodiac.equals(opt, ignoreCase = true)
+              val isSelected = if (opt == "Any") filterZodiac.isBlank() || filterZodiac.equals("Any", ignoreCase = true) else filterZodiac.equals(opt, ignoreCase = true)
               Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = when {
@@ -546,7 +547,7 @@ fun DiscoveryPreferencesBottomSheet(
                   if (isSelected && isVip) Color(0xFFB8860B) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 ),
                 modifier = Modifier.clickable(enabled = isVip) {
-                  filterZodiac = if (opt == "Any") "" else opt
+                  filterZodiac = if (opt == "Any" || isSelected) "" else opt
                 }
               ) {
                 Text(
@@ -576,10 +577,10 @@ fun DiscoveryPreferencesBottomSheet(
             minAgePreference = minAge.toInt(),
             maxAgePreference = maxAge.toInt(),
             interestedInGender = interestedIn,
-            datingIntention = if (isVip) filterIntention else userProfile.datingIntention,
-            drinking = if (isVip) filterDrinking else userProfile.drinking,
-            smoking = if (isVip) filterSmoking else userProfile.smoking,
-            zodiac = if (isVip) filterZodiac else userProfile.zodiac
+            preferDatingIntention = if (isVip) filterIntention else userProfile.preferDatingIntention,
+            preferDrinking = if (isVip) filterDrinking else userProfile.preferDrinking,
+            preferSmoking = if (isVip) filterSmoking else userProfile.preferSmoking,
+            preferZodiac = if (isVip) filterZodiac else userProfile.preferZodiac
           )
           onSavePreferences(updated)
           onDismiss()

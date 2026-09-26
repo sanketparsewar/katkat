@@ -77,6 +77,10 @@ data class UserProfileEntity(
   val minAgePreference: Int = 18,
   val maxAgePreference: Int = 35,
   val interestedInGender: String = "",
+  val preferDatingIntention: String = "",
+  val preferDrinking: String = "",
+  val preferSmoking: String = "",
+  val preferZodiac: String = "",
   val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -116,6 +120,10 @@ fun UserProfileEntity.toDomain(): com.example.data.model.UserProfile =
     minAgePreference = minAgePreference,
     maxAgePreference = maxAgePreference,
     interestedInGender = interestedInGender,
+    preferDatingIntention = preferDatingIntention,
+    preferDrinking = preferDrinking,
+    preferSmoking = preferSmoking,
+    preferZodiac = preferZodiac,
     createdAt = createdAt
   )
 
@@ -155,6 +163,10 @@ fun com.example.data.model.UserProfile.toEntity(): UserProfileEntity =
     minAgePreference = minAgePreference,
     maxAgePreference = maxAgePreference,
     interestedInGender = interestedInGender,
+    preferDatingIntention = preferDatingIntention,
+    preferDrinking = preferDrinking,
+    preferSmoking = preferSmoking,
+    preferZodiac = preferZodiac,
     createdAt = createdAt
   )
 

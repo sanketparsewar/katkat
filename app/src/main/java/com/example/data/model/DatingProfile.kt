@@ -70,6 +70,10 @@ data class UserProfile(
   val minAgePreference: Int = 18,
   val maxAgePreference: Int = 35,
   val interestedInGender: String = "",
+  val preferDatingIntention: String = "",
+  val preferDrinking: String = "",
+  val preferSmoking: String = "",
+  val preferZodiac: String = "",
   val createdAt: Long = System.currentTimeMillis()
 ) {
   fun calculateProfileStrength(): Int {

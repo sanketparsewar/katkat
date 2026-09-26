@@ -77,6 +77,8 @@ fun MainScreen(
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val subscriptionState by viewModel.subscriptionState.collectAsStateWithLifecycle()
   val isRefreshingDeck by viewModel.isRefreshingDeck.collectAsStateWithLifecycle()
+  val isRefreshingLikes by viewModel.isRefreshingLikes.collectAsStateWithLifecycle()
+  val isRefreshingChats by viewModel.isRefreshingChats.collectAsStateWithLifecycle()
   val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
   val isLoadingMoreProfiles by viewModel.isLoadingMoreProfiles.collectAsStateWithLifecycle()
   val isSessionLoaded by viewModel.isSessionLoaded.collectAsStateWithLifecycle()
@@ -267,6 +269,8 @@ fun MainScreen(
               },
               onInspectProfile = { profile -> viewModel.inspectProfile(profile) },
               onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER },
+              isRefreshing = isRefreshingLikes,
+              onRefresh = { viewModel.refreshLikes() },
               isOnline = isOnline,
               errorMessage = likesErrorMessage,
               onRetry = { viewModel.retryLoadLikes() }
@@ -279,7 +283,8 @@ fun MainScreen(
               conversations = conversations,
               onSelectMatch = { profile -> viewModel.openChat(profile) },
               onNavigateToDiscover = { currentTab = KatkatTab.DISCOVER },
-              onCreateTestMatch = { viewModel.createTestMatch() },
+              isRefreshing = isRefreshingChats,
+              onRefresh = { viewModel.refreshChats() },
               isOnline = isOnline,
               errorMessage = matchesErrorMessage,
               onRetry = { viewModel.retryLoadMatches() }

@@ -43,6 +43,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,14 +86,16 @@ enum class ConversationFilter {
   ALL, UNREAD, ONLINE
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MatchesChatScreen(
   matches: List<DatingProfile>,
   conversations: List<MatchConversation> = emptyList(),
   onSelectMatch: (DatingProfile) -> Unit,
   onNavigateToDiscover: () -> Unit,
-  onCreateTestMatch: (() -> Unit)? = null,
   isLoading: Boolean = false,
+  isRefreshing: Boolean = false,
+  onRefresh: () -> Unit = {},
   isOnline: Boolean = true,
   errorMessage: String? = null,
   onRetry: () -> Unit = {},
@@ -97,6 +103,7 @@ fun MatchesChatScreen(
 ) {
   var searchQuery by remember { mutableStateOf("") }
   var selectedFilter by remember { mutableStateOf(ConversationFilter.ALL) }
+  val refreshState = rememberPullToRefreshState()
 
   // Merge match list with conversation data fallback
   val effectiveConversations = remember(matches, conversations) {
@@ -137,12 +144,27 @@ fun MatchesChatScreen(
     effectiveConversations.sumOf { it.unreadCount }
   }
 
-  Column(
+  PullToRefreshBox(
+    isRefreshing = isRefreshing,
+    onRefresh = onRefresh,
+    state = refreshState,
+    indicator = {
+      PullToRefreshDefaults.Indicator(
+        state = refreshState,
+        isRefreshing = isRefreshing,
+        modifier = Modifier.align(Alignment.TopCenter),
+        containerColor = CoralPrimary,
+        color = Color.White
+      )
+    },
     modifier = modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("matches_chat_screen")
   ) {
+    Column(
+      modifier = Modifier.fillMaxSize()
+    ) {
     // Offline Banner
     OfflineBanner(
       isOnline = isOnline,
@@ -401,6 +423,7 @@ fun MatchesChatScreen(
       )
     }
   }
+}
 }
 
 @Composable

@@ -67,8 +67,13 @@ import com.example.ui.components.OfflineBanner
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.NopeRed
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import com.example.ui.theme.SuperlikeBlue
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LikesYouScreen(
   likedProfiles: List<DatingProfile>,
@@ -79,19 +84,37 @@ fun LikesYouScreen(
   onInspectProfile: (DatingProfile) -> Unit,
   onNavigateToDiscover: () -> Unit,
   isLoading: Boolean = false,
+  isRefreshing: Boolean = false,
+  onRefresh: () -> Unit = {},
   isOnline: Boolean = true,
   errorMessage: String? = null,
   onRetry: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val isLocked = subscriptionState.currentTier == SubscriptionTier.FREE
+  val refreshState = rememberPullToRefreshState()
 
-  Column(
+  PullToRefreshBox(
+    isRefreshing = isRefreshing,
+    onRefresh = onRefresh,
+    state = refreshState,
+    indicator = {
+      PullToRefreshDefaults.Indicator(
+        state = refreshState,
+        isRefreshing = isRefreshing,
+        modifier = Modifier.align(Alignment.TopCenter),
+        containerColor = CoralPrimary,
+        color = Color.White
+      )
+    },
     modifier = modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("likes_you_screen")
   ) {
+    Column(
+      modifier = Modifier.fillMaxSize()
+    ) {
     // Offline Banner
     OfflineBanner(
       isOnline = isOnline,
@@ -296,6 +319,7 @@ fun LikesYouScreen(
       }
     }
   }
+}
 }
 
 @Composable

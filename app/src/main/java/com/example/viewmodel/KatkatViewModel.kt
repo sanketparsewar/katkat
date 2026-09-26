@@ -136,6 +136,14 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   private val _isRefreshingDeck = MutableStateFlow(false)
   val isRefreshingDeck: StateFlow<Boolean> = _isRefreshingDeck.asStateFlow()
 
+  // Pull-to-refresh state for likes
+  private val _isRefreshingLikes = MutableStateFlow(false)
+  val isRefreshingLikes: StateFlow<Boolean> = _isRefreshingLikes.asStateFlow()
+
+  // Pull-to-refresh state for chats and matches
+  private val _isRefreshingChats = MutableStateFlow(false)
+  val isRefreshingChats: StateFlow<Boolean> = _isRefreshingChats.asStateFlow()
+
   // Pagination for Discover deck (Page 1: 1-20, Page 2: 21-40, etc.)
   private val _currentPage = MutableStateFlow(1)
   val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
@@ -480,18 +488,6 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  fun createTestMatch() {
-    viewModelScope.launch {
-      val matched = repository.createSimulatedTestMatch()
-      if (matched != null) {
-        _uiEvents.emit(UiEvent.ShowToast("Matched with ${matched.name}! 💕"))
-        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
-      } else {
-        _uiEvents.emit(UiEvent.ShowToast("No more candidate profiles to match!"))
-      }
-    }
-  }
-
   fun autoSaveProfile(profile: UserProfile) {
     viewModelScope.launch {
       repository.saveUserProfile(profile)
@@ -550,6 +546,18 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   suspend fun checkExistingUser(phone: String, countryCode: String): UserProfile? {
     return repository.checkExistingUserByPhone(phone, countryCode)
+  }
+
+  suspend fun checkDeletedAccount(phone: String, countryCode: String): UserProfile? {
+    return repository.checkDeletedAccountByPhone(phone, countryCode)
+  }
+
+  suspend fun restoreDeletedAccount(profile: UserProfile): Boolean {
+    return repository.restoreDeletedAccount(profile)
+  }
+
+  suspend fun permanentlyDeleteDeletedAccount(userId: String, phone: String, countryCode: String): Boolean {
+    return repository.permanentlyDeleteDeletedAccount(userId, phone, countryCode)
   }
 
   fun showGreetingAndEnter(profile: UserProfile) {
@@ -768,7 +776,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         } else {
           kotlinx.coroutines.delay(400)
           val currentUserId = getEffectiveUserId()
-          repository.resetDeckForTesting(currentUserId)
+          repository.syncDeck(currentUserId)
           repository.loadDiscoverPage(page = 1, pageSize = 20)
           _uiEvents.emit(UiEvent.ShowToast("Discover deck refreshed! ✨"))
           _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))
@@ -791,29 +799,47 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun retryLoadLikes() {
+    refreshLikes()
+  }
+
+  fun refreshLikes() {
     viewModelScope.launch {
+      _isRefreshingLikes.value = true
       _likesErrorMessage.value = null
       val currentUserId = getEffectiveUserId()
       try {
         if (currentUserId.isNotBlank()) {
-          repository.syncCommunityRegisteredUsers(currentUserId)
+          repository.refreshLikesFromDatabase(currentUserId)
+          _uiEvents.emit(UiEvent.ShowToast("Likes synced from database ✨"))
+          _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))
         }
       } catch (e: Exception) {
-        _likesErrorMessage.value = "Unable to load likes. Please check connection."
+        _likesErrorMessage.value = "Unable to sync likes. Please check connection."
+      } finally {
+        _isRefreshingLikes.value = false
       }
     }
   }
 
   fun retryLoadMatches() {
+    refreshChats()
+  }
+
+  fun refreshChats() {
     viewModelScope.launch {
+      _isRefreshingChats.value = true
       _matchesErrorMessage.value = null
       val currentUserId = getEffectiveUserId()
       try {
         if (currentUserId.isNotBlank()) {
-          repository.syncCommunityRegisteredUsers(currentUserId)
+          repository.refreshMatchesAndChatsFromDatabase(currentUserId)
+          _uiEvents.emit(UiEvent.ShowToast("Chats synced from database 💬"))
+          _uiEvents.emit(UiEvent.VibrateFeedback("refresh"))
         }
       } catch (e: Exception) {
-        _matchesErrorMessage.value = "Unable to load matches. Please check connection."
+        _matchesErrorMessage.value = "Unable to sync chats. Please check connection."
+      } finally {
+        _isRefreshingChats.value = false
       }
     }
   }
@@ -862,55 +888,6 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       val userId = getEffectiveUserId()
       repository.postSystemNotification(title, message, userId)
-    }
-  }
-
-  fun triggerSimulatedNotification(type: KatkatNotificationType) {
-    viewModelScope.launch {
-      val userId = getEffectiveUserId()
-      val notif = when (type) {
-        KatkatNotificationType.NEW_MATCH -> KatkatNotification(
-          userId = userId,
-          type = KatkatNotificationType.NEW_MATCH,
-          title = "It's a Match! 🎉",
-          message = "Yaaa! You have a new match!",
-          senderProfileName = "Sarah Chen",
-          deepLinkTarget = "chat"
-        )
-        KatkatNotificationType.NEW_MESSAGE -> KatkatNotification(
-          userId = userId,
-          type = KatkatNotificationType.NEW_MESSAGE,
-          title = "New Message 💬",
-          message = "Sarah Chen sent you a message",
-          senderProfileName = "Sarah Chen",
-          deepLinkTarget = "chat"
-        )
-        KatkatNotificationType.MESSAGE_READ -> KatkatNotification(
-          userId = userId,
-          type = KatkatNotificationType.MESSAGE_READ,
-          title = "Message Read 👀",
-          message = "Sarah Chen read your message",
-          senderProfileName = "Sarah Chen",
-          deepLinkTarget = "chat"
-        )
-        KatkatNotificationType.PROFILE_ACTIVITY -> KatkatNotification(
-          userId = userId,
-          type = KatkatNotificationType.PROFILE_ACTIVITY,
-          title = "New Like! ✨",
-          message = "Someone liked you",
-          senderProfileName = "Aarav Sharma",
-          deepLinkTarget = "likes_you"
-        )
-        KatkatNotificationType.SYSTEM_NOTIFICATION -> KatkatNotification(
-          userId = userId,
-          type = KatkatNotificationType.SYSTEM_NOTIFICATION,
-          title = "Welcome to Katkat Dating",
-          message = "Explore eligible matches near your location and start connecting!"
-        )
-      }
-      repository.postLocalNotification(notif)
-      _uiEvents.emit(UiEvent.ShowToast("Notification generated: ${notif.title}"))
-      _uiEvents.emit(UiEvent.VibrateFeedback("tap"))
     }
   }
 }
