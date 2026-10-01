@@ -25,8 +25,8 @@ class ExampleRobolectricTest {
   @Test
   fun `verify subscription tier swipe quotas`() {
     assertEquals(50, SubscriptionTier.FREE.monthlySwipes)
-    assertEquals(200, SubscriptionTier.TIER_1.monthlySwipes)
-    assertEquals(500, SubscriptionTier.TIER_2.monthlySwipes)
+    assertEquals(150, SubscriptionTier.TIER_1.monthlySwipes)
+    assertEquals(300, SubscriptionTier.TIER_2.monthlySwipes)
   }
 
   @Test

@@ -218,20 +218,15 @@ fun SwipeCard(
         translationY = offset.value.y
         // Anchored pivot slightly below center for realistic handheld card physics
         transformOrigin = TransformOrigin(0.5f, 0.85f)
-        rotationZ = if (isTopCard) rotationDegrees else 0f
+        rotationZ = if (isTopCard) (offset.value.x / 18f).coerceIn(-24f, 24f) else 0f
         scaleX = if (isTopCard) cardLiftScale else 1f
         scaleY = if (isTopCard) cardLiftScale else 1f
         cameraDistance = 14f * density.density
       }
       .shadow(
-        elevation = if (isDragging) 24.dp else if (isTopCard) 12.dp else 4.dp,
+        elevation = if (isDragging) 18.dp else if (isTopCard) 10.dp else 4.dp,
         shape = RoundedCornerShape(26.dp),
-        spotColor = when {
-          likeAlpha > 0.15f -> LikeGreen.copy(alpha = 0.5f)
-          nopeAlpha > 0.15f -> NopeRed.copy(alpha = 0.5f)
-          superlikeAlpha > 0.15f -> SuperlikeBlue.copy(alpha = 0.5f)
-          else -> Color.Black.copy(alpha = 0.3f)
-        }
+        spotColor = Color.Black.copy(alpha = 0.28f)
       )
       .clip(RoundedCornerShape(26.dp))
       .then(

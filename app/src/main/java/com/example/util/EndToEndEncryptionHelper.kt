@@ -22,6 +22,7 @@ object EndToEndEncryptionHelper {
   private const val AES_TRANSFORMATION = "AES/CBC/PKCS5Padding"
   private const val AES_ALGORITHM = "AES"
   private const val DOMAIN_SALT = "KATKAT_E2EE_SECURE_SALT_2026_V1_"
+  private val keyCache = java.util.concurrent.ConcurrentHashMap<String, SecretKeySpec>()
 
   /**
    * Generates a deterministic, unique conversation ID for a pair of user profiles.
@@ -68,10 +69,13 @@ object EndToEndEncryptionHelper {
     val cleanA = userA.trim()
     val cleanB = userB.trim()
     val (first, second) = if (cleanA < cleanB) cleanA to cleanB else cleanB to cleanA
-    val keySeed = "$DOMAIN_SALT:$first:$second"
-    val digest = MessageDigest.getInstance("SHA-256")
-    val keyBytes = digest.digest(keySeed.toByteArray(Charsets.UTF_8))
-    return SecretKeySpec(keyBytes, AES_ALGORITHM)
+    val cacheKey = "$first:$second"
+    return keyCache.computeIfAbsent(cacheKey) {
+      val keySeed = "$DOMAIN_SALT:$first:$second"
+      val digest = MessageDigest.getInstance("SHA-256")
+      val keyBytes = digest.digest(keySeed.toByteArray(Charsets.UTF_8))
+      SecretKeySpec(keyBytes, AES_ALGORITHM)
+    }
   }
 
   /**

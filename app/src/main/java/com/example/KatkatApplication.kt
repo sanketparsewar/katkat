@@ -97,7 +97,7 @@ class KatkatApplication : Application(), ImageLoaderFactory {
 
     return ImageLoader.Builder(this)
       .okHttpClient(okHttpClient)
-      .allowHardware(false)
+      .allowHardware(true)
       .memoryCache {
         MemoryCache.Builder(this)
           .maxSizePercent(0.25)

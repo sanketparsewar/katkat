@@ -1030,6 +1030,7 @@ class FirestoreManager {
 
     val query = db.collection("likes")
       .whereEqualTo("toUserId", myUserId)
+      .limit(80)
 
     val listenerRegistration = query.addSnapshotListener { snapshot, error ->
       if (error != null) {
@@ -1073,6 +1074,7 @@ class FirestoreManager {
 
     val query = db.collection("matches")
       .whereArrayContains("users", myUserId)
+      .limit(80)
 
     val listenerRegistration = query.addSnapshotListener { snapshot, error ->
       if (error != null) {
@@ -1111,6 +1113,7 @@ class FirestoreManager {
     return try {
       val snapshot = db.collection("likes")
         .whereEqualTo("toUserId", myUserId)
+        .limit(80)
         .get()
         .await()
       snapshot.documents.mapNotNull { doc ->
@@ -1138,6 +1141,7 @@ class FirestoreManager {
     return try {
       val snapshot = db.collection("matches")
         .whereArrayContains("users", myUserId)
+        .limit(80)
         .get()
         .await()
       snapshot.documents.mapNotNull { doc ->
@@ -1586,6 +1590,7 @@ class FirestoreManager {
       val deletedUserIds = fetchAllDeletedAccountUserIds()
       val snapshot = db.collection("users")
         .whereEqualTo("isOnboardingCompleted", true)
+        .limit(120)
         .get()
         .await()
       snapshot.documents.mapNotNull { doc ->
@@ -1667,6 +1672,7 @@ class FirestoreManager {
 
     val listener = db.collection("users")
       .whereEqualTo("isOnboardingCompleted", true)
+      .limit(60)
       .addSnapshotListener { snapshot, error ->
         if (error != null) {
           Log.w(tag, "observeCommunityProfiles notice: ${error.message}")

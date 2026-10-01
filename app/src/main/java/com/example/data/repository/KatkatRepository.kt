@@ -101,11 +101,15 @@ class KatkatRepository(
         dao.deleteMockProfiles()
 
         // Start listening to user profile changes to attach real-time likes & match listeners
+        var lastSyncedUserId: String? = null
         dao.getUserProfileFlow().collect { userEntity ->
           if (userEntity != null && userEntity.isOnboardingCompleted && userEntity.id.isNotBlank() && firestoreManager.isAvailable) {
             val currentId = userEntity.id
-            syncCommunityRegisteredUsers(currentId)
-            startRealtimeCloudSync(currentId)
+            if (lastSyncedUserId != currentId || realTimeSyncJob == null || !realTimeSyncJob!!.isActive) {
+              lastSyncedUserId = currentId
+              syncCommunityRegisteredUsers(currentId)
+              startRealtimeCloudSync(currentId)
+            }
           }
         }
       } catch (_: Exception) {}
@@ -237,32 +241,44 @@ class KatkatRepository(
 
       // 3. Observe background chat messages for all mutual matches to update unread counts and notifications in real time
       launch {
+        val activeChatJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
         dao.getMutualMatches().collect { mutualList ->
+          val currentMatchIds = mutualList.map { it.id }.toSet()
+
+          // Cancel listeners for matches that were unmatched or blocked
+          activeChatJobs.keys.filter { it !in currentMatchIds }.forEach { removedId ->
+            activeChatJobs.remove(removedId)?.cancel()
+          }
+
+          // Launch listener only for new matches not currently observed
           mutualList.forEach { matchProfile ->
-            launch {
-              firestoreManager.observeChatMessages(matchProfile.id, currentUserId).collect { remoteMsgs ->
-                val existingLatest = dao.getLatestMessage(matchProfile.id, currentUserId)
-                remoteMsgs.forEach { msg ->
-                  val alreadyStored = dao.getMessageById(msg.id) != null
-                  dao.insertMessage(msg.toEntity(ownerUserId = currentUserId))
-                  // Rule: If a match sends a message: "Profile 2 sent you a message"
-                  if (!alreadyStored && msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
-                    val notif = KatkatNotification(
-                      id = "msg_${msg.id}",
-                      userId = currentUserId,
-                      type = KatkatNotificationType.NEW_MESSAGE,
-                      title = "New Message 💬",
-                      message = "${msg.senderName.takeIf { it.isNotBlank() } ?: matchProfile.name} sent you a message",
-                      timestamp = msg.timestamp,
-                      senderProfileId = msg.senderId,
-                      senderProfileName = msg.senderName.takeIf { it.isNotBlank() } ?: matchProfile.name,
-                      senderAvatarUrl = matchProfile.photosJoined.split("|||").firstOrNull(),
-                      deepLinkTarget = "chat/${matchProfile.id}"
-                    )
-                    saveAndPushNotification(notif)
+            if (!activeChatJobs.containsKey(matchProfile.id)) {
+              val job = launch {
+                firestoreManager.observeChatMessages(matchProfile.id, currentUserId).collect { remoteMsgs ->
+                  val existingLatest = dao.getLatestMessage(matchProfile.id, currentUserId)
+                  remoteMsgs.forEach { msg ->
+                    val alreadyStored = dao.getMessageById(msg.id) != null
+                    dao.insertMessage(msg.toEntity(ownerUserId = currentUserId))
+                    // Rule: If a match sends a message: "Profile 2 sent you a message"
+                    if (!alreadyStored && msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
+                      val notif = KatkatNotification(
+                        id = "msg_${msg.id}",
+                        userId = currentUserId,
+                        type = KatkatNotificationType.NEW_MESSAGE,
+                        title = "New Message 💬",
+                        message = "${msg.senderName.takeIf { it.isNotBlank() } ?: matchProfile.name} sent you a message",
+                        timestamp = msg.timestamp,
+                        senderProfileId = msg.senderId,
+                        senderProfileName = msg.senderName.takeIf { it.isNotBlank() } ?: matchProfile.name,
+                        senderAvatarUrl = matchProfile.photosJoined.split("|||").firstOrNull(),
+                        deepLinkTarget = "chat/${matchProfile.id}"
+                      )
+                      saveAndPushNotification(notif)
+                    }
                   }
                 }
               }
+              activeChatJobs[matchProfile.id] = job
             }
           }
         }

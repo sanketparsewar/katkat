@@ -1,11 +1,20 @@
 package com.example.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import com.example.data.model.SubscriptionTier
 
-@Entity(tableName = "dating_profiles")
+@Entity(
+  tableName = "dating_profiles",
+  indices = [
+    Index(value = ["isMutualMatch"]),
+    Index(value = ["likedMe"]),
+    Index(value = ["isLikedByMe", "isPassedByMe", "isSuperLikedByMe", "isAccountDisabled"]),
+    Index(value = ["matchedTimestamp"])
+  ]
+)
 data class ProfileEntity(
   @PrimaryKey val id: String,
   val name: String,
@@ -242,7 +251,13 @@ fun com.example.data.model.DatingProfile.toEntity(): ProfileEntity =
     isVip = isVip
   )
 
-@Entity(tableName = "swipe_records")
+@Entity(
+  tableName = "swipe_records",
+  indices = [
+    Index(value = ["monthKey"]),
+    Index(value = ["profileId", "monthKey"])
+  ]
+)
 data class SwipeRecordEntity(
   @PrimaryKey(autoGenerate = true) val id: Long = 0,
   val profileId: String,

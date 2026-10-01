@@ -238,19 +238,15 @@ fun SwipeScreen(
           visibleCards.forEach { profile ->
             key(profile.id) {
               val isTop = profile.id == topProfileId
-              // Dynamically scale and lift background card as top card moves
-              val bgScale = if (isTop) 1f else 0.94f + (0.06f * topCardDragProgress)
-              val bgYOffset = if (isTop) 0.dp else 12.dp * (1f - topCardDragProgress)
-              val bgAlpha = if (isTop) 1f else 0.85f + (0.15f * topCardDragProgress)
-
               Box(
                 modifier = Modifier
                   .fillMaxSize()
                   .graphicsLayer {
-                    scaleX = bgScale
-                    scaleY = bgScale
-                    translationY = bgYOffset.toPx()
-                    alpha = bgAlpha
+                    val progress = topCardDragProgress
+                    scaleX = if (isTop) 1f else 0.94f + (0.06f * progress)
+                    scaleY = if (isTop) 1f else 0.94f + (0.06f * progress)
+                    translationY = if (isTop) 0f else (12.dp.toPx() * (1f - progress))
+                    alpha = if (isTop) 1f else 0.85f + (0.15f * progress)
                   }
               ) {
                 SwipeCard(
