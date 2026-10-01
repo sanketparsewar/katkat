@@ -35,6 +35,11 @@ class MainActivity : ComponentActivity() {
       android.util.Log.w("MainActivity", "Notice launching sync service: ${e.message}")
     }
   }
+
+  override fun onResume() {
+    super.onResume()
+    viewModel.checkAndResetDailySwipes()
+  }
 }
 
 

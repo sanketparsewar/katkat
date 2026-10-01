@@ -37,7 +37,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
@@ -85,17 +87,38 @@ class KatkatRepository(
           firestoreManager.purgeLegacyDiscoveryProfileCollection()
         }
 
-        // Initialize default subscription if missing
-        dao.saveSubscription(
-          SubscriptionEntity(
-            id = "current_sub",
-            tierName = SubscriptionTier.FREE.name,
-            swipesUsedThisMonth = 0,
-            currentMonthKey = "2026-09",
-            isAnnualBilling = false,
-            subscriptionExpiryDate = "Renews Oct 16, 2026"
+        // Initialize default subscription if missing or reset daily swipe count if date rolled over
+        val todayKey = getTodayDateKey()
+        val existingSub = dao.getSubscriptionFlow().firstOrNull()
+        if (existingSub == null) {
+          dao.saveSubscription(
+            SubscriptionEntity(
+              id = "current_sub",
+              tierName = SubscriptionTier.FREE.name,
+              swipesUsedThisMonth = 0,
+              currentMonthKey = todayKey,
+              isAnnualBilling = false,
+              subscriptionExpiryDate = "Active"
+            )
           )
-        )
+        } else if (existingSub.currentMonthKey != todayKey) {
+          dao.saveSubscription(
+            existingSub.copy(
+              swipesUsedThisMonth = 0,
+              currentMonthKey = todayKey
+            )
+          )
+        }
+
+        // Launch background day rollover watcher to reset swipe counts at the start of every day
+        launch {
+          while (isActive) {
+            try {
+              checkAndResetDailySwipes()
+            } catch (_: Exception) {}
+            delay(30_000L) // Check every 30 seconds
+          }
+        }
 
         // Delete any mock/sample profiles from local database so everything comes purely from database
         dao.deleteMockProfiles()
@@ -299,14 +322,17 @@ class KatkatRepository(
       launch {
         firestoreManager.observeSubscriptionState(currentUserId).collect { remoteSub ->
           if (remoteSub != null) {
+            val todayKey = getTodayDateKey()
+            val effectiveSwipes = if (remoteSub.currentMonthKey == todayKey) remoteSub.swipesUsedThisMonth else 0
+            val effectiveDateKey = todayKey
             val localSub = dao.getSubscriptionFlow().firstOrNull()
-            if (localSub == null || localSub.tierName != remoteSub.currentTier.name || localSub.swipesUsedThisMonth != remoteSub.swipesUsedThisMonth) {
+            if (localSub == null || localSub.tierName != remoteSub.currentTier.name || localSub.swipesUsedThisMonth != effectiveSwipes || localSub.currentMonthKey != effectiveDateKey) {
               dao.saveSubscription(
                 SubscriptionEntity(
                   id = "current_sub",
                   tierName = remoteSub.currentTier.name,
-                  swipesUsedThisMonth = remoteSub.swipesUsedThisMonth,
-                  currentMonthKey = remoteSub.currentMonthKey,
+                  swipesUsedThisMonth = effectiveSwipes,
+                  currentMonthKey = effectiveDateKey,
                   isAnnualBilling = remoteSub.isAnnualBilling,
                   subscriptionExpiryDate = remoteSub.subscriptionExpiryDate
                 )
@@ -615,25 +641,49 @@ class KatkatRepository(
     entity?.toDomain() ?: UserProfile(isOnboardingCompleted = false)
   }
 
-  // Subscription State combined with monthly swipe record counts
+  fun getTodayDateKey(): String {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    return sdf.format(java.util.Date())
+  }
+
+  // Emits current date key and checks every 15s to automatically rollover at start of day (midnight)
+  val currentDayFlow: Flow<String> = flow {
+    var lastKey = ""
+    while (true) {
+      val currentKey = getTodayDateKey()
+      if (currentKey != lastKey) {
+        lastKey = currentKey
+        emit(currentKey)
+      }
+      delay(15_000L)
+    }
+  }
+
+  // Subscription State combined with daily swipe record counts (resets every start of day)
+  @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
   val subscriptionState: Flow<SubscriptionState> = combine(
     dao.getSubscriptionFlow(),
-    dao.getMonthlySwipeCountFlow("2026-09")
-  ) { subEntity, recordedSwipes ->
-    val tier = try {
-      SubscriptionTier.valueOf(subEntity?.tierName ?: SubscriptionTier.FREE.name)
-    } catch (_: Exception) {
-      SubscriptionTier.FREE
+    currentDayFlow
+  ) { subEntity, todayKey ->
+    Pair(subEntity, todayKey)
+  }.flatMapLatest { (subEntity, todayKey) ->
+    dao.getMonthlySwipeCountFlow(todayKey).map { recordedTodaySwipes ->
+      val tier = try {
+        SubscriptionTier.valueOf(subEntity?.tierName ?: SubscriptionTier.FREE.name)
+      } catch (_: Exception) {
+        SubscriptionTier.FREE
+      }
+      val isToday = subEntity?.currentMonthKey == todayKey
+      val effectiveSwipesUsed = if (isToday) maxOf(subEntity?.swipesUsedThisMonth ?: 0, recordedTodaySwipes) else recordedTodaySwipes
+      SubscriptionState(
+        currentTier = tier,
+        swipesUsedThisMonth = effectiveSwipesUsed,
+        currentMonthKey = todayKey,
+        isAnnualBilling = subEntity?.isAnnualBilling ?: false,
+        subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "Active",
+        isRevenueCatConnected = true
+      )
     }
-    val effectiveSwipesUsed = maxOf(subEntity?.swipesUsedThisMonth ?: 0, recordedSwipes)
-    SubscriptionState(
-      currentTier = tier,
-      swipesUsedThisMonth = effectiveSwipesUsed,
-      currentMonthKey = subEntity?.currentMonthKey ?: "2026-09",
-      isAnnualBilling = subEntity?.isAnnualBilling ?: false,
-      subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "Renews Oct 16, 2026",
-      isRevenueCatConnected = true
-    )
   }
 
   // Active Discover Deck (strictly excluding current user's profile and filtered by Discovery Preferences)
@@ -854,30 +904,39 @@ class KatkatRepository(
         }
       }
 
-      val sub = dao.getSubscriptionFlow().firstOrNull()
+      val todayKey = getTodayDateKey()
+      var sub = dao.getSubscriptionFlow().firstOrNull()
+      val isToday = sub?.currentMonthKey == todayKey
+      if (!isToday && sub != null) {
+        val resetSub = sub.copy(
+          swipesUsedThisMonth = 0,
+          currentMonthKey = todayKey
+        )
+        dao.saveSubscription(resetSub)
+        sub = resetSub
+      }
       val tier = try {
         SubscriptionTier.valueOf(sub?.tierName ?: SubscriptionTier.FREE.name)
       } catch (_: Exception) {
         SubscriptionTier.FREE
       }
-      val recordedSwipes = dao.getMonthlySwipeCount("2026-09")
-      val currentSwipes = maxOf(sub?.swipesUsedThisMonth ?: 0, recordedSwipes)
+      val recordedTodaySwipes = if (isToday) dao.getMonthlySwipeCount(todayKey) else 0
+      val currentSwipes = if (isToday) maxOf(sub?.swipesUsedThisMonth ?: 0, recordedTodaySwipes) else 0
 
-      if (currentSwipes >= tier.monthlySwipes) {
+      if (currentSwipes >= tier.dailySwipes) {
         return SwipeResult.LimitReached(tier, currentSwipes)
       }
 
-      val monthKey = "2026-09"
-      val existingSwipeRecord = dao.getSwipeRecordForProfile(profileId, monthKey)
+      val existingSwipeRecord = dao.getSwipeRecordForProfile(profileId, todayKey)
 
-      // Only increment monthly quota and create a swipe record if not already recorded
+      // Only increment daily quota and create a swipe record if not already recorded today
       if (existingSwipeRecord == null) {
         val newSwipeCount = currentSwipes + 1
         dao.insertSwipeRecord(
           SwipeRecordEntity(
             profileId = profileId,
             actionType = action.name,
-            monthKey = monthKey
+            monthKey = todayKey
           )
         )
 
@@ -886,9 +945,9 @@ class KatkatRepository(
             id = "current_sub",
             tierName = tier.name,
             swipesUsedThisMonth = newSwipeCount,
-            currentMonthKey = monthKey,
+            currentMonthKey = todayKey,
             isAnnualBilling = sub?.isAnnualBilling ?: false,
-            subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: "Renews Oct 16, 2026"
+            subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: "Active"
           )
         )
         // Sync updated swipe counts & plan details to Cloud Firestore backend
@@ -1070,14 +1129,16 @@ class KatkatRepository(
 
   suspend fun upgradeSubscription(tier: SubscriptionTier, isAnnual: Boolean): Boolean {
     val existing = dao.getSubscriptionFlow().firstOrNull()
+    val todayKey = getTodayDateKey()
+    val isToday = existing?.currentMonthKey == todayKey
     dao.saveSubscription(
       SubscriptionEntity(
         id = "current_sub",
         tierName = tier.name,
-        swipesUsedThisMonth = existing?.swipesUsedThisMonth ?: 0,
-        currentMonthKey = "2026-09",
+        swipesUsedThisMonth = if (isToday) (existing?.swipesUsedThisMonth ?: 0) else 0,
+        currentMonthKey = todayKey,
         isAnnualBilling = isAnnual,
-        subscriptionExpiryDate = if (isAnnual) "Renews Sep 16, 2027" else "Renews Oct 16, 2026"
+        subscriptionExpiryDate = if (isAnnual) "Renews next year" else "Renews next month"
       )
     )
     appScope.launch {
@@ -1086,10 +1147,29 @@ class KatkatRepository(
     return true
   }
 
+  suspend fun checkAndResetDailySwipes(): Boolean {
+    val todayKey = getTodayDateKey()
+    val sub = dao.getSubscriptionFlow().firstOrNull()
+    if (sub != null && sub.currentMonthKey != todayKey) {
+      dao.saveSubscription(
+        sub.copy(
+          swipesUsedThisMonth = 0,
+          currentMonthKey = todayKey
+        )
+      )
+      appScope.launch {
+        syncSubscriptionToCloud()
+      }
+      return true
+    }
+    return false
+  }
+
   suspend fun resetSwipeCounter(): Boolean {
     val sub = dao.getSubscriptionFlow().firstOrNull()
+    val todayKey = getTodayDateKey()
     if (sub != null) {
-      dao.saveSubscription(sub.copy(swipesUsedThisMonth = 0))
+      dao.saveSubscription(sub.copy(swipesUsedThisMonth = 0, currentMonthKey = todayKey))
       appScope.launch {
         syncSubscriptionToCloud()
       }
@@ -1326,11 +1406,6 @@ class KatkatRepository(
     dao.deleteProfileById(matchId)
     deleteMessagesForMatch(matchId)
     _realtimeBlockedEvent.emit(matchId)
-  }
-
-  suspend fun createSimulatedTestMatch(): DatingProfile? {
-    // Mock test matches removed - everything must come from real database
-    return null
   }
 
   fun getProfileFlow(profileId: String): Flow<DatingProfile?> {

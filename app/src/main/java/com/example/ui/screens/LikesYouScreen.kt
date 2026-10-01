@@ -330,7 +330,7 @@ fun LikedProfileGridCard(
   onInstantMatch: () -> Unit,
   onPass: () -> Unit
 ) {
-  val isSuperLike = profile.isSuperLikedByMe || profile.anthemSong?.contains("Super", ignoreCase = true) == true || profile.id == "profile_maya_1"
+  val isSuperLike = profile.isSuperLikedByMe || profile.anthemSong?.contains("Super", ignoreCase = true) == true
 
   Card(
     modifier = Modifier

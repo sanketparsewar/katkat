@@ -771,11 +771,7 @@ fun OnboardingProfileSetupScreen(
                         otpErrorMessage = null
                         otpResendCountdown = 60
                         isOtpTimerRunning = true
-                        if (nationalNumber == "8830392209" || fullPhone.contains("8830392209")) {
-                          Toast.makeText(context, "📲 Firebase Code sent! (Firebase Test OTP: 123456)", Toast.LENGTH_LONG).show()
-                        } else {
-                          Toast.makeText(context, "📲 Verification code sent to $fullPhone!", Toast.LENGTH_SHORT).show()
-                        }
+                        Toast.makeText(context, "📲 Verification code sent to $fullPhone!", Toast.LENGTH_SHORT).show()
                         currentStep = OnboardingFlowStep.OTP_VERIFY
                       },
                       onAutoVerified = {
@@ -788,7 +784,7 @@ fun OnboardingProfileSetupScreen(
                         isSendingOtp = false
                         val fallbackId = "fallback_${System.currentTimeMillis()}"
                         firebaseVerificationId = fallbackId
-                        Toast.makeText(context, "Notice: $errorMsg (Use OTP 123456)", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Notice: $errorMsg", Toast.LENGTH_LONG).show()
                         otpCode = ""
                         isOtpError = false
                         otpErrorMessage = null
@@ -803,7 +799,7 @@ fun OnboardingProfileSetupScreen(
                     otpErrorMessage = null
                     otpResendCountdown = 60
                     isOtpTimerRunning = true
-                    Toast.makeText(context, "📲 Verification code sent! (Test OTP: 123456)", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "📲 Verification code sent!", Toast.LENGTH_SHORT).show()
                     currentStep = OnboardingFlowStep.OTP_VERIFY
                   }
                 } else {
@@ -868,14 +864,10 @@ fun OnboardingProfileSetupScreen(
                   otpErrorMessage = null
                   otpResendCountdown = 60
                   isOtpTimerRunning = true
-                  Toast.makeText(context, "📲 New code sent! (Use 123456)", Toast.LENGTH_SHORT).show()
+                  Toast.makeText(context, "📲 New verification code sent!", Toast.LENGTH_SHORT).show()
                 }
               },
-              onAutofillDemo = {
-                otpCode = "123456"
-                isOtpError = false
-                otpErrorMessage = null
-              },
+              onAutofillDemo = {},
               onContinue = { inputCode ->
                 val fullCode = inputCode.ifBlank { otpCode }
                 if (fullCode.length < 6) return@OtpVerificationStep
@@ -1560,31 +1552,6 @@ private fun PhoneEntryStep(
         )
       }
 
-      if (phoneNumber.isEmpty()) {
-        Spacer(modifier = Modifier.height(10.dp))
-        Surface(
-          onClick = { onPhoneNumberChange("8830392209") },
-          shape = RoundedCornerShape(12.dp),
-          color = CoralPrimary.copy(alpha = 0.08f),
-          border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.25f)),
-          modifier = Modifier.padding(top = 4.dp)
-        ) {
-          Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(14.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-              text = "Tap to test with 8830392209 (OTP: 123456)",
-              style = MaterialTheme.typography.labelSmall,
-              fontWeight = FontWeight.SemiBold,
-              color = CoralPrimary
-            )
-          }
-        }
-      }
-
       Spacer(modifier = Modifier.height(20.dp))
 
       Card(
@@ -1795,40 +1762,6 @@ private fun OtpVerificationStep(
             text = errorMessage,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      // Demo OTP Auto-fill Chip with Firebase Test Code
-      Surface(
-        onClick = {
-          onAutofillDemo()
-          onContinue("123456")
-        },
-        shape = RoundedCornerShape(14.dp),
-        color = CoralPrimary.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.35f)),
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Row(
-          modifier = Modifier.padding(14.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.Center
-        ) {
-          Icon(
-            imageVector = Icons.Default.AutoAwesome,
-            contentDescription = null,
-            tint = CoralPrimary,
-            modifier = Modifier.size(18.dp)
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Firebase Test OTP: 123456 (Tap to auto-fill)",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = CoralPrimary
           )
         }
       }

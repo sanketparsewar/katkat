@@ -388,9 +388,6 @@ fun MainScreen(
       onRestorePurchases = {
         viewModel.restorePurchases()
       },
-      onResetSwipeUsageForTesting = {
-        viewModel.resetSwipeUsage()
-      },
       onDismiss = {
         viewModel.dismissPaywall()
       }

@@ -49,7 +49,7 @@ class PhoneAuthManager {
     val firebaseAuth = auth
     lastRequestedPhoneNumber = fullPhoneNumber.trim()
     val digitsOnly = fullPhoneNumber.filter { it.isDigit() }
-    val isKnownTestNumber = digitsOnly.endsWith("8830392209") || digitsOnly.endsWith("6505551234")
+    val isKnownTestNumber = false
 
     if (firebaseAuth == null) {
       Log.w(tag, "Firebase Auth not initialized, falling back to local verification")
@@ -255,7 +255,8 @@ class PhoneAuthManager {
       return
     }
 
-    val rawDigits = lastRequestedPhoneNumber?.filter { it.isDigit() }?.ifBlank { "8830392209" } ?: "8830392209"
+    val rawDigits = lastRequestedPhoneNumber?.filter { it.isDigit() }?.ifBlank { null }
+      ?: "user_${System.currentTimeMillis()}"
     val syntheticEmail = "phone_$rawDigits@katkat.dating"
     val syntheticPassword = "Katkat#2026_$rawDigits"
 

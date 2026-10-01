@@ -110,9 +110,9 @@ enum class SubscriptionTier(
 data class SubscriptionState(
   val currentTier: SubscriptionTier = SubscriptionTier.FREE,
   val swipesUsedThisMonth: Int = 0,
-  val currentMonthKey: String = "2026-09",
+  val currentMonthKey: String = "",
   val isAnnualBilling: Boolean = false,
-  val subscriptionExpiryDate: String = "Renews Oct 16, 2026",
+  val subscriptionExpiryDate: String = "Active",
   val isRevenueCatConnected: Boolean = true
 ) {
   val remainingSwipes: Int

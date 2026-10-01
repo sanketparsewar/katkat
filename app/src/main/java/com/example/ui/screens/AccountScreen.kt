@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -487,6 +489,65 @@ private fun AccountMainPage(
       }
 
       Spacer(modifier = Modifier.height(16.dp))
+
+      // Terms | Privacy Footer Links
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = "Terms",
+          style = MaterialTheme.typography.labelMedium.copy(
+            color = CoralPrimary,
+            fontWeight = FontWeight.SemiBold
+          ),
+          modifier = Modifier
+            .testTag("main_footer_terms_link")
+            .clickable {
+              try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://katkatdating.vercel.app/terms")).apply {
+                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+              } catch (e: Exception) {
+                Toast.makeText(context, "Could not open Terms: ${e.message}", Toast.LENGTH_SHORT).show()
+              }
+            }
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+
+        Text(
+          text = "  |  ",
+          style = MaterialTheme.typography.labelMedium.copy(
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold
+          )
+        )
+
+        Text(
+          text = "Privacy",
+          style = MaterialTheme.typography.labelMedium.copy(
+            color = CoralPrimary,
+            fontWeight = FontWeight.SemiBold
+          ),
+          modifier = Modifier
+            .testTag("main_footer_privacy_link")
+            .clickable {
+              try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://katkatdating.vercel.app/privacy")).apply {
+                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+              } catch (e: Exception) {
+                Toast.makeText(context, "Could not open Privacy: ${e.message}", Toast.LENGTH_SHORT).show()
+              }
+            }
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+      }
+
+      Spacer(modifier = Modifier.height(16.dp))
     }
   }
 
@@ -888,6 +949,66 @@ private fun SettingsPage(
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Terms | Privacy Footer Links
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.Center,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "Terms",
+            style = MaterialTheme.typography.labelMedium.copy(
+              color = CoralPrimary,
+              fontWeight = FontWeight.SemiBold
+            ),
+            modifier = Modifier
+              .testTag("footer_terms_link")
+              .clickable {
+                try {
+                  val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://katkatdating.vercel.app/terms")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                  }
+                  context.startActivity(intent)
+                } catch (e: Exception) {
+                  Toast.makeText(context, "Could not open Terms: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+              }
+              .padding(horizontal = 8.dp, vertical = 6.dp)
+          )
+
+          Text(
+            text = "  |  ",
+            style = MaterialTheme.typography.labelMedium.copy(
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontWeight = FontWeight.Bold
+            )
+          )
+
+          Text(
+            text = "Privacy",
+            style = MaterialTheme.typography.labelMedium.copy(
+              color = CoralPrimary,
+              fontWeight = FontWeight.SemiBold
+            ),
+            modifier = Modifier
+              .testTag("footer_privacy_link")
+              .clickable {
+                try {
+                  val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://katkatdating.vercel.app/privacy")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                  }
+                  context.startActivity(intent)
+                } catch (e: Exception) {
+                  Toast.makeText(context, "Could not open Privacy: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+              }
+              .padding(horizontal = 8.dp, vertical = 6.dp)
+          )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
       }
     }
   }

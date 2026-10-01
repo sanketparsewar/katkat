@@ -62,7 +62,6 @@ fun PaywallBottomSheet(
   subscriptionState: SubscriptionState,
   onSelectTier: (SubscriptionTier, Boolean) -> Unit,
   onRestorePurchases: () -> Unit,
-  onResetSwipeUsageForTesting: () -> Unit,
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -437,7 +436,7 @@ fun PaywallBottomSheet(
         modifier = Modifier
           .fillMaxWidth()
           .padding(top = 2.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
       ) {
         TextButton(
@@ -451,28 +450,6 @@ fun PaywallBottomSheet(
               fontSize = 11.sp
             )
           )
-        }
-
-        TextButton(
-          onClick = onResetSwipeUsageForTesting,
-          modifier = Modifier.testTag("btn_reset_swipes_dev")
-        ) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-              imageVector = Icons.Default.Refresh,
-              contentDescription = null,
-              tint = CoralPrimary,
-              modifier = Modifier.size(12.dp)
-            )
-            Spacer(modifier = Modifier.width(3.dp))
-            Text(
-              text = "Reset Swipes (Dev)",
-              style = MaterialTheme.typography.labelSmall.copy(
-                color = CoralPrimary,
-                fontSize = 11.sp
-              )
-            )
-          }
         }
       }
 

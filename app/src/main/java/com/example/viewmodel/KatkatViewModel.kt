@@ -224,6 +224,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
 
   init {
     viewModelScope.launch {
+      repository.checkAndResetDailySwipes()
+    }
+    viewModelScope.launch {
       repository.userProfile.collect {
         _isSessionLoaded.value = true
       }
@@ -386,10 +389,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  fun resetSwipeUsage() {
+  fun checkAndResetDailySwipes() {
     viewModelScope.launch {
-      repository.resetSwipeCounter()
-      _uiEvents.emit(UiEvent.ShowToast("Monthly swipe counter reset for testing!"))
+      repository.checkAndResetDailySwipes()
     }
   }
 

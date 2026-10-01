@@ -93,13 +93,13 @@ interface DatingDao {
   suspend fun insertSwipeRecord(record: SwipeRecordEntity)
 
   @Query("SELECT * FROM swipe_records WHERE profileId = :profileId AND monthKey = :monthKey LIMIT 1")
-  suspend fun getSwipeRecordForProfile(profileId: String, monthKey: String = "2026-09"): SwipeRecordEntity?
+  suspend fun getSwipeRecordForProfile(profileId: String, monthKey: String): SwipeRecordEntity?
 
   @Query("SELECT COUNT(*) FROM swipe_records WHERE monthKey = :monthKey")
   fun getMonthlySwipeCountFlow(monthKey: String): Flow<Int>
 
   @Query("SELECT COUNT(*) FROM swipe_records WHERE monthKey = :monthKey")
-  suspend fun getMonthlySwipeCount(monthKey: String = "2026-09"): Int
+  suspend fun getMonthlySwipeCount(monthKey: String): Int
 
   @Query("SELECT * FROM swipe_records ORDER BY timestamp DESC LIMIT 1")
   suspend fun getLastSwipeRecord(): SwipeRecordEntity?
