@@ -186,6 +186,7 @@ fun AccountScreen(
             userProfile = userProfile,
             onDisableAccount = onDisableAccount,
             onDeleteAccount = onDeleteAccount,
+            onNavigateToPaymentHistory = { currentPage = AccountSubPage.PAYMENT_HISTORY },
             onBack = { currentPage = AccountSubPage.MAIN }
           )
         }
@@ -784,6 +785,7 @@ private fun SettingsPage(
   userProfile: UserProfile,
   onDisableAccount: (Boolean) -> Unit,
   onDeleteAccount: () -> Unit,
+  onNavigateToPaymentHistory: () -> Unit,
   onBack: () -> Unit
 ) {
   val context = LocalContext.current
@@ -819,6 +821,67 @@ private fun SettingsPage(
         .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+      // 1. Payment & Billing Section
+      Text(
+        text = "Billing & Receipts",
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onSurface
+      )
+
+      Card(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onNavigateToPaymentHistory() }
+          .testTag("settings_payment_history_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Box(
+            modifier = Modifier
+              .size(42.dp)
+              .clip(CircleShape)
+              .background(GoldVip.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Filled.ReceiptLong,
+              contentDescription = null,
+              tint = GoldVip,
+              modifier = Modifier.size(22.dp)
+            )
+          }
+
+          Spacer(modifier = Modifier.width(14.dp))
+
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = "Payment History & Invoices",
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+              text = "View all past transactions, tax invoices, and payment receipts",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          }
+
+          Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+          )
+        }
+      }
+
       Text(
         text = "Account Visibility & Controls",
         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
