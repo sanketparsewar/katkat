@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBrightness
@@ -102,19 +103,24 @@ import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 import com.example.ui.theme.PeachBlush
+import androidx.activity.compose.BackHandler
+import com.example.data.model.PaymentTransaction
+import com.example.ui.components.PaymentHistoryScreen
 import com.example.ui.theme.PeachSecondary
 import com.example.ui.theme.SuperlikeBlue
 
 enum class AccountSubPage {
   MAIN,
   THEME,
-  SETTINGS
+  SETTINGS,
+  PAYMENT_HISTORY
 }
 
 @Composable
 fun AccountScreen(
   userProfile: UserProfile,
   subscriptionState: SubscriptionState,
+  transactions: List<PaymentTransaction> = emptyList(),
   themeMode: AppThemeMode,
   onThemeModeChange: (AppThemeMode) -> Unit,
   onOpenPaywall: () -> Unit,
@@ -127,6 +133,11 @@ fun AccountScreen(
   modifier: Modifier = Modifier
 ) {
   var currentPage by remember { mutableStateOf(AccountSubPage.MAIN) }
+
+  // System Back button navigation for inner sub-pages
+  BackHandler(enabled = currentPage != AccountSubPage.MAIN) {
+    currentPage = AccountSubPage.MAIN
+  }
 
   Column(modifier = modifier.fillMaxSize()) {
     OfflineBanner(
@@ -150,36 +161,43 @@ fun AccountScreen(
     ) { page ->
       when (page) {
         AccountSubPage.MAIN -> {
-        AccountMainPage(
-          userProfile = userProfile,
-          subscriptionState = subscriptionState,
-          themeMode = themeMode,
-          onNavigateToTheme = { currentPage = AccountSubPage.THEME },
-          onNavigateToSettings = { currentPage = AccountSubPage.SETTINGS },
-          onOpenPaywall = onOpenPaywall,
-          onLogout = onLogout
-        )
-      }
-      AccountSubPage.THEME -> {
-        ThemeSelectionPage(
-          currentTheme = themeMode,
-          onSelectTheme = { selected ->
-            onThemeModeChange(selected)
-          },
-          onBack = { currentPage = AccountSubPage.MAIN }
-        )
-      }
-      AccountSubPage.SETTINGS -> {
-        SettingsPage(
-          userProfile = userProfile,
-          onDisableAccount = onDisableAccount,
-          onDeleteAccount = onDeleteAccount,
-          onBack = { currentPage = AccountSubPage.MAIN }
-        )
+          AccountMainPage(
+            userProfile = userProfile,
+            subscriptionState = subscriptionState,
+            themeMode = themeMode,
+            onNavigateToTheme = { currentPage = AccountSubPage.THEME },
+            onNavigateToSettings = { currentPage = AccountSubPage.SETTINGS },
+            onNavigateToPaymentHistory = { currentPage = AccountSubPage.PAYMENT_HISTORY },
+            onOpenPaywall = onOpenPaywall,
+            onLogout = onLogout
+          )
+        }
+        AccountSubPage.THEME -> {
+          ThemeSelectionPage(
+            currentTheme = themeMode,
+            onSelectTheme = { selected ->
+              onThemeModeChange(selected)
+            },
+            onBack = { currentPage = AccountSubPage.MAIN }
+          )
+        }
+        AccountSubPage.SETTINGS -> {
+          SettingsPage(
+            userProfile = userProfile,
+            onDisableAccount = onDisableAccount,
+            onDeleteAccount = onDeleteAccount,
+            onBack = { currentPage = AccountSubPage.MAIN }
+          )
+        }
+        AccountSubPage.PAYMENT_HISTORY -> {
+          PaymentHistoryScreen(
+            transactions = transactions,
+            onBack = { currentPage = AccountSubPage.MAIN }
+          )
+        }
       }
     }
   }
-}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +212,7 @@ private fun AccountMainPage(
   themeMode: AppThemeMode,
   onNavigateToTheme: () -> Unit,
   onNavigateToSettings: () -> Unit,
+  onNavigateToPaymentHistory: () -> Unit,
   onOpenPaywall: () -> Unit,
   onLogout: () -> Unit
 ) {
@@ -443,7 +462,22 @@ private fun AccountMainPage(
             color = MaterialTheme.colorScheme.outlineVariant
           )
 
-          // 2. Settings Option
+          // 2. Payment History & Invoices
+          AccountOptionRow(
+            icon = Icons.Filled.ReceiptLong,
+            iconTint = GoldVip,
+            title = "Payment History & Invoices",
+            subtitle = "View past transactions and bills",
+            onClick = onNavigateToPaymentHistory,
+            testTag = "option_payment_history"
+          )
+
+          HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+          )
+
+          // 3. Settings Option
           AccountOptionRow(
             icon = Icons.Filled.Settings,
             iconTint = SuperlikeBlue,
@@ -458,7 +492,7 @@ private fun AccountMainPage(
             color = MaterialTheme.colorScheme.outlineVariant
           )
 
-          // 3. Safety & Privacy
+          // 4. Safety & Privacy
           AccountOptionRow(
             icon = Icons.Filled.Shield,
             iconTint = LikeGreen,

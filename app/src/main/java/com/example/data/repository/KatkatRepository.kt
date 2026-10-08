@@ -4,6 +4,7 @@ import com.example.data.local.AppNotificationEntity
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.Converters
 import com.example.data.local.DatingDao
+import com.example.data.local.PaymentTransactionEntity
 import com.example.data.local.ProfileEntity
 import com.example.data.local.SubscriptionEntity
 import com.example.data.local.SwipeRecordEntity
@@ -15,6 +16,9 @@ import com.example.data.model.DatingProfile
 import com.example.data.model.KatkatNotification
 import com.example.data.model.KatkatNotificationType
 import com.example.data.model.MatchConversation
+import com.example.data.model.PaymentMethodType
+import com.example.data.model.PaymentStatus
+import com.example.data.model.PaymentTransaction
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
@@ -1145,6 +1149,57 @@ class KatkatRepository(
       syncSubscriptionToCloud()
     }
     return true
+  }
+
+  suspend fun processPayment(
+    tier: SubscriptionTier,
+    isAnnual: Boolean,
+    method: PaymentMethodType,
+    upiId: String? = null,
+    cardLast4: String? = null
+  ): PaymentTransaction {
+    val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
+    val txnId = "KATKAT_TXN_${System.currentTimeMillis()}_${(1000..9999).random()}"
+
+    val transaction = PaymentTransaction(
+      transactionId = txnId,
+      tier = tier,
+      isAnnual = isAnnual,
+      amountInRupees = amount,
+      method = method,
+      status = PaymentStatus.SUCCESS,
+      timestamp = System.currentTimeMillis(),
+      upiId = upiId,
+      cardLast4 = cardLast4
+    )
+
+    // Save transaction locally in Room
+    dao.insertPaymentTransaction(transaction.toEntity())
+
+    // Apply subscription upgrade immediately
+    upgradeSubscription(tier, isAnnual)
+
+    // Record system notification for invoice/receipt
+    val invoiceNotif = KatkatNotification(
+      id = "notif_payment_$txnId",
+      userId = getEffectiveCurrentUserId(),
+      type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+      title = "Payment Successful: ${tier.title}",
+      message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Ref ID: $txnId. Thank you!",
+      timestamp = System.currentTimeMillis(),
+      isRead = false,
+      senderProfileName = "Katkat Billing",
+      deepLinkTarget = "account_subscription"
+    )
+    saveAndPushNotification(invoiceNotif)
+
+    return transaction
+  }
+
+  fun getPaymentTransactionsFlow(): Flow<List<PaymentTransaction>> {
+    return dao.getAllPaymentTransactionsFlow().map { entities ->
+      entities.map { it.toDomain() }
+    }
   }
 
   suspend fun checkAndResetDailySwipes(): Boolean {

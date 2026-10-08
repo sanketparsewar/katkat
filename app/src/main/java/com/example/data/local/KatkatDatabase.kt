@@ -12,9 +12,10 @@ import androidx.room.RoomDatabase
     SwipeRecordEntity::class,
     ChatMessageEntity::class,
     SubscriptionEntity::class,
-    AppNotificationEntity::class
+    AppNotificationEntity::class,
+    PaymentTransactionEntity::class
   ],
-  version = 13,
+  version = 14,
   exportSchema = false
 )
 abstract class KatkatDatabase : RoomDatabase() {

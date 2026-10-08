@@ -27,10 +27,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DatingProfile
+import com.example.data.model.SubscriptionTier
+import com.example.ui.components.CheckoutBottomSheet
 import com.example.ui.components.KatkatBottomNav
 import com.example.ui.components.KatkatTab
 import com.example.ui.components.KatkatTopBar
 import com.example.ui.components.MatchCelebrationDialog
+import com.example.ui.components.PaymentSuccessReceiptBottomSheet
 import com.example.ui.components.PaywallBottomSheet
 import com.example.ui.components.ProfileDetailBottomSheet
 import com.example.util.HapticHelper
@@ -93,6 +96,12 @@ fun MainScreen(
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
   val notifications by viewModel.notifications.collectAsStateWithLifecycle()
   val unreadNotificationCount by viewModel.unreadNotificationCount.collectAsStateWithLifecycle()
+  val paymentTransactions by viewModel.paymentTransactions.collectAsStateWithLifecycle()
+  val isProcessingPayment by viewModel.isProcessingPayment.collectAsStateWithLifecycle()
+  val lastCompletedTransaction by viewModel.lastCompletedTransaction.collectAsStateWithLifecycle()
+
+  var checkoutTargetTier by remember { mutableStateOf<SubscriptionTier?>(null) }
+  var checkoutIsAnnual by remember { mutableStateOf(false) }
 
   // Real-time network and error states
   val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
@@ -122,6 +131,18 @@ fun MainScreen(
   // 3. If paywall sheet is open, dismiss it
   BackHandler(enabled = showPaywall) {
     viewModel.dismissPaywall()
+  }
+
+  // 3b. If checkout sheet is open, dismiss it
+  BackHandler(enabled = checkoutTargetTier != null) {
+    if (!isProcessingPayment) {
+      checkoutTargetTier = null
+    }
+  }
+
+  // 3c. If payment receipt sheet is open, dismiss it
+  BackHandler(enabled = lastCompletedTransaction != null) {
+    viewModel.dismissPaymentReceipt()
   }
 
   // 4. If discovery preferences sheet is open, dismiss it
@@ -342,6 +363,7 @@ fun MainScreen(
             AccountScreen(
               userProfile = userProfile,
               subscriptionState = subscriptionState,
+              transactions = paymentTransactions,
               themeMode = themeMode,
               onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
               onOpenPaywall = { viewModel.openPaywall() },
@@ -383,7 +405,14 @@ fun MainScreen(
     PaywallBottomSheet(
       subscriptionState = subscriptionState,
       onSelectTier = { tier, isAnnual ->
-        viewModel.selectTier(tier, isAnnual)
+        if (tier == SubscriptionTier.FREE) {
+          viewModel.selectTier(tier, isAnnual)
+        } else {
+          // Open secure payment checkout
+          checkoutTargetTier = tier
+          checkoutIsAnnual = isAnnual
+          viewModel.dismissPaywall()
+        }
       },
       onRestorePurchases = {
         viewModel.restorePurchases()
@@ -394,7 +423,43 @@ fun MainScreen(
     )
   }
 
-  // 3. Inspect Full Profile Bottom Sheet
+  // 3. Secure Payment Gateway Checkout Bottom Sheet
+  val activeCheckoutTier = checkoutTargetTier
+  if (activeCheckoutTier != null) {
+    CheckoutBottomSheet(
+      tier = activeCheckoutTier,
+      isAnnual = checkoutIsAnnual,
+      isProcessing = isProcessingPayment,
+      onConfirmPayment = { method, upiId, cardLast4 ->
+        viewModel.executePayment(
+          tier = activeCheckoutTier,
+          isAnnual = checkoutIsAnnual,
+          method = method,
+          upiId = upiId,
+          cardLast4 = cardLast4
+        )
+        checkoutTargetTier = null
+      },
+      onDismiss = {
+        if (!isProcessingPayment) {
+          checkoutTargetTier = null
+        }
+      }
+    )
+  }
+
+  // 4. Payment Success Tax Invoice / Receipt
+  val completedTxn = lastCompletedTransaction
+  if (completedTxn != null) {
+    PaymentSuccessReceiptBottomSheet(
+      transaction = completedTxn,
+      onDismiss = {
+        viewModel.dismissPaymentReceipt()
+      }
+    )
+  }
+
+  // 5. Inspect Full Profile Bottom Sheet
   val profileToInspect = inspectedProfile
   if (profileToInspect != null) {
     val isAlreadyMatched = profileToInspect.isMutualMatch || mutualMatches.any { it.id == profileToInspect.id } || selectedChatMatch?.id == profileToInspect.id

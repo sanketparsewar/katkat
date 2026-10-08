@@ -350,6 +350,60 @@ fun com.example.data.model.KatkatNotification.toEntity(): AppNotificationEntity 
     deepLinkTarget = deepLinkTarget
   )
 
+@Entity(tableName = "payment_transactions")
+data class PaymentTransactionEntity(
+  @PrimaryKey val transactionId: String,
+  val tierName: String,
+  val isAnnual: Boolean,
+  val amountInRupees: Int,
+  val methodName: String,
+  val statusName: String,
+  val timestamp: Long,
+  val upiId: String? = null,
+  val cardLast4: String? = null,
+  val failureReason: String? = null
+)
+
+fun PaymentTransactionEntity.toDomain(): com.example.data.model.PaymentTransaction =
+  com.example.data.model.PaymentTransaction(
+    transactionId = transactionId,
+    tier = try {
+      com.example.data.model.SubscriptionTier.valueOf(tierName)
+    } catch (_: Exception) {
+      com.example.data.model.SubscriptionTier.FREE
+    },
+    isAnnual = isAnnual,
+    amountInRupees = amountInRupees,
+    method = try {
+      com.example.data.model.PaymentMethodType.valueOf(methodName)
+    } catch (_: Exception) {
+      com.example.data.model.PaymentMethodType.UPI
+    },
+    status = try {
+      com.example.data.model.PaymentStatus.valueOf(statusName)
+    } catch (_: Exception) {
+      com.example.data.model.PaymentStatus.SUCCESS
+    },
+    timestamp = timestamp,
+    upiId = upiId,
+    cardLast4 = cardLast4,
+    failureReason = failureReason
+  )
+
+fun com.example.data.model.PaymentTransaction.toEntity(): PaymentTransactionEntity =
+  PaymentTransactionEntity(
+    transactionId = transactionId,
+    tierName = tier.name,
+    isAnnual = isAnnual,
+    amountInRupees = amountInRupees,
+    methodName = method.name,
+    statusName = status.name,
+    timestamp = timestamp,
+    upiId = upiId,
+    cardLast4 = cardLast4,
+    failureReason = failureReason
+  )
+
 class Converters {
   companion object {
     fun listToString(list: List<String>): String = list.filter { it.isNotBlank() }.joinToString("|||")

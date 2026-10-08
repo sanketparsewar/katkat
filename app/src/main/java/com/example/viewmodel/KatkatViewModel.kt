@@ -9,6 +9,9 @@ import com.example.data.model.DatingProfile
 import com.example.data.model.KatkatNotification
 import com.example.data.model.KatkatNotificationType
 import com.example.data.model.MatchConversation
+import com.example.data.model.PaymentMethodType
+import com.example.data.model.PaymentStatus
+import com.example.data.model.PaymentTransaction
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.data.model.UserProfile
@@ -365,12 +368,29 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  val paymentTransactions: StateFlow<List<PaymentTransaction>> = repository.getPaymentTransactionsFlow()
+    .stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5000),
+      initialValue = emptyList()
+    )
+
+  private val _isProcessingPayment = MutableStateFlow(false)
+  val isProcessingPayment: StateFlow<Boolean> = _isProcessingPayment.asStateFlow()
+
+  private val _lastCompletedTransaction = MutableStateFlow<PaymentTransaction?>(null)
+  val lastCompletedTransaction: StateFlow<PaymentTransaction?> = _lastCompletedTransaction.asStateFlow()
+
   fun openPaywall() {
     _showPaywall.value = true
   }
 
   fun dismissPaywall() {
     _showPaywall.value = false
+  }
+
+  fun dismissPaymentReceipt() {
+    _lastCompletedTransaction.value = null
   }
 
   fun selectTier(tier: SubscriptionTier, isAnnual: Boolean) {
@@ -380,6 +400,38 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
       val planBilling = if (isAnnual) "Yearly" else "Monthly"
       _uiEvents.emit(UiEvent.ShowToast("✨ Upgraded to ${tier.title} ($planBilling)! Swipe limit: ${tier.dailySwipes}/day."))
       _uiEvents.emit(UiEvent.VibrateFeedback("upgrade"))
+    }
+  }
+
+  fun executePayment(
+    tier: SubscriptionTier,
+    isAnnual: Boolean,
+    method: PaymentMethodType,
+    upiId: String? = null,
+    cardLast4: String? = null
+  ) {
+    viewModelScope.launch {
+      _isProcessingPayment.value = true
+      try {
+        // Simulate realistic secure payment gateway processing latency
+        delay(1200)
+        val transaction = repository.processPayment(
+          tier = tier,
+          isAnnual = isAnnual,
+          method = method,
+          upiId = upiId,
+          cardLast4 = cardLast4
+        )
+        _lastCompletedTransaction.value = transaction
+        _showPaywall.value = false
+        val planBilling = if (isAnnual) "Yearly" else "Monthly"
+        _uiEvents.emit(UiEvent.ShowToast("🎉 Payment Successful! Welcome to ${tier.title} ($planBilling)."))
+        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
+      } catch (e: Exception) {
+        _uiEvents.emit(UiEvent.ShowToast("Payment failed: ${e.message ?: "Please try again"}"))
+      } finally {
+        _isProcessingPayment.value = false
+      }
     }
   }
 

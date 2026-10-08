@@ -203,4 +203,14 @@ interface DatingDao {
 
   @Query("DELETE FROM app_notifications WHERE userId = :userId OR userId = ''")
   suspend fun deleteAllNotifications(userId: String)
+
+  // Payment Transactions
+  @Query("SELECT * FROM payment_transactions ORDER BY timestamp DESC")
+  fun getAllPaymentTransactionsFlow(): Flow<List<PaymentTransactionEntity>>
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertPaymentTransaction(transaction: PaymentTransactionEntity)
+
+  @Query("SELECT * FROM payment_transactions WHERE transactionId = :id LIMIT 1")
+  suspend fun getPaymentTransactionById(id: String): PaymentTransactionEntity?
 }
