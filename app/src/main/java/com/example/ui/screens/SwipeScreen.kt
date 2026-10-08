@@ -96,8 +96,21 @@ fun SwipeScreen(
   var programmaticSwipe by remember { mutableStateOf<CardSwipeDirection?>(null) }
   var topCardDragProgress by remember { mutableFloatStateOf(0f) }
   var topCardDragDirection by remember { mutableStateOf<CardSwipeDirection?>(null) }
+  var dismissedProfileIds by remember { mutableStateOf(setOf<String>()) }
 
-  val topProfile = profiles.firstOrNull()
+  val activeDeck = remember(profiles, dismissedProfileIds) {
+    profiles.filterNot { it.id in dismissedProfileIds }
+  }
+
+  // Clear dismissed cache when profiles list changes from database
+  LaunchedEffect(profiles) {
+    if (dismissedProfileIds.isNotEmpty()) {
+      val currentIds = profiles.map { it.id }.toSet()
+      dismissedProfileIds = dismissedProfileIds.intersect(currentIds)
+    }
+  }
+
+  val topProfile = activeDeck.firstOrNull()
   val topProfileId = topProfile?.id
 
   // Automatically reset card drag and programmatic state when the top card changes
@@ -108,8 +121,8 @@ fun SwipeScreen(
   }
 
   // Automatically trigger loading next page when deck approaches end (1 to 5 profiles remaining)
-  LaunchedEffect(profiles.size, isLoadingMore, isRefreshing) {
-    if (profiles.isNotEmpty() && profiles.size <= 5 && !isLoadingMore && !isRefreshing) {
+  LaunchedEffect(activeDeck.size, isLoadingMore, isRefreshing) {
+    if (activeDeck.isNotEmpty() && activeDeck.size <= 5 && !isLoadingMore && !isRefreshing) {
       onLoadMore()
     }
   }
@@ -117,7 +130,7 @@ fun SwipeScreen(
   // Safety fallback: ensure programmatic swipe lock is never stuck
   LaunchedEffect(programmaticSwipe) {
     if (programmaticSwipe != null) {
-      delay(400)
+      delay(380)
       if (programmaticSwipe != null) {
         val currentTop = topProfile
         val dir = programmaticSwipe
@@ -125,6 +138,7 @@ fun SwipeScreen(
         topCardDragProgress = 0f
         topCardDragDirection = null
         if (currentTop != null && dir != null) {
+          dismissedProfileIds = dismissedProfileIds + currentTop.id
           when (dir) {
             CardSwipeDirection.LEFT -> onSwipeLeft(currentTop.id)
             CardSwipeDirection.RIGHT -> onSwipeRight(currentTop.id)
@@ -213,7 +227,7 @@ fun SwipeScreen(
       }
 
       // Main Content Switching: Error vs Loading vs Content vs Empty
-      if (!errorMessage.isNullOrBlank() && profiles.isEmpty()) {
+      if (!errorMessage.isNullOrBlank() && activeDeck.isEmpty()) {
         // Network Failure / Error State
         ErrorStateView(
           title = "Network failure",
@@ -224,7 +238,7 @@ fun SwipeScreen(
             .fillMaxWidth()
             .weight(1f)
         )
-      } else if (profiles.isNotEmpty()) {
+      } else if (activeDeck.isNotEmpty()) {
         // Swipe Deck Box (Success State)
         Box(
           modifier = Modifier
@@ -233,37 +247,62 @@ fun SwipeScreen(
             .padding(horizontal = 16.dp, vertical = 6.dp),
           contentAlignment = Alignment.Center
         ) {
-          // Render up to 2 cards for optimal performance & stack depth
-          val visibleCards = profiles.take(2).reversed()
+          // Render up to 3 cards for optimal performance & stack depth perspective
+          val cardsToRender = activeDeck.take(3)
+          val visibleCards = cardsToRender.reversed()
           visibleCards.forEach { profile ->
             key(profile.id) {
               val isTop = profile.id == topProfileId
+              val stackIndex = cardsToRender.indexOf(profile).coerceAtLeast(0)
               Box(
                 modifier = Modifier
                   .fillMaxSize()
                   .graphicsLayer {
-                    val progress = topCardDragProgress
-                    scaleX = if (isTop) 1f else 0.94f + (0.06f * progress)
-                    scaleY = if (isTop) 1f else 0.94f + (0.06f * progress)
-                    translationY = if (isTop) 0f else (12.dp.toPx() * (1f - progress))
-                    alpha = if (isTop) 1f else 0.85f + (0.15f * progress)
+                    if (isTop) {
+                      scaleX = 1f
+                      scaleY = 1f
+                      translationY = 0f
+                      alpha = 1f
+                    } else {
+                      // Smoothly interpolate stack positions toward the foreground as the top card is dragged
+                      val progress = topCardDragProgress.coerceIn(0f, 1f)
+                      val baseScale = when (stackIndex) {
+                        1 -> 0.94f + (0.06f * progress)
+                        else -> 0.88f + (0.06f * progress)
+                      }
+                      val baseY = when (stackIndex) {
+                        1 -> 14.dp.toPx() * (1f - progress)
+                        else -> 28.dp.toPx() - (14.dp.toPx() * progress)
+                      }
+                      val baseAlpha = when (stackIndex) {
+                        1 -> 0.88f + (0.12f * progress)
+                        else -> 0.65f + (0.23f * progress)
+                      }
+                      scaleX = baseScale
+                      scaleY = baseScale
+                      translationY = baseY
+                      alpha = baseAlpha
+                    }
                   }
               ) {
                 SwipeCard(
                   profile = profile,
                   onSwipedLeft = {
+                    dismissedProfileIds = dismissedProfileIds + profile.id
                     topCardDragProgress = 0f
                     topCardDragDirection = null
                     programmaticSwipe = null
                     onSwipeLeft(profile.id)
                   },
                   onSwipedRight = {
+                    dismissedProfileIds = dismissedProfileIds + profile.id
                     topCardDragProgress = 0f
                     topCardDragDirection = null
                     programmaticSwipe = null
                     onSwipeRight(profile.id)
                   },
                   onSuperLiked = {
+                    dismissedProfileIds = dismissedProfileIds + profile.id
                     topCardDragProgress = 0f
                     topCardDragDirection = null
                     programmaticSwipe = null
@@ -286,19 +325,22 @@ fun SwipeScreen(
 
         // Action Buttons Bar connected to spring physics animations and reactive drag highlighting
         ActionButtonsBar(
-          onRewind = onRewind,
+          onRewind = {
+            dismissedProfileIds = emptySet()
+            onRewind()
+          },
           onPass = {
-            if (programmaticSwipe == null && profiles.isNotEmpty()) {
+            if (programmaticSwipe == null && activeDeck.isNotEmpty()) {
               programmaticSwipe = CardSwipeDirection.LEFT
             }
           },
           onSuperLike = {
-            if (programmaticSwipe == null && profiles.isNotEmpty()) {
+            if (programmaticSwipe == null && activeDeck.isNotEmpty()) {
               programmaticSwipe = CardSwipeDirection.UP
             }
           },
           onLike = {
-            if (programmaticSwipe == null && profiles.isNotEmpty()) {
+            if (programmaticSwipe == null && activeDeck.isNotEmpty()) {
               programmaticSwipe = CardSwipeDirection.RIGHT
             }
           },
