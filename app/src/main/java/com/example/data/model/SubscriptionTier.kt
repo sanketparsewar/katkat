@@ -112,7 +112,7 @@ data class SubscriptionState(
   val swipesUsedThisMonth: Int = 0,
   val currentMonthKey: String = "",
   val isAnnualBilling: Boolean = false,
-  val subscriptionExpiryDate: String = "Active",
+  val subscriptionExpiryDate: String = "",
   val isRevenueCatConnected: Boolean = true
 ) {
   val remainingSwipes: Int

@@ -386,7 +386,7 @@ class FirestoreManager {
           val data = doc.data ?: continue
           val user = parseUserProfileData(doc.id, data, countryCode)
           if (user.name.isNotBlank()) {
-            Log.d(tag, "Found deleted account by phoneNumber field '$candidate': ${user.name}")
+            Log.d(tag, "Found deleted account by phoneNumber field: ${user.name}")
             return user.copy(isOnboardingCompleted = true)
           }
         }
@@ -503,7 +503,7 @@ class FirestoreManager {
         }
       }
 
-      Log.d(tag, "Permanently removed previous profile from deleted_accounts for phone: $phoneNumber")
+      Log.d(tag, "Permanently removed previous profile from deleted_accounts")
       true
     } catch (e: Exception) {
       Log.w(tag, "Notice permanently deleting from deleted_accounts: ${e.message}")
@@ -1874,7 +1874,7 @@ class FirestoreManager {
         val tierName = userDoc.getString("activePlan") ?: return null
         val tier = try { SubscriptionTier.valueOf(tierName) } catch (_: Exception) { SubscriptionTier.FREE }
         val swipesUsed = (userDoc.get("swipesUsedThisMonth") as? Number)?.toInt() ?: 0
-        val expiry = userDoc.getString("subscriptionExpiryDate") ?: "Active"
+        val expiry = userDoc.getString("subscriptionExpiryDate") ?: ""
         return SubscriptionState(
           currentTier = tier,
           swipesUsedThisMonth = swipesUsed,
@@ -1888,7 +1888,7 @@ class FirestoreManager {
       val swipesUsed = (data["swipesUsedThisMonth"] as? Number)?.toInt() ?: 0
       val monthKey = data["currentMonthKey"] as? String ?: ""
       val isAnnual = data["isAnnualBilling"] as? Boolean ?: false
-      val expiry = data["subscriptionExpiryDate"] as? String ?: "Active"
+      val expiry = data["subscriptionExpiryDate"] as? String ?: ""
 
       SubscriptionState(
         currentTier = tier,
@@ -1928,7 +1928,7 @@ class FirestoreManager {
             val swipesUsed = (data["swipesUsedThisMonth"] as? Number)?.toInt() ?: 0
             val monthKey = data["currentMonthKey"] as? String ?: ""
             val isAnnual = data["isAnnualBilling"] as? Boolean ?: false
-            val expiry = data["subscriptionExpiryDate"] as? String ?: "Active"
+            val expiry = data["subscriptionExpiryDate"] as? String ?: ""
 
             trySend(
               SubscriptionState(

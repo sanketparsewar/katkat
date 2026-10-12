@@ -177,7 +177,7 @@ class PhoneAuthManager {
           currentUser.linkWithCredential(credential)
             .addOnSuccessListener { authResult ->
               val user = authResult.user
-              Log.d(tag, "Linked anonymous user to Phone Auth: UID=${user?.uid}, Phone=${user?.phoneNumber}")
+              Log.d(tag, "Linked anonymous user to Phone Auth: UID=${user?.uid}")
               onSuccess()
             }
             .addOnFailureListener { linkError ->
@@ -185,7 +185,7 @@ class PhoneAuthManager {
               firebaseAuth.signInWithCredential(credential)
                 .addOnSuccessListener { authResult ->
                   val user = authResult.user
-                  Log.d(tag, "Phone authentication success! Registered user session: UID=${user?.uid}, Phone=${user?.phoneNumber}")
+                  Log.d(tag, "Phone authentication success! Registered user session: UID=${user?.uid}")
                   onSuccess()
                 }
                 .addOnFailureListener { signError ->
@@ -197,7 +197,7 @@ class PhoneAuthManager {
           firebaseAuth.signInWithCredential(credential)
             .addOnSuccessListener { authResult ->
               val user = authResult.user
-              Log.d(tag, "Phone authentication success! Registered user session: UID=${user?.uid}, Phone=${user?.phoneNumber}")
+              Log.d(tag, "Phone authentication success! Registered user session: UID=${user?.uid}")
               onSuccess()
             }
             .addOnFailureListener { signError ->

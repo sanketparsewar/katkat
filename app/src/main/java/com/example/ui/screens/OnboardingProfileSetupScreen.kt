@@ -867,7 +867,7 @@ fun OnboardingProfileSetupScreen(
                   Toast.makeText(context, "📲 New verification code sent!", Toast.LENGTH_SHORT).show()
                 }
               },
-              onAutofillDemo = {},
+              // onAutofillDemo = {}, // Removed for production - autofill demo functionality
               onContinue = { inputCode ->
                 val fullCode = inputCode.ifBlank { otpCode }
                 if (fullCode.length < 6) return@OtpVerificationStep

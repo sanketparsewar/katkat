@@ -692,7 +692,7 @@ class KatkatRepository(
         swipesUsedThisMonth = effectiveSwipesUsed,
         currentMonthKey = todayKey,
         isAnnualBilling = subEntity?.isAnnualBilling ?: false,
-        subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "Active",
+        subscriptionExpiryDate = subEntity?.subscriptionExpiryDate ?: "",
         isRevenueCatConnected = true
       )
     }
@@ -960,7 +960,7 @@ class KatkatRepository(
             swipesUsedThisMonth = newSwipeCount,
             currentMonthKey = todayKey,
             isAnnualBilling = sub?.isAnnualBilling ?: false,
-            subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: "Active"
+            subscriptionExpiryDate = sub?.subscriptionExpiryDate ?: ""
           )
         )
         // Sync updated swipe counts & plan details to Cloud Firestore backend
@@ -1177,7 +1177,7 @@ class KatkatRepository(
     // Simulate network delay and varied payment outcomes
     delay(1500) // Simulate network delay
 
-    // Simulate varied payment outcomes for realistic testing
+    // Simulate varied payment outcomes for demonstration - replace with real payment gateway integration
     val randomValue = Random.nextInt(100)
     val isSuccessful = when {
         randomValue < 70 -> true // 70% success rate
@@ -1621,7 +1621,7 @@ class KatkatRepository(
       ?: dao.getUserByPhone("$cleanCountryCode$cleanPhone")
 
     if (local != null && local.isOnboardingCompleted && local.name.isNotBlank()) {
-      Log.d("KatkatRepository", "Existing user found in local DB for phone $phoneNumber: ${local.name}")
+      Log.d("KatkatRepository", "Existing user found in local DB: ${local.name}")
       val domainUser = local.toDomain().copy(isOnboardingCompleted = true)
       dao.deleteUserProfile()
       dao.deleteAllMessages()
@@ -1635,7 +1635,7 @@ class KatkatRepository(
     if (firestoreManager.isAvailable) {
       val cloudUser = firestoreManager.fetchUserByPhone(phoneNumber, countryCode)
       if (cloudUser != null && cloudUser.isOnboardingCompleted && cloudUser.name.isNotBlank()) {
-        Log.d("KatkatRepository", "Existing user found in Firestore for phone $phoneNumber: ${cloudUser.name}")
+        Log.d("KatkatRepository", "Existing user found in Firestore: ${cloudUser.name}")
         val completedCloudUser = cloudUser.copy(isOnboardingCompleted = true)
         dao.deleteUserProfile()
         dao.deleteAllMessages()
