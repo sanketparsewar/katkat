@@ -866,8 +866,15 @@ fun ChatMessageBubble(
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
           // Message text
           if (message.text.isNotBlank()) {
+            val displayText = if (message.text.startsWith("e2e:v1:")) {
+              val userA = message.senderId
+              val userB = message.matchId.ifBlank { message.recipientId }
+              com.example.util.EndToEndEncryptionHelper.decryptMessage(message.text, userA, userB)
+            } else {
+              message.text
+            }
             Text(
-              text = message.text,
+              text = displayText,
               style = MaterialTheme.typography.bodyMedium.copy(
                 color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
                 lineHeight = 20.sp

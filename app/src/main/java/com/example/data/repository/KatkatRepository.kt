@@ -292,7 +292,14 @@ class KatkatRepository(
                   val existingLatest = dao.getLatestMessage(matchProfile.id, currentUserId)
                   remoteMsgs.forEach { msg ->
                     val alreadyStored = dao.getMessageById(msg.id) != null
-                    dao.insertMessage(msg.toEntity(ownerUserId = currentUserId))
+                    val plainText = if (msg.text.startsWith("e2e:v1:")) {
+                      com.example.util.EndToEndEncryptionHelper.decryptMessage(
+                        com.example.KatkatApplication.appContext, msg.text, currentUserId, matchProfile.id
+                      )
+                    } else {
+                      msg.text
+                    }
+                    dao.insertMessage(msg.copy(text = plainText).toEntity(ownerUserId = currentUserId))
                     // Rule: If a match sends a message: "Profile 2 sent you a message"
                     if (!alreadyStored && msg.senderId != currentUserId && (existingLatest == null || msg.timestamp > existingLatest.timestamp)) {
                       val notif = KatkatNotification(
@@ -1300,7 +1307,7 @@ class KatkatRepository(
             remoteMessages.forEach { msg ->
               // Decrypt message text for E2EE
               val decryptedText = com.example.util.EndToEndEncryptionHelper.decryptMessage(
-                com.example.KatkatApplication.appContext, msg.text, myUserId, msg.senderId
+                com.example.KatkatApplication.appContext, msg.text, myUserId, matchId
               )
               dao.insertMessage(msg.copy(text = decryptedText).toEntity(ownerUserId = myUserId))
             }
@@ -1308,7 +1315,17 @@ class KatkatRepository(
         }
       }
       dao.getMessagesForMatch(matchId, myUserId).map { list ->
-        list.map { it.toDomain() }
+        list.map { entity ->
+          val domain = entity.toDomain()
+          if (domain.text.startsWith("e2e:v1:")) {
+            val decrypted = com.example.util.EndToEndEncryptionHelper.decryptMessage(
+              com.example.KatkatApplication.appContext, domain.text, myUserId, matchId
+            )
+            domain.copy(text = decrypted)
+          } else {
+            domain
+          }
+        }
       }
     }
   }
@@ -1320,10 +1337,6 @@ class KatkatRepository(
     val convId = com.example.util.EndToEndEncryptionHelper.getConversationId(myUserId, matchId)
 
     val msgId = UUID.randomUUID().toString()
-    // Encrypt the message text for E2EE
-    val encryptedText = com.example.util.EndToEndEncryptionHelper.encryptMessage(
-      com.example.KatkatApplication.appContext, text, myUserId, matchId
-    )
     val myMessage = ChatMessageEntity(
       id = msgId,
       conversationId = convId,
@@ -1332,7 +1345,7 @@ class KatkatRepository(
       recipientId = matchId,
       currentUserId = myUserId,
       senderName = myName,
-      text = encryptedText,
+      text = text,
       photoUri = photoUri,
       timestamp = System.currentTimeMillis(),
       isFromMe = true,
@@ -1383,22 +1396,26 @@ class KatkatRepository(
     val localUser = dao.getUserProfileFlow().firstOrNull()
     val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
 
-    // Encrypt the message text for E2EE
-    val encryptedText = com.example.util.EndToEndEncryptionHelper.encryptMessage(
-      com.example.KatkatApplication.appContext, existing.text, myUserId, existing.matchId
-    )
-    dao.insertMessage(existing.copy(isSending = true, isFailed = false, text = encryptedText))
+    val plainText = if (existing.text.startsWith("e2e:v1:")) {
+      com.example.util.EndToEndEncryptionHelper.decryptMessage(
+        com.example.KatkatApplication.appContext, existing.text, myUserId, existing.matchId
+      )
+    } else {
+      existing.text
+    }
+    val updatedMessage = existing.copy(isSending = true, isFailed = false, text = plainText)
+    dao.insertMessage(updatedMessage)
 
     if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
       appScope.launch {
         val success = try {
-          firestoreManager.sendChatMessage(existing.matchId, existing.toDomain().copy(isSending = false, isFailed = false), myUserId)
+          firestoreManager.sendChatMessage(existing.matchId, updatedMessage.toDomain().copy(isSending = false, isFailed = false), myUserId)
         } catch (e: Exception) {
           false
         }
 
         if (success) {
-          dao.insertMessage(existing.copy(isSending = false, isFailed = false))
+          dao.insertMessage(updatedMessage.copy(isSending = false, isFailed = false))
           val msgNotif = KatkatNotification(
             id = "msg_${existing.id}",
             userId = existing.matchId,
@@ -1413,11 +1430,11 @@ class KatkatRepository(
           )
           firestoreManager.sendNotification(existing.matchId, msgNotif)
         } else {
-          dao.insertMessage(existing.copy(isSending = false, isFailed = true))
+          dao.insertMessage(updatedMessage.copy(isSending = false, isFailed = true))
         }
       }
     } else {
-      dao.insertMessage(existing.copy(isSending = false, isFailed = false))
+      dao.insertMessage(updatedMessage.copy(isSending = false, isFailed = false))
     }
   }
 
@@ -1474,10 +1491,18 @@ class KatkatRepository(
         val matchMsgs = messagesByMatch[matchProfile.id].orEmpty().sortedBy { it.timestamp }
         val lastMsg = matchMsgs.lastOrNull()
         val unreadCount = matchMsgs.count { !it.isFromMe && !it.isRead }
+        val rawLastText = lastMsg?.text.orEmpty()
+        val decryptedLastText = if (rawLastText.startsWith("e2e:v1:")) {
+          com.example.util.EndToEndEncryptionHelper.decryptMessage(
+            com.example.KatkatApplication.appContext, rawLastText, currentUserId, matchProfile.id
+          )
+        } else {
+          rawLastText
+        }
         val lastText = when {
-          lastMsg?.photoUri != null && !lastMsg.text.isNullOrBlank() -> "📷 ${lastMsg.text}"
+          lastMsg?.photoUri != null && decryptedLastText.isNotBlank() -> "📷 $decryptedLastText"
           lastMsg?.photoUri != null -> "📷 Sent a photo"
-          lastMsg != null -> lastMsg.text
+          lastMsg != null -> decryptedLastText
           else -> "New match! Say hello 👋"
         }
         val lastTime = lastMsg?.timestamp ?: (matchProfile.matchedTimestamp ?: (System.currentTimeMillis() - 3600_000L))
@@ -1832,7 +1857,7 @@ class KatkatRepository(
         messages.forEach { msg ->
           // Decrypt message text for E2EE
           val decryptedText = com.example.util.EndToEndEncryptionHelper.decryptMessage(
-            com.example.KatkatApplication.appContext, msg.text, currentUserId, msg.senderId
+            com.example.KatkatApplication.appContext, msg.text, currentUserId, m.id
           )
           dao.insertMessage(msg.copy(text = decryptedText).toEntity(ownerUserId = currentUserId))
         }
@@ -2094,7 +2119,18 @@ fun ChatMessageEntity.toDomain() = ChatMessage(
   matchId = matchId,
   senderId = senderId,
   senderName = senderName,
-  text = text,
+  text = if (text.startsWith("e2e:v1:")) {
+    val ctx = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
+    if (ctx != null) {
+      val userA = currentUserId.ifBlank { senderId }
+      val userB = matchId.ifBlank { recipientId }
+      com.example.util.EndToEndEncryptionHelper.decryptMessage(ctx, text, userA, userB)
+    } else {
+      text
+    }
+  } else {
+    text
+  },
   photoUri = photoUri,
   timestamp = timestamp,
   isFromMe = isFromMe,

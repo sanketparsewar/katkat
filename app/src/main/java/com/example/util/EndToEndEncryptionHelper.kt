@@ -23,26 +23,9 @@ object EndToEndEncryptionHelper {
   private const val E2E_PREFIX = "e2e:v1:"
   private const val AES_TRANSFORMATION = "AES/CBC/PKCS5Padding"
   private const val AES_ALGORITHM = "AES"
+  private const val STANDARD_DOMAIN_SALT = "KATKAT_E2EE_PROTOCOL_SHARED_SALT_V1"
   private val keyCache = java.util.concurrent.ConcurrentHashMap<String, SecretKeySpec>()
-  private val saltPrefsKey = "e2e_domain_salt"
-
-  /**
-   * Gets the domain salt for E2EE key derivation. Generates and stores a unique salt on first run.
-   */
-  private fun getDomainSalt(context: Context): String {
-    val prefs = context.getSharedPreferences("katkat_e2ee_prefs", Context.MODE_PRIVATE)
-    return prefs.getString(saltPrefsKey, null) ?: generateAndStoreSalt(prefs)
-  }
-
-  /**
-   * Generates a random salt and stores it in preferences.
-   */
-  private fun generateAndStoreSalt(prefs: SharedPreferences): String {
-    val random = java.util.UUID.randomUUID().toString()
-    val salt = "KATKAT_E2EE_SALT_${random.replace("-", "")}"
-    prefs.edit().putString(saltPrefsKey, salt).apply()
-    return salt
-  }
+  private const val saltPrefsKey = "e2e_domain_salt"
 
   /**
    * Generates a deterministic, unique conversation ID for a pair of user profiles.
@@ -83,16 +66,16 @@ object EndToEndEncryptionHelper {
   }
 
   /**
-   * Derives a 256-bit AES symmetric key deterministically from the participating profiles.
+   * Derives a 256-bit AES symmetric key deterministically from the participating profiles
+   * and the specified domain salt.
    */
-  private fun deriveSharedKey(context: Context, userA: String, userB: String): SecretKeySpec {
+  private fun deriveSharedKey(userA: String, userB: String, salt: String = STANDARD_DOMAIN_SALT): SecretKeySpec {
     val cleanA = userA.trim()
     val cleanB = userB.trim()
     val (first, second) = if (cleanA < cleanB) cleanA to cleanB else cleanB to cleanA
-    val cacheKey = "$first:$second"
+    val cacheKey = "$salt:$first:$second"
     return keyCache.computeIfAbsent(cacheKey) {
-      val domainSalt = getDomainSalt(context)
-      val keySeed = "$domainSalt:$first:$second"
+      val keySeed = "$salt:$first:$second"
       val digest = MessageDigest.getInstance("SHA-256")
       val keyBytes = digest.digest(keySeed.toByteArray(Charsets.UTF_8))
       SecretKeySpec(keyBytes, AES_ALGORITHM)
@@ -101,6 +84,7 @@ object EndToEndEncryptionHelper {
 
   /**
    * Encrypts plaintext message content between participating profiles.
+   * If the text is already encrypted, returns it unchanged to prevent double-encryption.
    */
   fun encryptMessage(plainText: String, userA: String, userB: String): String {
     val ctx = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
@@ -109,8 +93,9 @@ object EndToEndEncryptionHelper {
 
   fun encryptMessage(context: Context, plainText: String, userA: String, userB: String): String {
     if (plainText.isEmpty() || userA.isBlank() || userB.isBlank()) return plainText
+    if (plainText.startsWith(E2E_PREFIX)) return plainText // Prevent double encryption
     return try {
-      val secretKey = deriveSharedKey(context, userA, userB)
+      val secretKey = deriveSharedKey(userA, userB, STANDARD_DOMAIN_SALT)
       val cipher = Cipher.getInstance(AES_TRANSFORMATION)
       cipher.init(Cipher.ENCRYPT_MODE, secretKey)
       val iv = cipher.iv
@@ -129,8 +114,57 @@ object EndToEndEncryptionHelper {
   }
 
   /**
+   * Attempts to decrypt a single layer of E2EE ciphertext using standard salt,
+   * falling back to the legacy device preferences salt if necessary.
+   */
+  private fun decryptSingleLayer(context: Context, cipherTextWithPrefix: String, userA: String, userB: String): String? {
+    if (!cipherTextWithPrefix.startsWith(E2E_PREFIX)) return cipherTextWithPrefix
+    val encoded = cipherTextWithPrefix.removePrefix(E2E_PREFIX).trim()
+    val combined = try {
+      Base64.decode(encoded, Base64.DEFAULT)
+    } catch (_: Exception) {
+      return null
+    }
+    if (combined.size <= 16) return null
+
+    val iv = ByteArray(16)
+    val cipherTextBytes = ByteArray(combined.size - 16)
+    System.arraycopy(combined, 0, iv, 0, 16)
+    System.arraycopy(combined, 16, cipherTextBytes, 0, cipherTextBytes.size)
+
+    // 1. Try standard protocol shared salt
+    try {
+      val standardKey = deriveSharedKey(userA, userB, STANDARD_DOMAIN_SALT)
+      val cipher = Cipher.getInstance(AES_TRANSFORMATION)
+      cipher.init(Cipher.DECRYPT_MODE, standardKey, IvParameterSpec(iv))
+      val decryptedBytes = cipher.doFinal(cipherTextBytes)
+      return String(decryptedBytes, Charsets.UTF_8)
+    } catch (_: Exception) {
+      // Fallback below
+    }
+
+    // 2. Fallback: try legacy device prefs salt if available
+    try {
+      val prefs = context.getSharedPreferences("katkat_e2ee_prefs", Context.MODE_PRIVATE)
+      val legacySalt = prefs.getString(saltPrefsKey, null)
+      if (!legacySalt.isNullOrBlank() && legacySalt != STANDARD_DOMAIN_SALT) {
+        val legacyKey = deriveSharedKey(userA, userB, legacySalt)
+        val cipher = Cipher.getInstance(AES_TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, legacyKey, IvParameterSpec(iv))
+        val decryptedBytes = cipher.doFinal(cipherTextBytes)
+        return String(decryptedBytes, Charsets.UTF_8)
+      }
+    } catch (_: Exception) {
+      // Both attempts failed
+    }
+
+    return null
+  }
+
+  /**
    * Decrypts encrypted message content using the shared key of the participating profiles.
    * If the text is unencrypted (legacy format), returns the plaintext safely.
+   * Unwraps nested encrypted payloads (if previously double-encrypted).
    */
   fun decryptMessage(cipherTextWithPrefix: String, userA: String, userB: String): String {
     val ctx = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
@@ -144,27 +178,20 @@ object EndToEndEncryptionHelper {
     if (userA.isBlank() || userB.isBlank()) {
       return "[Encrypted Message - Unauthorized]"
     }
-    return try {
-      val encoded = cipherTextWithPrefix.removePrefix(E2E_PREFIX)
-      val combined = Base64.decode(encoded, Base64.NO_WRAP)
-      if (combined.size <= 16) {
-        return cipherTextWithPrefix
-      }
 
-      val iv = ByteArray(16)
-      val cipherTextBytes = ByteArray(combined.size - 16)
-      System.arraycopy(combined, 0, iv, 0, 16)
-      System.arraycopy(combined, 16, cipherTextBytes, 0, cipherTextBytes.size)
+    var currentText = cipherTextWithPrefix
+    var unwrapIterations = 0
+    while (currentText.startsWith(E2E_PREFIX) && unwrapIterations < 5) {
+      unwrapIterations++
+      val single = decryptSingleLayer(context, currentText, userA, userB) ?: break
+      currentText = single
+    }
 
-      val secretKey = deriveSharedKey(context, userA, userB)
-      val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-      cipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv))
-      val decryptedBytes = cipher.doFinal(cipherTextBytes)
-
-      String(decryptedBytes, Charsets.UTF_8)
-    } catch (e: Exception) {
-      Log.w(TAG, "Decryption notice (unauthorized or mismatched keys): ${e.message}")
+    return if (currentText.startsWith(E2E_PREFIX)) {
+      Log.w(TAG, "Decryption notice (unauthorized or mismatched keys for participants $userA, $userB)")
       "[Encrypted Message - Content Restricted]"
+    } else {
+      currentText
     }
   }
 }
