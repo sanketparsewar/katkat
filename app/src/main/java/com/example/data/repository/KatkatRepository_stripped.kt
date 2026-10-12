@@ -105,7 +105,7 @@ class KatkatRepository(
               swipesUsedThisMonth = 0,
               currentMonthKey = todayKey,
               isAnnualBilling = false,
-              subscriptionExpiryDate = "Active"
+              subscriptionExpiryDate = System.currentTimeMillis().plus(100L * 365 * 24 * 60 * 60 * 1000).toString() // 100 years from now
             )
           )
         } else if (existingSub.currentMonthKey != todayKey) {
@@ -1167,8 +1167,31 @@ class KatkatRepository(
     upiId: String? = null,
     cardLast4: String? = null
   ): PaymentTransaction {
+    // Payment processing simulation with realistic success/failure scenarios
+    // In production, this should be replaced with actual payment gateway integration
+    // (Razorpay, Stripe, Paytm, etc.) following PCI-DSS compliance
+
     val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
     val txnId = "KATKAT_TXN_${System.currentTimeMillis()}_${(1000..9999).random()}"
+
+    // Simulate network delay and varied payment outcomes
+    delay(1500) // Simulate network delay
+
+    // Simulate varied payment outcomes for realistic testing
+    val randomValue = Random.nextInt(100)
+    val isSuccessful = when {
+        randomValue < 70 -> true // 70% success rate
+        randomValue < 85 -> false // 15% insufficient funds
+        randomValue < 95 -> false // 10% card expired
+        else -> false // 5% bank server error
+    }
+
+    val status = if (isSuccessful) PaymentStatus.SUCCESS else PaymentStatus.FAILED
+    val failureReason = when (!isSuccessful) {
+        randomValue < 85 -> "Insufficient funds"
+        randomValue < 95 -> "Card expired"
+        else -> "Bank server error"
+    } else null
 
     val transaction = PaymentTransaction(
       transactionId = txnId,
@@ -1176,7 +1199,8 @@ class KatkatRepository(
       isAnnual = isAnnual,
       amountInRupees = amount,
       method = method,
-      status = PaymentStatus.SUCCESS,
+      status = status,
+      failureReason = failureReason,
       timestamp = System.currentTimeMillis(),
       upiId = upiId,
       cardLast4 = cardLast4
@@ -1185,22 +1209,38 @@ class KatkatRepository(
     // Save transaction locally in Room
     dao.insertPaymentTransaction(transaction.toEntity())
 
-    // Apply subscription upgrade immediately
-    upgradeSubscription(tier, isAnnual)
+    if (isSuccessful) {
+      // Apply subscription upgrade immediately
+      upgradeSubscription(tier, isAnnual)
 
-    // Record system notification for invoice/receipt
-    val invoiceNotif = KatkatNotification(
-      id = "notif_payment_$txnId",
-      userId = getEffectiveCurrentUserId(),
-      type = KatkatNotificationType.SYSTEM_NOTIFICATION,
-      title = "Payment Successful: ${tier.title}",
-      message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Ref ID: $txnId. Thank you!",
-      timestamp = System.currentTimeMillis(),
-      isRead = false,
-      senderProfileName = "Katkat Billing",
-      deepLinkTarget = "account_subscription"
-    )
-    saveAndPushNotification(invoiceNotif)
+      // Record system notification for invoice/receipt
+      val invoiceNotif = KatkatNotification(
+        id = "notif_payment_$txnId",
+        userId = getEffectiveCurrentUserId(),
+        type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+        title = "Payment Successful: ${tier.title}",
+        message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Ref ID: $txnId. Thank you!",
+        timestamp = System.currentTimeMillis(),
+        isRead = false,
+        senderProfileName = "Katkat Billing",
+        deepLinkTarget = "account_subscription"
+      )
+      saveAndPushNotification(invoiceNotif)
+    } else {
+      // Send failure notification
+      val failureNotif = KatkatNotification(
+        id = "notif_payment_failed_$txnId",
+        userId = getEffectiveCurrentUserId(),
+        type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+        title = "Payment Failed",
+        message = "Payment of ₹$amount for ${tier.title} failed: $failureReason. Please try again or use a different payment method.",
+        timestamp = System.currentTimeMillis(),
+        isRead = false,
+        senderProfileName = "Katkat Billing",
+        deepLinkTarget = "account_subscription"
+      )
+      saveAndPushNotification(failureNotif)
+    }
 
     return transaction
   }

@@ -1173,13 +1173,31 @@ class KatkatRepository(
     upiId: String? = null,
     cardLast4: String? = null
   ): PaymentTransaction {
+    // Payment processing simulation with realistic success/failure scenarios
+    // In production, this should be replaced with actual payment gateway integration
+    // (Razorpay, Stripe, Paytm, etc.) following PCI-DSS compliance
+
     val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
     val txnId = "KATKAT_TXN_${System.currentTimeMillis()}_${(1000..9999).random()}"
 
-    // Mock payment processing with 90% success rate
-    val isSuccessful = Random.nextInt(100) < 90
+    // Simulate network delay and varied payment outcomes
+    delay(1500) // Simulate network delay
+
+    // Simulate varied payment outcomes for realistic testing
+    val randomValue = Random.nextInt(100)
+    val isSuccessful = when {
+        randomValue < 70 -> true // 70% success rate
+        randomValue < 85 -> false // 15% insufficient funds
+        randomValue < 95 -> false // 10% card expired
+        else -> false // 5% bank server error
+    }
+
     val status = if (isSuccessful) PaymentStatus.SUCCESS else PaymentStatus.FAILED
-    val failureReason = if (!isSuccessful) "Payment declined by bank" else null
+    val failureReason = when (!isSuccessful) {
+        randomValue < 85 -> "Insufficient funds"
+        randomValue < 95 -> "Card expired"
+        else -> "Bank server error"
+    } else null
 
     val transaction = PaymentTransaction(
       transactionId = txnId,
@@ -1221,7 +1239,7 @@ class KatkatRepository(
         userId = getEffectiveCurrentUserId(),
         type = KatkatNotificationType.SYSTEM_NOTIFICATION,
         title = "Payment Failed",
-        message = "Payment of ₹$amount for ${tier.title} was declined. Please try again or use a different payment method.",
+        message = "Payment of ₹$amount for ${tier.title} failed: $failureReason. Please try again or use a different payment method.",
         timestamp = System.currentTimeMillis(),
         isRead = false,
         senderProfileName = "Katkat Billing",
