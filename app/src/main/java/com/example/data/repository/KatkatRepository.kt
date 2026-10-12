@@ -1193,10 +1193,12 @@ class KatkatRepository(
     }
 
     val status = if (isSuccessful) PaymentStatus.SUCCESS else PaymentStatus.FAILED
-    val failureReason = when (!isSuccessful) {
+    val failureReason = if (!isSuccessful) {
+      when {
         randomValue < 85 -> "Insufficient funds"
         randomValue < 95 -> "Card expired"
         else -> "Bank server error"
+      }
     } else null
 
     val transaction = PaymentTransaction(

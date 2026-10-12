@@ -1,5 +1,7 @@
 package com.example.util
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Base64
 import android.util.Log
 import java.security.MessageDigest
@@ -29,7 +31,7 @@ object EndToEndEncryptionHelper {
    */
   private fun getDomainSalt(context: Context): String {
     val prefs = context.getSharedPreferences("katkat_e2ee_prefs", Context.MODE_PRIVATE)
-    return prefs.getString(saltPrefsKey) ?: generateAndStoreSalt(prefs)
+    return prefs.getString(saltPrefsKey, null) ?: generateAndStoreSalt(prefs)
   }
 
   /**
@@ -100,6 +102,11 @@ object EndToEndEncryptionHelper {
   /**
    * Encrypts plaintext message content between participating profiles.
    */
+  fun encryptMessage(plainText: String, userA: String, userB: String): String {
+    val ctx = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
+    return if (ctx != null) encryptMessage(ctx, plainText, userA, userB) else plainText
+  }
+
   fun encryptMessage(context: Context, plainText: String, userA: String, userB: String): String {
     if (plainText.isEmpty() || userA.isBlank() || userB.isBlank()) return plainText
     return try {
@@ -125,6 +132,11 @@ object EndToEndEncryptionHelper {
    * Decrypts encrypted message content using the shared key of the participating profiles.
    * If the text is unencrypted (legacy format), returns the plaintext safely.
    */
+  fun decryptMessage(cipherTextWithPrefix: String, userA: String, userB: String): String {
+    val ctx = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
+    return if (ctx != null) decryptMessage(ctx, cipherTextWithPrefix, userA, userB) else cipherTextWithPrefix
+  }
+
   fun decryptMessage(context: Context, cipherTextWithPrefix: String, userA: String, userB: String): String {
     if (!cipherTextWithPrefix.startsWith(E2E_PREFIX)) {
       return cipherTextWithPrefix
