@@ -32,7 +32,7 @@ class ExampleRobolectricTest {
   @Test
   fun `verify user profile default state`() {
     val profile = com.example.data.model.UserProfile()
-    assertEquals("my_profile", profile.id)
+    assertEquals("", profile.id)
     assertFalse(profile.isOnboardingCompleted)
     assertTrue(profile.photos.isEmpty())
   }

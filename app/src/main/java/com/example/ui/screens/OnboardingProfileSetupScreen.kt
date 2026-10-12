@@ -1635,7 +1635,7 @@ private fun OtpVerificationStep(
   isTimerRunning: Boolean,
   isVerifying: Boolean,
   onResendOtp: () -> Unit,
-  onAutofillDemo: () -> Unit,
+  onAutofillDemo: () -> Unit = {},
   onContinue: (String) -> Unit
 ) {
   val isOtpComplete = otpCode.length == 6

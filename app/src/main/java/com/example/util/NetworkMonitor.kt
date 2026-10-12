@@ -1,5 +1,6 @@
 package com.example.util
 
+import android.util.Log
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
