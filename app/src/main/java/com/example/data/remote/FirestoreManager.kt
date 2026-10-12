@@ -129,7 +129,10 @@ class FirestoreManager {
       // Fetch user profile from "users" if not passed in
       val existingDoc = try {
         db.collection("users").document(userId).get().await()
-      } catch (_: Exception) { null }
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error fetching user document: ${e.message}")
+        null
+      }
       val fetchedProfile = if (existingDoc?.exists() == true) {
         existingDoc.data?.let { parseUserProfileData(userId, it, "+91") }
       } else null
@@ -195,17 +198,25 @@ class FirestoreManager {
         if (cleanDigits.isNotBlank()) {
           db.collection("users").document("user_$cleanDigits").delete().await()
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting user document: ${e.message}")
+      }
 
       // 3. Delete discovery profile from canonical "discovery_profiles" (and purge from legacy "discovery_profile" if present)
       try {
         db.collection("discovery_profiles").document(userId).delete().await()
-        try { db.collection("discovery_profile").document(userId).delete().await() } catch (_: Exception) {}
+        try { db.collection("discovery_profile").document(userId).delete().await() } catch (e: Exception) {
+          Log.w("FirestoreManager", "Error deleting from legacy discovery_profile: ${e.message}")
+        }
         if (cleanDigits.isNotBlank()) {
           db.collection("discovery_profiles").document("user_$cleanDigits").delete().await()
-          try { db.collection("discovery_profile").document("user_$cleanDigits").delete().await() } catch (_: Exception) {}
+          try { db.collection("discovery_profile").document("user_$cleanDigits").delete().await() } catch (e: Exception) {
+            Log.w("FirestoreManager", "Error deleting from legacy discovery_profile: ${e.message}")
+          }
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting discovery profile: ${e.message}")
+      }
 
       // 4. Delete from "dating_pool" if any
       try {
@@ -213,7 +224,9 @@ class FirestoreManager {
         if (cleanDigits.isNotBlank()) {
           db.collection("dating_pool").document("user_$cleanDigits").delete().await()
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting from dating_pool: ${e.message}")
+      }
 
       // 5. Delete likes sent by user or sent to user
       try {
@@ -221,7 +234,9 @@ class FirestoreManager {
         likesFrom.documents.forEach { it.reference.delete() }
         val likesTo = db.collection("likes").whereEqualTo("toUserId", userId).get().await()
         likesTo.documents.forEach { it.reference.delete() }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting likes: ${e.message}")
+      }
 
       // 6. Delete passes sent by user or sent to user
       try {
@@ -229,7 +244,9 @@ class FirestoreManager {
         passesFrom.documents.forEach { it.reference.delete() }
         val passesTo = db.collection("passes").whereEqualTo("toUserId", userId).get().await()
         passesTo.documents.forEach { it.reference.delete() }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting passes: ${e.message}")
+      }
 
       // 7. Delete mutual matches involving user
       try {
@@ -237,7 +254,9 @@ class FirestoreManager {
         matches1.documents.forEach { it.reference.delete() }
         val matches2 = db.collection("matches").whereEqualTo("user2Id", userId).get().await()
         matches2.documents.forEach { it.reference.delete() }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting mutual matches: ${e.message}")
+      }
 
       // 8. Delete blocks involving user
       try {
@@ -245,7 +264,9 @@ class FirestoreManager {
         blocks1.documents.forEach { it.reference.delete() }
         val blocks2 = db.collection("blocks").whereEqualTo("blockedUserId", userId).get().await()
         blocks2.documents.forEach { it.reference.delete() }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting blocks: ${e.message}")
+      }
 
       // 9. Delete reports involving user
       try {
@@ -253,7 +274,9 @@ class FirestoreManager {
         rep1.documents.forEach { it.reference.delete() }
         val rep2 = db.collection("reports").whereEqualTo("reportedUserId", userId).get().await()
         rep2.documents.forEach { it.reference.delete() }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting reports: ${e.message}")
+      }
 
       // 10. Delete chat_messages and messages involving user
       try {
@@ -265,7 +288,9 @@ class FirestoreManager {
           val msgsMatch = db.collection(coll).whereEqualTo("matchId", userId).get().await()
           msgsMatch.documents.forEach { it.reference.delete() }
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting chat messages: ${e.message}")
+      }
 
       // 11. Delete conversations involving user
       try {
@@ -277,7 +302,9 @@ class FirestoreManager {
         conv3.documents.forEach { it.reference.delete() }
         val conv4 = db.collection("conversations").whereEqualTo("user2Id", userId).get().await()
         conv4.documents.forEach { it.reference.delete() }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting conversations: ${e.message}")
+      }
 
       // 12. Delete notifications / app_notifications involving user
       try {
@@ -287,7 +314,9 @@ class FirestoreManager {
           val notifsSender = db.collection(coll).whereEqualTo("senderId", userId).get().await()
           notifsSender.documents.forEach { it.reference.delete() }
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting notifications: ${e.message}")
+      }
 
       Log.d(tag, "Successfully wiped active cloud data and moved profile to deleted_accounts: $userId")
       true
@@ -443,7 +472,9 @@ class FirestoreManager {
       for (id in docIdsToDelete) {
         try {
           db.collection("deleted_accounts").document(id).delete().await()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+          Log.w("FirestoreManager", "Error deleting from deleted_accounts: ${e.message}")
+        }
       }
 
       val candidates = listOf(
@@ -458,14 +489,18 @@ class FirestoreManager {
         try {
           val docs = db.collection("deleted_accounts").whereEqualTo("phoneNumber", cand).get().await()
           docs.documents.forEach { it.reference.delete() }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+          Log.w("FirestoreManager", "Error deleting from deleted_accounts by phoneNumber: ${e.message}")
+        }
       }
 
       if (cleanDigits.isNotBlank()) {
         try {
           val docs = db.collection("deleted_accounts").whereEqualTo("cleanPhone", cleanDigits).get().await()
           docs.documents.forEach { it.reference.delete() }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+          Log.w("FirestoreManager", "Error deleting from deleted_accounts by cleanPhone: ${e.message}")
+        }
       }
 
       Log.d(tag, "Permanently removed previous profile from deleted_accounts for phone: $phoneNumber")
@@ -744,7 +779,8 @@ class FirestoreManager {
         val rawText = data["text"] as? String ?: ""
         val decryptedText = try {
           com.example.util.EndToEndEncryptionHelper.decryptMessage(rawText, myUserId, matchId)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+          Log.w("FirestoreManager", "Error decrypting message: ${e.message}")
           rawText
         }
 
@@ -840,7 +876,9 @@ class FirestoreManager {
               recipientId = if (isMine) matchId else myUserId
             )
             messagesMap[doc.id] = chatMessage
-          } catch (_: Exception) {}
+          } catch (e: Exception) {
+            Log.w("FirestoreManager", "Error processing chat message: ${e.message}")
+          }
         }
         emitCurrentMessages()
       }
@@ -1047,7 +1085,8 @@ class FirestoreManager {
               isSuperLike = data["isSuperLike"] as? Boolean ?: false,
               timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
             )
-          } catch (_: Exception) {
+          } catch (e: Exception) {
+            Log.w("FirestoreManager", "Error parsing incoming like: ${e.message}")
             null
           }
         }
@@ -1090,7 +1129,8 @@ class FirestoreManager {
               user2Id = data["user2Id"] as? String ?: "",
               matchedTimestamp = (data["matchedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
             )
-          } catch (_: Exception) {
+          } catch (e: Exception) {
+            Log.w("FirestoreManager", "Error parsing mutual match: ${e.message}")
             null
           }
         }
@@ -1240,13 +1280,17 @@ class FirestoreManager {
       val matchDocId = "${u1}_$u2"
       try {
         db.collection("matches").document(matchDocId).delete().await()
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting mutual match: ${e.message}")
+      }
 
       // Delete like entries between them
       try {
         db.collection("likes").document("${fromUserId}_$targetUserId").delete().await()
         db.collection("likes").document("${targetUserId}_$fromUserId").delete().await()
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting like entries: ${e.message}")
+      }
 
       // Delete canonical chat messages
       val chatId = getCanonicalChatId(fromUserId, targetUserId)
@@ -1302,11 +1346,15 @@ class FirestoreManager {
       val matchDocId = "${u1}_$u2"
       try {
         db.collection("matches").document(matchDocId).delete().await()
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting match document: ${e.message}")
+      }
       try {
         db.collection("likes").document("${userA}_$userB").delete().await()
         db.collection("likes").document("${userB}_$userA").delete().await()
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting like entries: ${e.message}")
+      }
       deleteChatMessages(userB, userA)
       Log.d(tag, "Cloud unmatch completed between $userA and $userB")
       true
@@ -1445,7 +1493,9 @@ class FirestoreManager {
       db.collection("discovery_profiles").document(userId).delete().await()
       try {
         db.collection("discovery_profile").document(userId).delete().await()
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("FirestoreManager", "Error deleting from legacy discovery_profile: ${e.message}")
+      }
       Log.d(tag, "User unpublished from discovery_profiles: $userId")
       true
     } catch (e: Exception) {
@@ -1497,7 +1547,9 @@ class FirestoreManager {
       // Clean up legacy collection "discovery_profile" if a document was created there previously
       try {
         db.collection("discovery_profile").document(profile.id).delete().await()
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w(tag, "Error deleting legacy discovery_profile document: ${e.message}")
+      }
       true
     } catch (e: Exception) {
       Log.w(tag, "Failed to publish user to discovery: ${e.message}")

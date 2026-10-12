@@ -322,7 +322,8 @@ fun AppNotificationEntity.toDomain(): com.example.data.model.KatkatNotification 
     userId = userId,
     type = try {
       com.example.data.model.KatkatNotificationType.valueOf(type)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w("Entities", "Error parsing notification type: ${e.message}")
       com.example.data.model.KatkatNotificationType.SYSTEM_NOTIFICATION
     },
     title = title,
@@ -369,19 +370,22 @@ fun PaymentTransactionEntity.toDomain(): com.example.data.model.PaymentTransacti
     transactionId = transactionId,
     tier = try {
       com.example.data.model.SubscriptionTier.valueOf(tierName)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w("Entities", "Error parsing subscription tier: ${e.message}")
       com.example.data.model.SubscriptionTier.FREE
     },
     isAnnual = isAnnual,
     amountInRupees = amountInRupees,
     method = try {
       com.example.data.model.PaymentMethodType.valueOf(methodName)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w("Entities", "Error parsing payment method: ${e.message}")
       com.example.data.model.PaymentMethodType.UPI
     },
     status = try {
       com.example.data.model.PaymentStatus.valueOf(statusName)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w("Entities", "Error parsing payment status: ${e.message}")
       com.example.data.model.PaymentStatus.SUCCESS
     },
     timestamp = timestamp,

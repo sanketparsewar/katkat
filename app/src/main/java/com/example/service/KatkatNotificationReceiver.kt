@@ -94,7 +94,8 @@ class KatkatNotificationReceiver : BroadcastReceiver() {
 
     val firestore = try {
       FirebaseFirestore.getInstance()
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w("KatkatNotificationReceiver", "Error getting Firestore instance: ${e.message}")
       null
     } ?: return
 
@@ -118,7 +119,8 @@ class KatkatNotificationReceiver : BroadcastReceiver() {
             userId = d["userId"] as? String ?: currentUserId,
             type = try {
               KatkatNotificationType.valueOf(d["type"] as? String ?: "")
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+              Log.w("KatkatNotificationReceiver", "Error parsing notification type: ${e.message}")
               KatkatNotificationType.SYSTEM_NOTIFICATION
             },
             title = d["title"] as? String ?: "New Notification",

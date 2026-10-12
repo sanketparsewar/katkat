@@ -21,8 +21,26 @@ object EndToEndEncryptionHelper {
   private const val E2E_PREFIX = "e2e:v1:"
   private const val AES_TRANSFORMATION = "AES/CBC/PKCS5Padding"
   private const val AES_ALGORITHM = "AES"
-  private const val DOMAIN_SALT = "KATKAT_E2EE_SECURE_SALT_2026_V1_"
   private val keyCache = java.util.concurrent.ConcurrentHashMap<String, SecretKeySpec>()
+  private val saltPrefsKey = "e2e_domain_salt"
+
+  /**
+   * Gets the domain salt for E2EE key derivation. Generates and stores a unique salt on first run.
+   */
+  private fun getDomainSalt(context: Context): String {
+    val prefs = context.getSharedPreferences("katkat_e2ee_prefs", Context.MODE_PRIVATE)
+    return prefs.getString(saltPrefsKey) ?: generateAndStoreSalt(prefs)
+  }
+
+  /**
+   * Generates a random salt and stores it in preferences.
+   */
+  private fun generateAndStoreSalt(prefs: SharedPreferences): String {
+    val random = java.util.UUID.randomUUID().toString()
+    val salt = "KATKAT_E2EE_SALT_${random.replace("-", "")}"
+    prefs.edit().putString(saltPrefsKey, salt).apply()
+    return salt
+  }
 
   /**
    * Generates a deterministic, unique conversation ID for a pair of user profiles.
@@ -65,13 +83,14 @@ object EndToEndEncryptionHelper {
   /**
    * Derives a 256-bit AES symmetric key deterministically from the participating profiles.
    */
-  private fun deriveSharedKey(userA: String, userB: String): SecretKeySpec {
+  private fun deriveSharedKey(context: Context, userA: String, userB: String): SecretKeySpec {
     val cleanA = userA.trim()
     val cleanB = userB.trim()
     val (first, second) = if (cleanA < cleanB) cleanA to cleanB else cleanB to cleanA
     val cacheKey = "$first:$second"
     return keyCache.computeIfAbsent(cacheKey) {
-      val keySeed = "$DOMAIN_SALT:$first:$second"
+      val domainSalt = getDomainSalt(context)
+      val keySeed = "$domainSalt:$first:$second"
       val digest = MessageDigest.getInstance("SHA-256")
       val keyBytes = digest.digest(keySeed.toByteArray(Charsets.UTF_8))
       SecretKeySpec(keyBytes, AES_ALGORITHM)
@@ -81,10 +100,10 @@ object EndToEndEncryptionHelper {
   /**
    * Encrypts plaintext message content between participating profiles.
    */
-  fun encryptMessage(plainText: String, userA: String, userB: String): String {
+  fun encryptMessage(context: Context, plainText: String, userA: String, userB: String): String {
     if (plainText.isEmpty() || userA.isBlank() || userB.isBlank()) return plainText
     return try {
-      val secretKey = deriveSharedKey(userA, userB)
+      val secretKey = deriveSharedKey(context, userA, userB)
       val cipher = Cipher.getInstance(AES_TRANSFORMATION)
       cipher.init(Cipher.ENCRYPT_MODE, secretKey)
       val iv = cipher.iv
@@ -106,7 +125,7 @@ object EndToEndEncryptionHelper {
    * Decrypts encrypted message content using the shared key of the participating profiles.
    * If the text is unencrypted (legacy format), returns the plaintext safely.
    */
-  fun decryptMessage(cipherTextWithPrefix: String, userA: String, userB: String): String {
+  fun decryptMessage(context: Context, cipherTextWithPrefix: String, userA: String, userB: String): String {
     if (!cipherTextWithPrefix.startsWith(E2E_PREFIX)) {
       return cipherTextWithPrefix
     }
@@ -125,7 +144,7 @@ object EndToEndEncryptionHelper {
       System.arraycopy(combined, 0, iv, 0, 16)
       System.arraycopy(combined, 16, cipherTextBytes, 0, cipherTextBytes.size)
 
-      val secretKey = deriveSharedKey(userA, userB)
+      val secretKey = deriveSharedKey(context, userA, userB)
       val cipher = Cipher.getInstance(AES_TRANSFORMATION)
       cipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv))
       val decryptedBytes = cipher.doFinal(cipherTextBytes)

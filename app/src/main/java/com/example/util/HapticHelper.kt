@@ -95,8 +95,8 @@ object HapticHelper {
           else -> vibrator.vibrate(35)
         }
       }
-    } catch (_: Exception) {
-      // Gracefully handle devices without vibration hardware
+    } catch (e: Exception) {
+      Log.w("HapticHelper", "Error vibrating: ${e.message}")
     }
   }
 

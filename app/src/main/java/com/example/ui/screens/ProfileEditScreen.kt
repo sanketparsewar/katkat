@@ -273,7 +273,9 @@ fun parseDobToCalendar(dobStr: String): Calendar {
         }
       }
     }
-  } catch (_: Exception) {}
+  } catch (e: Exception) {
+    Log.w("ProfileEditScreen", "Error parsing DOB string: ${e.message}")
+  }
   return cal
 }
 
@@ -321,7 +323,9 @@ fun formatToDdMmYyyy(dobStr: String): String {
         }
       }
     }
-  } catch (_: Exception) {}
+  } catch (e: Exception) {
+    Log.w("ProfileEditScreen", "Error formatting DOB: ${e.message}")
+  }
   return dobStr
 }
 

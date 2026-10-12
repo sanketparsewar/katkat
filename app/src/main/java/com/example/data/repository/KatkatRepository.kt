@@ -29,6 +29,7 @@ import com.example.util.PushNotificationHelper
 import com.example.data.remote.FirebaseStorageManager
 import com.example.data.remote.FirestoreManager
 import com.example.data.remote.PhoneAuthManager
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,7 +68,9 @@ class KatkatRepository(
     if (existing == null && recentlyProcessedNotifIds.add(notif.id)) {
       try {
         PushNotificationHelper.postPushNotification(KatkatApplication.appContext, notif)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Error posting push notification: ${e.message}")
+      }
     }
   }
 
@@ -102,7 +105,7 @@ class KatkatRepository(
               swipesUsedThisMonth = 0,
               currentMonthKey = todayKey,
               isAnnualBilling = false,
-              subscriptionExpiryDate = "Active"
+              subscriptionExpiryDate = System.currentTimeMillis().plus(100L * 365 * 24 * 60 * 60 * 1000).toString() // 100 years from now
             )
           )
         } else if (existingSub.currentMonthKey != todayKey) {
@@ -119,7 +122,9 @@ class KatkatRepository(
           while (isActive) {
             try {
               checkAndResetDailySwipes()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+              Log.w("KatkatRepository", "Error in day rollover watcher: ${e.message}")
+            }
             delay(30_000L) // Check every 30 seconds
           }
         }
@@ -139,7 +144,9 @@ class KatkatRepository(
             }
           }
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.e("KatkatRepository", "Error in repository initialization: ${e.message}", e)
+      }
     }
   }
 
@@ -674,7 +681,8 @@ class KatkatRepository(
     dao.getMonthlySwipeCountFlow(todayKey).map { recordedTodaySwipes ->
       val tier = try {
         SubscriptionTier.valueOf(subEntity?.tierName ?: SubscriptionTier.FREE.name)
-      } catch (_: Exception) {
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Error parsing subscription tier: ${e.message}")
         SubscriptionTier.FREE
       }
       val isToday = subEntity?.currentMonthKey == todayKey
@@ -921,7 +929,8 @@ class KatkatRepository(
       }
       val tier = try {
         SubscriptionTier.valueOf(sub?.tierName ?: SubscriptionTier.FREE.name)
-      } catch (_: Exception) {
+      } catch (e: Exception) {
+        Log.w("KatkatRepository", "Error parsing subscription tier: ${e.message}")
         SubscriptionTier.FREE
       }
       val recordedTodaySwipes = if (isToday) dao.getMonthlySwipeCount(todayKey) else 0
@@ -1142,7 +1151,13 @@ class KatkatRepository(
         swipesUsedThisMonth = if (isToday) (existing?.swipesUsedThisMonth ?: 0) else 0,
         currentMonthKey = todayKey,
         isAnnualBilling = isAnnual,
-        subscriptionExpiryDate = if (isAnnual) "Renews next year" else "Renews next month"
+        subscriptionExpiryDate = if (isAnnual) {
+            // Annual subscription: 1 year from now
+            System.currentTimeMillis().plus(365L * 24 * 60 * 60 * 1000).toString()
+        } else {
+            // Monthly subscription: 1 month from now (approximated as 30 days)
+            System.currentTimeMillis().plus(30L * 24 * 60 * 60 * 1000).toString()
+        }
       )
     )
     appScope.launch {
@@ -1161,13 +1176,19 @@ class KatkatRepository(
     val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
     val txnId = "KATKAT_TXN_${System.currentTimeMillis()}_${(1000..9999).random()}"
 
+    // Mock payment processing with 90% success rate
+    val isSuccessful = Random.nextInt(100) < 90
+    val status = if (isSuccessful) PaymentStatus.SUCCESS else PaymentStatus.FAILED
+    val failureReason = if (!isSuccessful) "Payment declined by bank" else null
+
     val transaction = PaymentTransaction(
       transactionId = txnId,
       tier = tier,
       isAnnual = isAnnual,
       amountInRupees = amount,
       method = method,
-      status = PaymentStatus.SUCCESS,
+      status = status,
+      failureReason = failureReason,
       timestamp = System.currentTimeMillis(),
       upiId = upiId,
       cardLast4 = cardLast4
@@ -1176,22 +1197,38 @@ class KatkatRepository(
     // Save transaction locally in Room
     dao.insertPaymentTransaction(transaction.toEntity())
 
-    // Apply subscription upgrade immediately
-    upgradeSubscription(tier, isAnnual)
+    if (isSuccessful) {
+      // Apply subscription upgrade immediately
+      upgradeSubscription(tier, isAnnual)
 
-    // Record system notification for invoice/receipt
-    val invoiceNotif = KatkatNotification(
-      id = "notif_payment_$txnId",
-      userId = getEffectiveCurrentUserId(),
-      type = KatkatNotificationType.SYSTEM_NOTIFICATION,
-      title = "Payment Successful: ${tier.title}",
-      message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Ref ID: $txnId. Thank you!",
-      timestamp = System.currentTimeMillis(),
-      isRead = false,
-      senderProfileName = "Katkat Billing",
-      deepLinkTarget = "account_subscription"
-    )
-    saveAndPushNotification(invoiceNotif)
+      // Record system notification for invoice/receipt
+      val invoiceNotif = KatkatNotification(
+        id = "notif_payment_$txnId",
+        userId = getEffectiveCurrentUserId(),
+        type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+        title = "Payment Successful: ${tier.title}",
+        message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Ref ID: $txnId. Thank you!",
+        timestamp = System.currentTimeMillis(),
+        isRead = false,
+        senderProfileName = "Katkat Billing",
+        deepLinkTarget = "account_subscription"
+      )
+      saveAndPushNotification(invoiceNotif)
+    } else {
+      // Send failure notification
+      val failureNotif = KatkatNotification(
+        id = "notif_payment_failed_$txnId",
+        userId = getEffectiveCurrentUserId(),
+        type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+        title = "Payment Failed",
+        message = "Payment of ₹$amount for ${tier.title} was declined. Please try again or use a different payment method.",
+        timestamp = System.currentTimeMillis(),
+        isRead = false,
+        senderProfileName = "Katkat Billing",
+        deepLinkTarget = "account_subscription"
+      )
+      saveAndPushNotification(failureNotif)
+    }
 
     return transaction
   }
@@ -1241,7 +1278,11 @@ class KatkatRepository(
         appScope.launch {
           firestoreManager.observeChatMessages(matchId, myUserId).collect { remoteMessages ->
             remoteMessages.forEach { msg ->
-              dao.insertMessage(msg.toEntity(ownerUserId = myUserId))
+              // Decrypt message text for E2EE
+              val decryptedText = com.example.util.EndToEndEncryptionHelper.decryptMessage(
+                com.example.KatkatApplication.appContext, msg.text, myUserId, msg.senderId
+              )
+              dao.insertMessage(msg.copy(text = decryptedText).toEntity(ownerUserId = myUserId))
             }
           }
         }
@@ -1259,6 +1300,10 @@ class KatkatRepository(
     val convId = com.example.util.EndToEndEncryptionHelper.getConversationId(myUserId, matchId)
 
     val msgId = UUID.randomUUID().toString()
+    // Encrypt the message text for E2EE
+    val encryptedText = com.example.util.EndToEndEncryptionHelper.encryptMessage(
+      com.example.KatkatApplication.appContext, text, myUserId, matchId
+    )
     val myMessage = ChatMessageEntity(
       id = msgId,
       conversationId = convId,
@@ -1267,7 +1312,7 @@ class KatkatRepository(
       recipientId = matchId,
       currentUserId = myUserId,
       senderName = myName,
-      text = text,
+      text = encryptedText,
       photoUri = photoUri,
       timestamp = System.currentTimeMillis(),
       isFromMe = true,
@@ -1318,7 +1363,11 @@ class KatkatRepository(
     val localUser = dao.getUserProfileFlow().firstOrNull()
     val myName = localUser?.name?.takeIf { it.isNotBlank() } ?: "Alex"
 
-    dao.insertMessage(existing.copy(isSending = true, isFailed = false))
+    // Encrypt the message text for E2EE
+    val encryptedText = com.example.util.EndToEndEncryptionHelper.encryptMessage(
+      com.example.KatkatApplication.appContext, existing.text, myUserId, existing.matchId
+    )
+    dao.insertMessage(existing.copy(isSending = true, isFailed = false, text = encryptedText))
 
     if (firestoreManager.isAvailable && myUserId.isNotBlank()) {
       appScope.launch {
@@ -1484,7 +1533,10 @@ class KatkatRepository(
     // Convert any remaining local device photo URIs to Cloud Storage download URLs so they load across all devices
     val hasLocalUris = profile.photos.any { !it.startsWith("http://") && !it.startsWith("https://") }
     val cloudPhotos = if (hasLocalUris) {
-      val context = try { com.example.KatkatApplication.appContext } catch (_: Exception) { null }
+      val context = try { com.example.KatkatApplication.appContext } catch (e: Exception) {
+        Log.w("KatkatRepository", "Could not get application context: ${e.message}")
+        null
+      }
       if (context != null) {
         profile.photos.map { photoUri ->
           if (photoUri.startsWith("http://") || photoUri.startsWith("https://")) {
@@ -1758,7 +1810,11 @@ class KatkatRepository(
       for (m in currentMatches) {
         val messages = firestoreManager.fetchChatMessages(m.id, currentUserId)
         messages.forEach { msg ->
-          dao.insertMessage(msg.toEntity(ownerUserId = currentUserId))
+          // Decrypt message text for E2EE
+          val decryptedText = com.example.util.EndToEndEncryptionHelper.decryptMessage(
+            com.example.KatkatApplication.appContext, msg.text, currentUserId, msg.senderId
+          )
+          dao.insertMessage(msg.copy(text = decryptedText).toEntity(ownerUserId = currentUserId))
         }
       }
       Log.d("KatkatRepository", "Refreshed matches and chats from Firestore.")

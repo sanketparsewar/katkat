@@ -53,7 +53,9 @@ class NetworkMonitor(private val context: Context) {
     awaitClose {
       try {
         cm.unregisterNetworkCallback(callback)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.w("NetworkMonitor", "Error unregistering network callback: ${e.message}")
+      }
     }
   }.distinctUntilChanged()
 

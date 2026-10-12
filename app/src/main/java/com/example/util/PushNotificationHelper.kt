@@ -128,8 +128,8 @@ object PushNotificationHelper {
       notificationManager.notify(notificationTag, notificationIntId, builder.build())
     } catch (_: SecurityException) {
       // Handled if permissions revoked at runtime
-    } catch (_: Exception) {
-      // Graceful fallback
+    } catch (e: Exception) {
+      Log.w("PushNotificationHelper", "Error sending notification: ${e.message}")
     }
   }
 }
