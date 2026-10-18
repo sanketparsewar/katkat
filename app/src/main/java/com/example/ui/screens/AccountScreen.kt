@@ -78,6 +78,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1030,6 +1031,46 @@ private fun SettingsPage(
         }
       }
 
+      // Legal & Compliance Links Card (Terms, Privacy, Code of Conduct)
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+      ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+          val uriHandler = LocalUriHandler.current
+
+          // Terms
+          LegalLinkRow(
+            icon = Icons.Filled.ReceiptLong,
+            title = "Terms of Service",
+            subtitle = "katkatdating.vercel.app/terms",
+            onClick = { uriHandler.openUri("https://katkatdating.vercel.app/terms") }
+          )
+
+          HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+          // Privacy
+          LegalLinkRow(
+            icon = Icons.Filled.Security,
+            title = "Privacy Policy",
+            subtitle = "katkatdating.vercel.app/privacy",
+            onClick = { uriHandler.openUri("https://katkatdating.vercel.app/privacy") }
+          )
+
+          HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+          // Code of Conduct
+          LegalLinkRow(
+            icon = Icons.Filled.Verified,
+            title = "Code of Conduct",
+            subtitle = "katkatdating.vercel.app/conduct",
+            onClick = { uriHandler.openUri("https://katkatdating.vercel.app/conduct") }
+          )
+        }
+      }
+
       // App Version & Safety Badge
       Spacer(modifier = Modifier.height(8.dp))
       Column(
@@ -1254,6 +1295,60 @@ private fun AccountOptionRow(
       contentDescription = "Navigate",
       tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
       modifier = Modifier.size(16.dp)
+    )
+  }
+}
+
+@Composable
+private fun LegalLinkRow(
+  icon: ImageVector,
+  title: String,
+  subtitle: String,
+  onClick: () -> Unit
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(12.dp))
+      .clickable(onClick = onClick)
+      .padding(horizontal = 8.dp, vertical = 10.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Box(
+      modifier = Modifier
+        .size(36.dp)
+        .clip(CircleShape)
+        .background(CoralPrimary.copy(alpha = 0.12f)),
+      contentAlignment = Alignment.Center
+    ) {
+      Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = CoralPrimary,
+        modifier = Modifier.size(18.dp)
+      )
+    }
+
+    Spacer(modifier = Modifier.width(12.dp))
+
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = title,
+        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onSurface
+      )
+      Text(
+        text = subtitle,
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+    }
+
+    Icon(
+      imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+      modifier = Modifier.size(14.dp)
     )
   }
 }
