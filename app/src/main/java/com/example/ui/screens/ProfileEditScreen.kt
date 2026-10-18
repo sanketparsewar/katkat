@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.util.Log
 import android.app.DatePickerDialog
 import android.graphics.Bitmap
 import android.net.Uri

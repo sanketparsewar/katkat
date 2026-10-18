@@ -700,12 +700,15 @@ class FirestoreManager {
       val recipientId = matchId
 
       // Profile-level End-to-End Encryption between the two participating profiles
-      val encryptedPayload = com.example.util.EndToEndEncryptionHelper.encryptMessage(
-        com.example.KatkatApplication.appContext,
-        message.text,
-        myUserId,
-        recipientId
-      )
+      val encryptedPayload = if (message.text.startsWith("e2e:v1:")) {
+        message.text
+      } else {
+        com.example.util.EndToEndEncryptionHelper.encryptMessage(
+          message.text,
+          myUserId,
+          recipientId
+        )
+      }
 
       val msgData = mapOf(
         "id" to message.id,

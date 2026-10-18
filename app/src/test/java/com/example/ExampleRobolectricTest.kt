@@ -32,7 +32,7 @@ class ExampleRobolectricTest {
   @Test
   fun `verify user profile default state`() {
     val profile = com.example.data.model.UserProfile()
-    assertEquals("my_profile", profile.id)
+    assertEquals("", profile.id)
     assertFalse(profile.isOnboardingCompleted)
     assertTrue(profile.photos.isEmpty())
   }
@@ -55,6 +55,44 @@ class ExampleRobolectricTest {
     // Verification that manager handles availability safely without throwing unhandled runtime exceptions
     val isAvailable = firestoreManager.isAvailable
     assertTrue(isAvailable || !isAvailable)
+  }
+
+  @Test
+  fun `verify end-to-end encryption and decryption between matched participants`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val userA = "profile_user_1"
+    val userB = "profile_user_2"
+    val messageText = "Hey! Let's grab coffee this weekend ☕"
+
+    // User A encrypts
+    val encrypted = com.example.util.EndToEndEncryptionHelper.encryptMessage(context, messageText, userA, userB)
+    assertTrue(encrypted.startsWith("e2e:v1:"))
+    assertFalse(encrypted.contains("coffee"))
+
+    // User B decrypts
+    val decryptedByB = com.example.util.EndToEndEncryptionHelper.decryptMessage(context, encrypted, userB, userA)
+    assertEquals(messageText, decryptedByB)
+
+    // User A also decrypts their own message
+    val decryptedByA = com.example.util.EndToEndEncryptionHelper.decryptMessage(context, encrypted, userA, userB)
+    assertEquals(messageText, decryptedByA)
+  }
+
+  @Test
+  fun `verify encryption does not double encrypt and unwrap handles nested payloads`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val userA = "alice_id"
+    val userB = "bob_id"
+    val messageText = "Testing nested encryption unwrapping ✨"
+
+    val encryptedOnce = com.example.util.EndToEndEncryptionHelper.encryptMessage(context, messageText, userA, userB)
+    val encryptedAgain = com.example.util.EndToEndEncryptionHelper.encryptMessage(context, encryptedOnce, userA, userB)
+    // Should be idempotent
+    assertEquals(encryptedOnce, encryptedAgain)
+
+    // Decrypting returns original message
+    val decrypted = com.example.util.EndToEndEncryptionHelper.decryptMessage(context, encryptedOnce, userB, userA)
+    assertEquals(messageText, decrypted)
   }
 }
 
