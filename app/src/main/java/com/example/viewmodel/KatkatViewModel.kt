@@ -430,12 +430,11 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         )
         _lastCompletedTransaction.value = transaction
         _showPaywall.value = false
-        val planBilling = if (isAnnual) "Yearly" else "Monthly"
-        _uiEvents.emit(UiEvent.ShowToast("🎉 Razorpay Payment Successful! ${tier.title} ($planBilling) is now active."))
+        _uiEvents.emit(UiEvent.ShowToast("Payment Successful! ${tier.title} is now active."))
         _uiEvents.emit(UiEvent.VibrateFeedback("match"))
         _uiEvents.emit(UiEvent.NavigateToProfile)
       } catch (e: Exception) {
-        _uiEvents.emit(UiEvent.ShowToast("Error confirming payment: ${e.message}"))
+        _uiEvents.emit(UiEvent.ShowToast("Payment failed. Please try again."))
       } finally {
         _isProcessingPayment.value = false
       }
@@ -457,9 +456,9 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
           errorCode = code,
           errorDescription = description
         )
-        _uiEvents.emit(UiEvent.ShowToast("Razorpay Payment Cancelled / Failed: $description"))
+        _uiEvents.emit(UiEvent.ShowToast("Payment Cancelled"))
       } catch (e: Exception) {
-        _uiEvents.emit(UiEvent.ShowToast("Payment incomplete: $description"))
+        _uiEvents.emit(UiEvent.ShowToast("Payment Cancelled"))
       }
     }
   }
@@ -487,10 +486,10 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         _lastCompletedTransaction.value = transaction
         _showPaywall.value = false
         val planBilling = if (isAnnual) "Yearly" else "Monthly"
-        _uiEvents.emit(UiEvent.ShowToast("🎉 Payment Successful! Welcome to ${tier.title} ($planBilling)."))
+        _uiEvents.emit(UiEvent.ShowToast("Payment Successful! ${tier.title} is now active."))
         _uiEvents.emit(UiEvent.VibrateFeedback("match"))
       } catch (e: Exception) {
-        _uiEvents.emit(UiEvent.ShowToast("Payment failed: ${e.message ?: "Please try again"}"))
+        _uiEvents.emit(UiEvent.ShowToast("Payment Failed. Please try again."))
       } finally {
         _isProcessingPayment.value = false
       }
