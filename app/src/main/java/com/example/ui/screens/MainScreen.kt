@@ -176,6 +176,10 @@ fun MainScreen(
         is UiEvent.VibrateFeedback -> {
           HapticHelper.triggerHaptic(context, event.type)
         }
+        is UiEvent.NavigateToProfile -> {
+          currentTab = KatkatTab.PROFILE
+          checkoutTargetTier = null
+        }
       }
     }
   }
@@ -433,6 +437,7 @@ fun MainScreen(
       tier = activeCheckoutTier,
       isAnnual = checkoutIsAnnual,
       isProcessing = isProcessingPayment,
+      customerName = userProfile.name,
       onPayWithRazorpay = {
         val userName = userProfile.name
         onStartRazorpayPayment(
@@ -442,16 +447,6 @@ fun MainScreen(
           null,
           userName
         )
-      },
-      onConfirmPayment = { method, upiId, cardLast4 ->
-        viewModel.executePayment(
-          tier = activeCheckoutTier,
-          isAnnual = checkoutIsAnnual,
-          method = method,
-          upiId = upiId,
-          cardLast4 = cardLast4
-        )
-        checkoutTargetTier = null
       },
       onDismiss = {
         if (!isProcessingPayment) {
@@ -468,6 +463,7 @@ fun MainScreen(
       transaction = completedTxn,
       onDismiss = {
         viewModel.dismissPaymentReceipt()
+        currentTab = KatkatTab.PROFILE
       }
     )
   }

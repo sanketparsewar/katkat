@@ -1,10 +1,7 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,17 +15,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,18 +32,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,47 +43,30 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.model.PaymentMethodType
 import com.example.data.model.SubscriptionTier
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 
+/**
+ * Razorpay Dedicated Payment Checkout Bottom Sheet.
+ * Directs all subscription upgrades exclusively through the official Razorpay payment gateway
+ * (supporting UPI, Credit/Debit cards, NetBanking, Cred, and Wallets natively).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CheckoutBottomSheet(
   tier: SubscriptionTier,
   isAnnual: Boolean,
   isProcessing: Boolean,
+  customerName: String? = null,
   onPayWithRazorpay: () -> Unit,
-  onConfirmPayment: (PaymentMethodType, upiId: String?, cardLast4: String?) -> Unit,
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  var selectedMethod by remember { mutableStateOf(PaymentMethodType.UPI) }
-
-  // UPI input states
-  var upiId by remember { mutableStateOf("") }
-  val upiApps = listOf("Google Pay", "PhonePe", "Paytm", "BHIM UPI")
-  var selectedUpiApp by remember { mutableStateOf("Google Pay") }
-
-  // Card input states
-  var cardNumber by remember { mutableStateOf("") }
-  var cardExpiry by remember { mutableStateOf("") }
-  var cardCvv by remember { mutableStateOf("") }
-  var cardName by remember { mutableStateOf("") }
-
-  // Net banking state
-  val banks = listOf("State Bank of India", "HDFC Bank", "ICICI Bank", "Axis Bank", "Kotak Mahindra")
-  var selectedBank by remember { mutableStateOf("HDFC Bank") }
-
-  // Wallet state
-  val wallets = listOf("Paytm Wallet", "PhonePe Wallet", "Amazon Pay")
-  var selectedWallet by remember { mutableStateOf("Paytm Wallet") }
 
   val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
   val planPeriod = if (isAnnual) "Yearly (12 Months)" else "Monthly (1 Month)"
@@ -147,14 +115,14 @@ fun CheckoutBottomSheet(
           Spacer(modifier = Modifier.width(10.dp))
           Column {
             Text(
-              text = "Secure Checkout",
+              text = "Razorpay Secure Checkout",
               style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
               )
             )
             Text(
-              text = "100% Encrypted • 256-bit SSL",
+              text = "100% Encrypted • Official Gateway",
               style = MaterialTheme.typography.labelSmall.copy(
                 color = LikeGreen,
                 fontWeight = FontWeight.SemiBold,
@@ -189,37 +157,68 @@ fun CheckoutBottomSheet(
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
       ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Column {
-              Text(
-                text = tier.title,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-              )
+            Column(modifier = Modifier.weight(1f)) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = tier.title,
+                  style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                if (tier.badge.isNotBlank()) {
+                  Spacer(modifier = Modifier.width(8.dp))
+                  Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (tier == SubscriptionTier.TIER_2) GoldVip.copy(alpha = 0.2f) else CoralPrimary.copy(alpha = 0.12f)
+                  ) {
+                    Text(
+                      text = tier.badge,
+                      modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                      style = MaterialTheme.typography.labelSmall.copy(
+                        color = if (tier == SubscriptionTier.TIER_2) Color(0xFFC79100) else CoralPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                      )
+                    )
+                  }
+                }
+              }
+              Spacer(modifier = Modifier.height(2.dp))
               Text(
                 text = "$planPeriod • ${tier.dailySwipes} Swipes/day",
                 style = MaterialTheme.typography.bodySmall.copy(
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  fontSize = 11.5.sp
+                  fontSize = 12.sp
                 )
               )
             }
 
-            Text(
-              text = formattedPrice,
-              style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.ExtraBold,
-                color = if (tier == SubscriptionTier.TIER_2) Color(0xFFC79100) else CoralPrimary
+            Column(horizontalAlignment = Alignment.End) {
+              Text(
+                text = formattedPrice,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                  fontWeight = FontWeight.ExtraBold,
+                  color = if (tier == SubscriptionTier.TIER_2) Color(0xFFC79100) else CoralPrimary
+                )
               )
-            )
+              if (isAnnual) {
+                Text(
+                  text = tier.effectiveMonthlyPrice,
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp
+                  )
+                )
+              }
+            }
           }
 
           if (isAnnual && tier.yearlySavings.isNotBlank()) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Surface(
               shape = RoundedCornerShape(8.dp),
               color = LikeGreen.copy(alpha = 0.12f)
@@ -230,358 +229,146 @@ fun CheckoutBottomSheet(
                 style = MaterialTheme.typography.labelSmall.copy(
                   color = LikeGreen,
                   fontWeight = FontWeight.Bold,
-                  fontSize = 10.5.sp
+                  fontSize = 11.sp
                 )
               )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+          // Included perks
+          Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            tier.perks.forEach { perk ->
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                  imageVector = Icons.Default.CheckCircle,
+                  contentDescription = null,
+                  tint = LikeGreen,
+                  modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                  text = perk,
+                  style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 12.sp
+                  )
+                )
+              }
             }
           }
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
-      // Payment Method Options Selector
-      Text(
-        text = "Select Payment Method",
-        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth()
-      )
-
-      Spacer(modifier = Modifier.height(8.dp))
-
-      PaymentMethodType.values().filter { it != PaymentMethodType.RAZORPAY }.forEach { method ->
-        val isSelected = selectedMethod == method
-        val methodIcon = when (method) {
-          PaymentMethodType.UPI -> Icons.Default.QrCode2
-          PaymentMethodType.CARD -> Icons.Default.CreditCard
-          PaymentMethodType.NET_BANKING -> Icons.Default.AccountBalance
-          PaymentMethodType.WALLET -> Icons.Default.AccountBalanceWallet
-          PaymentMethodType.RAZORPAY -> Icons.Default.Shield
-        }
-
-        Card(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(enabled = !isProcessing) { selectedMethod = method },
-          shape = RoundedCornerShape(14.dp),
-          colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) CoralPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
-          ),
-          border = BorderStroke(
-            1.5.dp,
-            if (isSelected) CoralPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-          )
-        ) {
+      // Razorpay Payment Methods Supported Box
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+      ) {
+        Column(modifier = Modifier.padding(14.dp)) {
           Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Box(
-              modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(if (isSelected) CoralPrimary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant),
-              contentAlignment = Alignment.Center
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
               Icon(
-                imageVector = methodIcon,
+                imageVector = Icons.Default.Shield,
                 contentDescription = null,
-                tint = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+                tint = Color(0xFF0C2340),
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = "Razorpay Supported Methods",
+                style = MaterialTheme.typography.labelMedium.copy(
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
               )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
+            Surface(
+              shape = RoundedCornerShape(6.dp),
+              color = Color(0xFF0C2340)
+            ) {
               Text(
-                text = method.displayName,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                fontSize = 13.sp
+                text = "RAZORPAY",
+                color = Color.White,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
               )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(8.dp))
+          Text(
+            text = "Pay seamlessly with Google Pay, PhonePe, Paytm, BHIM UPI, Credit/Debit Cards (Visa/Mastercard/RuPay), Net Banking & Cred.",
+            style = MaterialTheme.typography.bodySmall.copy(
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontSize = 11.5.sp,
+              lineHeight = 16.sp
+            )
+          )
+
+          if (!customerName.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
               Text(
-                text = method.subtitle,
+                text = "Billed to: ",
                 style = MaterialTheme.typography.labelSmall.copy(
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  fontSize = 10.5.sp
+                  fontSize = 11.sp
+                )
+              )
+              Text(
+                text = customerName,
+                style = MaterialTheme.typography.labelSmall.copy(
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  fontSize = 11.sp
                 )
               )
             }
-
-            RadioButton(
-              selected = isSelected,
-              onClick = { if (!isProcessing) selectedMethod = method },
-              colors = RadioButtonDefaults.colors(
-                selectedColor = CoralPrimary,
-                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-              )
-            )
           }
         }
       }
 
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
-      // Input fields based on selected method
-      when (selectedMethod) {
-        PaymentMethodType.UPI -> {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-              .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-              .padding(14.dp)
-          ) {
-            Text(
-              text = "Choose Quick UPI App",
-              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-              upiApps.forEach { app ->
-                val isAppSelected = selectedUpiApp == app
-                Surface(
-                  shape = RoundedCornerShape(10.dp),
-                  color = if (isAppSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant,
-                  modifier = Modifier
-                    .weight(1f)
-                    .clickable { selectedUpiApp = app }
-                ) {
-                  Text(
-                    text = app,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                      fontWeight = FontWeight.Bold,
-                      color = if (isAppSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                      fontSize = 10.sp
-                    ),
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    textAlign = TextAlign.Center
-                  )
-                }
-              }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-              text = "Or Enter UPI ID (VPA)",
-              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
-              value = upiId,
-              onValueChange = { upiId = it },
-              placeholder = { Text("e.g. yourname@okhdfcbank", fontSize = 12.sp) },
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("input_upi_id"),
-              singleLine = true,
-              shape = RoundedCornerShape(10.dp),
-              colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CoralPrimary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-              )
-            )
-          }
-        }
-
-        PaymentMethodType.CARD -> {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-              .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-              .padding(14.dp)
-          ) {
-            Text(
-              text = "Card Details",
-              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-              value = cardNumber,
-              onValueChange = { if (it.length <= 19) cardNumber = it },
-              placeholder = { Text("Card Number (16 digits)", fontSize = 12.sp) },
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("input_card_number"),
-              singleLine = true,
-              keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-              shape = RoundedCornerShape(10.dp),
-              colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CoralPrimary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-              )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-              OutlinedTextField(
-                value = cardExpiry,
-                onValueChange = { if (it.length <= 5) cardExpiry = it },
-                placeholder = { Text("MM/YY", fontSize = 12.sp) },
-                modifier = Modifier
-                  .weight(1f)
-                  .testTag("input_card_expiry"),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                  focusedBorderColor = CoralPrimary,
-                  unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                )
-              )
-
-              OutlinedTextField(
-                value = cardCvv,
-                onValueChange = { if (it.length <= 4) cardCvv = it },
-                placeholder = { Text("CVV", fontSize = 12.sp) },
-                modifier = Modifier
-                  .weight(1f)
-                  .testTag("input_card_cvv"),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                  focusedBorderColor = CoralPrimary,
-                  unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                )
-              )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-              value = cardName,
-              onValueChange = { cardName = it },
-              placeholder = { Text("Name on Card", fontSize = 12.sp) },
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("input_card_name"),
-              singleLine = true,
-              shape = RoundedCornerShape(10.dp),
-              colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CoralPrimary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-              )
-            )
-          }
-        }
-
-        PaymentMethodType.NET_BANKING -> {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-              .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-              .padding(14.dp)
-          ) {
-            Text(
-              text = "Popular Indian Banks",
-              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            banks.forEach { bank ->
-              val isBankSelected = selectedBank == bank
-              Row(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .clip(RoundedCornerShape(8.dp))
-                  .clickable { selectedBank = bank }
-                  .padding(vertical = 6.dp, horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                RadioButton(
-                  selected = isBankSelected,
-                  onClick = { selectedBank = bank },
-                  colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = bank, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp))
-              }
-            }
-          }
-        }
-
-        PaymentMethodType.WALLET -> {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-              .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-              .padding(14.dp)
-          ) {
-            Text(
-              text = "Choose Wallet",
-              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            wallets.forEach { wallet ->
-              val isWalletSelected = selectedWallet == wallet
-              Row(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .clip(RoundedCornerShape(8.dp))
-                  .clickable { selectedWallet = wallet }
-                  .padding(vertical = 6.dp, horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                RadioButton(
-                  selected = isWalletSelected,
-                  onClick = { selectedWallet = wallet },
-                  colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = wallet, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp))
-              }
-            }
-          }
-        }
-
-        PaymentMethodType.RAZORPAY -> {
-          // Razorpay utilizes the primary gateway button below
-        }
-      }
-
-      Spacer(modifier = Modifier.height(18.dp))
-
-      // Primary Razorpay Gateway Button (Official SDK Flow)
+      // Primary Action: Launch Razorpay Checkout
       Button(
         onClick = onPayWithRazorpay,
         enabled = !isProcessing,
         modifier = Modifier
           .fillMaxWidth()
-          .height(52.dp)
+          .height(54.dp)
           .testTag("btn_pay_with_razorpay"),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(27.dp),
         colors = ButtonDefaults.buttonColors(
-          containerColor = if (tier == SubscriptionTier.TIER_2) GoldVip else Color(0xFF0C2340) // Razorpay dark navy
+          containerColor = if (tier == SubscriptionTier.TIER_2) GoldVip else Color(0xFF0C2340)
         )
       ) {
         if (isProcessing) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(
               modifier = Modifier.size(20.dp),
-              color = Color.White,
+              color = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White,
               strokeWidth = 2.dp
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-              text = "Connecting to Razorpay...",
+              text = "Opening Razorpay...",
               style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White
               )
             )
           }
@@ -590,12 +377,12 @@ fun CheckoutBottomSheet(
             Icon(
               imageVector = Icons.Default.Shield,
               contentDescription = null,
-              tint = Color.White,
-              modifier = Modifier.size(18.dp)
+              tint = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White,
+              modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = "Pay with Razorpay (₹$amount)",
+              text = "Pay ₹$amount with Razorpay",
               style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.ExtraBold,
                 color = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White,
@@ -606,36 +393,9 @@ fun CheckoutBottomSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(12.dp))
 
-      // Alternative direct authorization button
-      Button(
-        onClick = {
-          val resolvedUpi = if (upiId.isNotBlank()) upiId else "$selectedUpiApp@upi"
-          val last4 = if (cardNumber.length >= 4) cardNumber.takeLast(4) else "4242"
-          onConfirmPayment(selectedMethod, resolvedUpi, last4)
-        },
-        enabled = !isProcessing,
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(44.dp)
-          .testTag("btn_pay_now"),
-        shape = RoundedCornerShape(22.dp),
-        colors = ButtonDefaults.buttonColors(
-          containerColor = CoralPrimary.copy(alpha = 0.9f)
-        )
-      ) {
-        Text(
-          text = "Pay via ${selectedMethod.name} Directly",
-          style = MaterialTheme.typography.labelLarge.copy(
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
-            fontSize = 13.sp
-          )
-        )
-      }
-
-      Spacer(modifier = Modifier.height(8.dp))
+      // Trust & Security Badges
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
@@ -648,14 +408,15 @@ fun CheckoutBottomSheet(
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-          text = "PCI-DSS Level 1 Compliant • RBI Mandate Protected",
+          text = "PCI-DSS Level 1 • Powered by Razorpay",
           style = MaterialTheme.typography.labelSmall.copy(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp
+            fontSize = 10.5.sp
           )
         )
       }
-      Spacer(modifier = Modifier.height(16.dp))
+
+      Spacer(modifier = Modifier.height(10.dp))
     }
   }
 }

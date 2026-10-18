@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 sealed class UiEvent {
   data class ShowToast(val message: String) : UiEvent()
   data class VibrateFeedback(val type: String) : UiEvent()
+  data object NavigateToProfile : UiEvent()
 }
 
 class KatkatViewModel(application: Application) : AndroidViewModel(application) {
@@ -430,6 +431,7 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
         val planBilling = if (isAnnual) "Yearly" else "Monthly"
         _uiEvents.emit(UiEvent.ShowToast("🎉 Razorpay Payment Successful! ${tier.title} ($planBilling) is now active."))
         _uiEvents.emit(UiEvent.VibrateFeedback("match"))
+        _uiEvents.emit(UiEvent.NavigateToProfile)
       } catch (e: Exception) {
         _uiEvents.emit(UiEvent.ShowToast("Error confirming payment: ${e.message}"))
       } finally {
