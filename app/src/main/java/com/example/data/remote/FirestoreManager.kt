@@ -1,6 +1,7 @@
 package com.example.data.remote
 
 import android.util.Log
+import com.example.KatkatApplication
 import com.example.data.model.ChatMessage
 import com.example.data.model.DatingProfile
 import com.example.data.model.KatkatNotification
@@ -700,6 +701,7 @@ class FirestoreManager {
 
       // Profile-level End-to-End Encryption between the two participating profiles
       val encryptedPayload = com.example.util.EndToEndEncryptionHelper.encryptMessage(
+        com.example.KatkatApplication.appContext,
         message.text,
         myUserId,
         recipientId
@@ -778,7 +780,12 @@ class FirestoreManager {
         val isReadCloud = (data["isRead"] as? Boolean) ?: false
         val rawText = data["text"] as? String ?: ""
         val decryptedText = try {
-          com.example.util.EndToEndEncryptionHelper.decryptMessage(rawText, myUserId, matchId)
+          com.example.util.EndToEndEncryptionHelper.decryptMessage(
+            com.example.KatkatApplication.appContext,
+            rawText,
+            myUserId,
+            matchId
+          )
         } catch (e: Exception) {
           Log.w("FirestoreManager", "Error decrypting message: ${e.message}")
           rawText
@@ -856,6 +863,7 @@ class FirestoreManager {
 
             // Decrypt message content using participating profile keys
             val decryptedText = com.example.util.EndToEndEncryptionHelper.decryptMessage(
+              com.example.KatkatApplication.appContext,
               rawText,
               myUserId,
               matchId

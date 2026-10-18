@@ -103,7 +103,6 @@ class PhoneAuthManager {
             isKnownTestNumber
 
         if (isRegionOrCertIssue) {
-          Log.i(tag, "Failing over to Firebase test OTP mode (Code: 123456)")
           onCodeSent(fallbackId)
         } else {
           val msg = e.localizedMessage ?: "Phone verification failed"
@@ -159,7 +158,7 @@ class PhoneAuthManager {
 
     if (firebaseAuth == null) {
       Log.w(tag, "FirebaseAuth unavailable, proceeding locally")
-      if (trimmedCode.length == 6 || trimmedCode == "7294") {
+      if (trimmedCode.length == 6) {
         onSuccess()
       } else {
         onError("Please enter a valid OTP code")
@@ -213,7 +212,7 @@ class PhoneAuthManager {
     }
 
     // Path B: Fallback verification ID or test fallback mode
-    if (trimmedCode == "123456" || trimmedCode == "7294" || trimmedCode.length == 6) {
+    if (trimmedCode.length == 6) {
       Log.i(tag, "Fallback OTP accepted. Ensuring user session is registered with Firebase...")
       registerFallbackFirebaseSession(firebaseAuth) {
         onSuccess()
@@ -230,14 +229,7 @@ class PhoneAuthManager {
     onSuccess: () -> Unit,
     onError: (errorMessage: String) -> Unit
   ) {
-    if (code == "123456" || code == "7294") {
-      Log.i(tag, "Test OTP accepted. Registering fallback user session with Firebase...")
-      registerFallbackFirebaseSession(firebaseAuth) {
-        onSuccess()
-      }
-    } else {
-      onError(error.localizedMessage ?: "Invalid or expired OTP code")
-    }
+    onError(error.localizedMessage ?: "Invalid or expired OTP code")
   }
 
   /**

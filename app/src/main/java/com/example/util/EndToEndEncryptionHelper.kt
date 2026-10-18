@@ -1,11 +1,14 @@
 package com.example.util
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Base64
 import android.util.Log
 import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlin.text.Charsets
 
 /**
  * End-to-End Encryption helper that provides authenticated AES-256 encryption
@@ -29,7 +32,7 @@ object EndToEndEncryptionHelper {
    */
   private fun getDomainSalt(context: Context): String {
     val prefs = context.getSharedPreferences("katkat_e2ee_prefs", Context.MODE_PRIVATE)
-    return prefs.getString(saltPrefsKey) ?: generateAndStoreSalt(prefs)
+    return prefs.getString(saltPrefsKey, "") ?: generateAndStoreSalt(prefs)
   }
 
   /**

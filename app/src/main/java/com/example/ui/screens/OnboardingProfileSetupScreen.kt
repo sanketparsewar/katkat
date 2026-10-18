@@ -1487,11 +1487,7 @@ private fun PhoneEntryStep(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
               )
-              Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = null,
-                modifier = Modifier.size(0.dp) // dummy to satisfy layout
-              )
+              // Removed dummy icon for production - was used for layout testing only
             }
           }
 
@@ -1635,7 +1631,6 @@ private fun OtpVerificationStep(
   isTimerRunning: Boolean,
   isVerifying: Boolean,
   onResendOtp: () -> Unit,
-  onAutofillDemo: () -> Unit,
   onContinue: (String) -> Unit
 ) {
   val isOtpComplete = otpCode.length == 6

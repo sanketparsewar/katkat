@@ -1,5 +1,6 @@
 package com.example.data.local
 
+import android.util.Log
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
