@@ -508,6 +508,46 @@ private fun AccountMainPage(
         }
       }
 
+      // Legal & Compliance Links Card (Terms, Privacy, Code of Conduct)
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+      ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+          val uriHandler = LocalUriHandler.current
+
+          // Terms
+          LegalLinkRow(
+            icon = Icons.Filled.ReceiptLong,
+            title = "Terms of Service",
+            subtitle = "katkatdating.vercel.app/terms",
+            onClick = { uriHandler.openUri("https://katkatdating.vercel.app/terms") }
+          )
+
+          HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+          // Privacy
+          LegalLinkRow(
+            icon = Icons.Filled.Security,
+            title = "Privacy Policy",
+            subtitle = "katkatdating.vercel.app/privacy",
+            onClick = { uriHandler.openUri("https://katkatdating.vercel.app/privacy") }
+          )
+
+          HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+          // Code of Conduct
+          LegalLinkRow(
+            icon = Icons.Filled.Verified,
+            title = "Code of Conduct",
+            subtitle = "katkatdating.vercel.app/conduct",
+            onClick = { uriHandler.openUri("https://katkatdating.vercel.app/conduct") }
+          )
+        }
+      }
+
       // Logout Button
       OutlinedButton(
         onClick = { showLogoutDialog = true },
