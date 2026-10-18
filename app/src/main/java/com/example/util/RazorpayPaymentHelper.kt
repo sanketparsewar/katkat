@@ -53,6 +53,8 @@ object RazorpayPaymentHelper {
     activity: Activity,
     tier: SubscriptionTier,
     isAnnual: Boolean,
+    amountInRupeesOverride: Int? = null,
+    isAutoPay: Boolean = true,
     userEmail: String? = null,
     userPhone: String? = null,
     userName: String? = null,
@@ -62,17 +64,24 @@ object RazorpayPaymentHelper {
     val apiKey = getApiKey()
     checkout.setKeyID(apiKey)
 
-    val amountInRupees = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
+    val amountInRupees = amountInRupeesOverride ?: if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
     val amountInPaise = amountInRupees * 100
     val clientTxnId = customOrderId ?: "txn_${System.currentTimeMillis()}_${(1000..9999).random()}"
 
     try {
       val options = JSONObject()
       options.put("name", "Katkat Dating")
-      options.put("description", "${tier.title} (${if (isAnnual) "12 Months" else "1 Month"})")
+      val durationLabel = if (isAnnual) "12 Months" else "1 Month"
+      val autoPayLabel = if (isAutoPay) " • AutoPay Enabled" else ""
+      options.put("description", "${tier.title} ($durationLabel$autoPayLabel)")
       options.put("currency", "INR")
       options.put("amount", amountInPaise)
       options.put("send_sms_hash", true)
+
+      // AutoPay recurring intent flag
+      if (isAutoPay) {
+        options.put("recurring", 1)
+      }
 
       // Theme styling aligned with Katkat brand (Coral / Burgundy)
       val theme = JSONObject()
@@ -100,6 +109,7 @@ object RazorpayPaymentHelper {
       notes.put("plan_title", tier.title)
       notes.put("is_annual", isAnnual.toString())
       notes.put("client_txn_id", clientTxnId)
+      notes.put("autopay_enabled", isAutoPay.toString())
       options.put("notes", notes)
 
       val retryObj = JSONObject()
@@ -107,7 +117,7 @@ object RazorpayPaymentHelper {
       retryObj.put("max_count", 2)
       options.put("retry", retryObj)
 
-      Log.i(TAG, "Opening Razorpay checkout for ₹$amountInRupees (${tier.title}), Key ID: $apiKey")
+      Log.i(TAG, "Opening Razorpay checkout for ₹$amountInRupees (${tier.title}, AutoPay=$isAutoPay), Key ID: $apiKey")
       checkout.open(activity, options)
       return clientTxnId
     } catch (e: Exception) {

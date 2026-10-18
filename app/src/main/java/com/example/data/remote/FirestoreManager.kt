@@ -14,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -1961,61 +1962,19 @@ class FirestoreManager {
 
   /**
    * Fetches the dynamic list of subscription plans configured on the Firestore backend.
-   * If not yet populated in Firestore ("subscription_plans" collection), bootstraps the collection
-   * and returns the default plans seamlessly.
+   * Reads from the "plans" collection (documents: free, plus, vip).
+   * Ensures pricing is completely dynamic from database and never hardcoded.
    */
   suspend fun fetchSubscriptionPlans(): List<com.example.data.model.SubscriptionPlan> {
     val db = firestore ?: return com.example.data.model.SubscriptionPlan.defaultPlans()
     return try {
-      val snapshot = db.collection("subscription_plans").get().await()
+      val snapshot = db.collection("plans").get().await()
       if (snapshot.isEmpty) {
-        // Bootstrap default plans into backend so they are centrally configurable
         bootstrapSubscriptionPlans(db)
         return com.example.data.model.SubscriptionPlan.defaultPlans()
       }
-
-      val plans = snapshot.documents.mapNotNull { doc ->
-        val data = doc.data ?: return@mapNotNull null
-        val tierStr = data["tier"] as? String ?: doc.id
-        val tier = try {
-          SubscriptionTier.valueOf(tierStr)
-        } catch (_: Exception) {
-          when {
-            tierStr.contains("VIP", ignoreCase = true) || tierStr.contains("2") -> SubscriptionTier.TIER_2
-            tierStr.contains("PLUS", ignoreCase = true) || tierStr.contains("1") -> SubscriptionTier.TIER_1
-            else -> SubscriptionTier.FREE
-          }
-        }
-
-        val perksRaw = data["perks"] as? List<*>
-        val perksList = perksRaw?.mapNotNull { it?.toString() } ?: tier.perks
-
-        com.example.data.model.SubscriptionPlan(
-          id = doc.id,
-          tier = tier,
-          title = data["title"] as? String ?: tier.title,
-          subtitle = data["subtitle"] as? String ?: tier.subtitle,
-          tagline = data["tagline"] as? String ?: tier.tagline,
-          badge = data["badge"] as? String ?: tier.badge,
-          dailySwipes = (data["dailySwipes"] as? Number)?.toInt() ?: tier.dailySwipes,
-          monthlySwipes = (data["monthlySwipes"] as? Number)?.toInt() ?: tier.monthlySwipes,
-          superLikesPerDay = data["superLikesPerDay"] as? String ?: tier.superLikesPerDay,
-          rewindsPerDay = data["rewindsPerDay"] as? String ?: tier.rewindsPerDay,
-          priceMonthly = data["priceMonthly"] as? String ?: tier.priceMonthly,
-          priceMonthlyAmount = (data["priceMonthlyAmount"] as? Number)?.toInt() ?: tier.priceMonthlyAmount,
-          priceYearly = data["priceYearly"] as? String ?: tier.priceYearly,
-          priceYearlyAmount = (data["priceYearlyAmount"] as? Number)?.toInt() ?: tier.priceYearlyAmount,
-          yearlySavings = data["yearlySavings"] as? String ?: tier.yearlySavings,
-          effectiveMonthlyPrice = data["effectiveMonthlyPrice"] as? String ?: tier.effectiveMonthlyPrice,
-          savingsPercent = data["savingsPercent"] as? String ?: tier.savingsPercent,
-          seeWhoLikedYou = (data["seeWhoLikedYou"] as? Boolean) ?: tier.seeWhoLikedYou,
-          adFree = (data["adFree"] as? Boolean) ?: tier.adFree,
-          perks = perksList,
-          isBackendProvided = true
-        )
-      }.sortedBy { it.tier.ordinal }
-
-      if (plans.isNotEmpty()) plans else com.example.data.model.SubscriptionPlan.defaultPlans()
+      val parsed = parsePlansFromSnapshot(snapshot)
+      if (parsed.isNotEmpty()) parsed else com.example.data.model.SubscriptionPlan.defaultPlans()
     } catch (e: Exception) {
       Log.w(tag, "Notice fetching dynamic subscription plans from cloud: ${e.message}")
       com.example.data.model.SubscriptionPlan.defaultPlans()
@@ -2030,7 +1989,7 @@ class FirestoreManager {
       return@callbackFlow
     }
 
-    val listener = db.collection("subscription_plans")
+    val listener = db.collection("plans")
       .addSnapshotListener { snapshot, error ->
         if (error != null) {
           Log.w(tag, "Subscription plans observation error: ${error.message}")
@@ -2040,47 +1999,7 @@ class FirestoreManager {
         if (snapshot == null || snapshot.isEmpty) {
           trySend(com.example.data.model.SubscriptionPlan.defaultPlans())
         } else {
-          val plans = snapshot.documents.mapNotNull { doc ->
-            val data = doc.data ?: return@mapNotNull null
-            val tierStr = data["tier"] as? String ?: doc.id
-            val tier = try {
-              SubscriptionTier.valueOf(tierStr)
-            } catch (_: Exception) {
-              when {
-                tierStr.contains("VIP", ignoreCase = true) || tierStr.contains("2") -> SubscriptionTier.TIER_2
-                tierStr.contains("PLUS", ignoreCase = true) || tierStr.contains("1") -> SubscriptionTier.TIER_1
-                else -> SubscriptionTier.FREE
-              }
-            }
-
-            val perksRaw = data["perks"] as? List<*>
-            val perksList = perksRaw?.mapNotNull { it?.toString() } ?: tier.perks
-
-            com.example.data.model.SubscriptionPlan(
-              id = doc.id,
-              tier = tier,
-              title = data["title"] as? String ?: tier.title,
-              subtitle = data["subtitle"] as? String ?: tier.subtitle,
-              tagline = data["tagline"] as? String ?: tier.tagline,
-              badge = data["badge"] as? String ?: tier.badge,
-              dailySwipes = (data["dailySwipes"] as? Number)?.toInt() ?: tier.dailySwipes,
-              monthlySwipes = (data["monthlySwipes"] as? Number)?.toInt() ?: tier.monthlySwipes,
-              superLikesPerDay = data["superLikesPerDay"] as? String ?: tier.superLikesPerDay,
-              rewindsPerDay = data["rewindsPerDay"] as? String ?: tier.rewindsPerDay,
-              priceMonthly = data["priceMonthly"] as? String ?: tier.priceMonthly,
-              priceMonthlyAmount = (data["priceMonthlyAmount"] as? Number)?.toInt() ?: tier.priceMonthlyAmount,
-              priceYearly = data["priceYearly"] as? String ?: tier.priceYearly,
-              priceYearlyAmount = (data["priceYearlyAmount"] as? Number)?.toInt() ?: tier.priceYearlyAmount,
-              yearlySavings = data["yearlySavings"] as? String ?: tier.yearlySavings,
-              effectiveMonthlyPrice = data["effectiveMonthlyPrice"] as? String ?: tier.effectiveMonthlyPrice,
-              savingsPercent = data["savingsPercent"] as? String ?: tier.savingsPercent,
-              seeWhoLikedYou = (data["seeWhoLikedYou"] as? Boolean) ?: tier.seeWhoLikedYou,
-              adFree = (data["adFree"] as? Boolean) ?: tier.adFree,
-              perks = perksList,
-              isBackendProvided = true
-            )
-          }.sortedBy { it.tier.ordinal }
-
+          val plans = parsePlansFromSnapshot(snapshot)
           trySend(if (plans.isNotEmpty()) plans else com.example.data.model.SubscriptionPlan.defaultPlans())
         }
       }
@@ -2090,14 +2009,133 @@ class FirestoreManager {
     }
   }
 
+  private fun parsePlansFromSnapshot(snapshot: QuerySnapshot): List<com.example.data.model.SubscriptionPlan> {
+    return snapshot.documents.mapNotNull { doc ->
+      val data = doc.data ?: return@mapNotNull null
+      val docId = doc.id.trim().lowercase()
+      val tierStr = (data["tier"] as? String ?: docId).trim().lowercase()
+      val tier = when {
+        docId == "vip" || docId == "tier_2" || tierStr.contains("vip") || tierStr.contains("2") -> SubscriptionTier.TIER_2
+        docId == "plus" || docId == "tier_1" || tierStr.contains("plus") || tierStr.contains("1") -> SubscriptionTier.TIER_1
+        else -> SubscriptionTier.FREE
+      }
+
+      fun extractInt(vararg keys: String, default: Int): Int {
+        for (key in keys) {
+          val v = data[key]
+          if (v is Number) return v.toInt()
+          if (v is String) {
+            val digits = v.filter { it.isDigit() }
+            if (digits.isNotBlank()) {
+              digits.toIntOrNull()?.let { return it }
+            }
+          }
+        }
+        return default
+      }
+
+      fun extractString(vararg keys: String, default: String): String {
+        for (key in keys) {
+          val v = data[key]?.toString()?.trim()
+          if (!v.isNullOrBlank()) return v
+        }
+        return default
+      }
+
+      val monthlyAmt = extractInt(
+        "priceMonthlyAmount", "monthlyPriceAmount", "price_monthly_amount",
+        "monthlyPrice", "priceMonthly", "amountMonthly", "monthly_price", "price", "amount",
+        default = tier.priceMonthlyAmount
+      )
+
+      val yearlyAmt = extractInt(
+        "priceYearlyAmount", "yearlyPriceAmount", "price_yearly_amount",
+        "yearlyPrice", "priceYearly", "amountYearly", "yearly_price", "annualPrice",
+        default = tier.priceYearlyAmount
+      )
+
+      val priceMonthlyStr = extractString(
+        "priceMonthly", "price_monthly",
+        default = if (monthlyAmt == 0) "Free" else "₹$monthlyAmt/mo"
+      )
+
+      val priceYearlyStr = extractString(
+        "priceYearly", "price_yearly",
+        default = if (yearlyAmt == 0) "Free" else "₹$yearlyAmt/yr"
+      )
+
+      val effectiveMonthly = extractString(
+        "effectiveMonthlyPrice", "effective_monthly_price",
+        default = if (yearlyAmt > 0) "₹${yearlyAmt / 12}/mo" else tier.effectiveMonthlyPrice
+      )
+
+      val savings = extractString(
+        "yearlySavings", "yearly_savings",
+        default = if (monthlyAmt > 0 && yearlyAmt > 0 && (monthlyAmt * 12) > yearlyAmt) "Save ₹${(monthlyAmt * 12) - yearlyAmt} / year" else tier.yearlySavings
+      )
+
+      val perksRaw = data["features"] ?: data["perks"] ?: data["benefits"]
+      val parsedFeatures: List<com.example.data.model.PlanFeature> = when (perksRaw) {
+        is List<*> -> perksRaw.map { com.example.data.model.PlanFeature.parse(it) }
+        is Map<*, *> -> perksRaw.values.map { com.example.data.model.PlanFeature.parse(it) }
+        is String -> perksRaw.split(",").map { com.example.data.model.PlanFeature.parse(it.trim()) }
+        else -> tier.perks.map { com.example.data.model.PlanFeature.parse(it) }
+      }.filter { it.text.isNotBlank() }
+
+      val extractedSubtitle = extractString("subtitle", "description", default = "")
+      val cleanSubtitle = if (
+        extractedSubtitle.equals("Explore", ignoreCase = true) ||
+        extractedSubtitle.equals("Connect", ignoreCase = true) ||
+        extractedSubtitle.equals("Stand Out", ignoreCase = true)
+      ) "" else extractedSubtitle
+
+      val extractedTagline = extractString("tagline", default = "")
+      val cleanTagline = if (
+        extractedTagline.contains("Explore and connect", ignoreCase = true) ||
+        extractedTagline.contains("More matches, less waiting", ignoreCase = true) ||
+        extractedTagline.contains("Get more visibility and control", ignoreCase = true)
+      ) "" else extractedTagline
+
+      com.example.data.model.SubscriptionPlan(
+        id = doc.id,
+        tier = tier,
+        title = extractString("title", "name", "planName", "plan_name", default = tier.title),
+        subtitle = cleanSubtitle,
+        tagline = cleanTagline,
+        badge = extractString("badge", default = tier.badge),
+        dailySwipes = extractInt("dailySwipes", "daily_swipes", "swipes", default = tier.dailySwipes),
+        monthlySwipes = extractInt("monthlySwipes", "monthly_swipes", default = tier.monthlySwipes),
+        superLikesPerDay = extractString("superLikesPerDay", "super_likes", default = tier.superLikesPerDay),
+        rewindsPerDay = extractString("rewindsPerDay", "rewinds", default = tier.rewindsPerDay),
+        priceMonthly = priceMonthlyStr,
+        priceMonthlyAmount = monthlyAmt,
+        priceYearly = priceYearlyStr,
+        priceYearlyAmount = yearlyAmt,
+        yearlySavings = savings,
+        effectiveMonthlyPrice = effectiveMonthly,
+        savingsPercent = extractString("savingsPercent", default = tier.savingsPercent),
+        seeWhoLikedYou = (data["seeWhoLikedYou"] as? Boolean) ?: tier.seeWhoLikedYou,
+        adFree = (data["adFree"] as? Boolean) ?: tier.adFree,
+        perks = parsedFeatures.map { it.text },
+        featuresList = parsedFeatures,
+        isBackendProvided = true
+      )
+    }.sortedBy { it.tier.ordinal }
+  }
+
   private suspend fun bootstrapSubscriptionPlans(db: FirebaseFirestore) {
     try {
       val defaultPlans = com.example.data.model.SubscriptionPlan.defaultPlans()
       val batch = db.batch()
       defaultPlans.forEach { plan ->
-        val docRef = db.collection("subscription_plans").document(plan.tier.name)
+        val docId = when (plan.tier) {
+          SubscriptionTier.FREE -> "free"
+          SubscriptionTier.TIER_1 -> "plus"
+          SubscriptionTier.TIER_2 -> "vip"
+        }
+        val docRef = db.collection("plans").document(docId)
         val data = mapOf(
-          "tier" to plan.tier.name,
+          "tier" to docId,
           "title" to plan.title,
           "subtitle" to plan.subtitle,
           "tagline" to plan.tagline,
@@ -2122,7 +2160,7 @@ class FirestoreManager {
         batch.set(docRef, data, SetOptions.merge())
       }
       batch.commit().await()
-      Log.d(tag, "Bootstrapped default subscription plans into Firestore backend")
+      Log.d(tag, "Bootstrapped default plans into 'plans' collection")
     } catch (e: Exception) {
       Log.w(tag, "Notice bootstrapping plans: ${e.message}")
     }

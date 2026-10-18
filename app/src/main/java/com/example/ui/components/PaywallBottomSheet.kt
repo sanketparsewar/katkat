@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
@@ -34,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,22 +55,30 @@ import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 
+/**
+ * Plans & Pricing Paywall Bottom Sheet.
+ * Restores the previous compact, elegant card design while seamlessly rendering
+ * dynamic live pricing from the Firestore database.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaywallBottomSheet(
   subscriptionState: SubscriptionState,
   plans: List<SubscriptionPlan> = SubscriptionPlan.defaultPlans(),
   onSelectTier: (SubscriptionTier, Boolean) -> Unit,
-  onRestorePurchases: () -> Unit,
+  onRestorePurchases: (() -> Unit)? = null,
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
   var selectedTier by remember {
     mutableStateOf(
       if (subscriptionState.currentTier == SubscriptionTier.FREE) SubscriptionTier.TIER_1 else subscriptionState.currentTier
     )
   }
   var isAnnual by remember { mutableStateOf(subscriptionState.isAnnualBilling) }
+
+  // Resolve dynamic plan model for selected tier from database
   val activePlanObj = plans.firstOrNull { it.tier == selectedTier } ?: SubscriptionPlan.fromTier(selectedTier)
 
   ModalBottomSheet(
@@ -221,20 +227,40 @@ fun PaywallBottomSheet(
 
       Spacer(modifier = Modifier.height(10.dp))
 
-      // Dynamic Tiers Cards Comparison (from backend or synced models)
+      // 3 Tiers Cards Comparison (Compact size and reduced padding from previous UI)
       Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(7.dp)
       ) {
-        plans.forEach { plan ->
-          CompactTierCard(
-            plan = plan,
-            isSelected = selectedTier == plan.tier,
-            isCurrent = subscriptionState.currentTier == plan.tier,
-            isAnnual = isAnnual,
-            onSelect = { selectedTier = plan.tier }
-          )
-        }
+        // Free Tier Card
+        val freePlan = plans.firstOrNull { it.tier == SubscriptionTier.FREE } ?: SubscriptionPlan.fromTier(SubscriptionTier.FREE)
+        CompactTierCard(
+          plan = freePlan,
+          isSelected = selectedTier == SubscriptionTier.FREE,
+          isCurrent = subscriptionState.currentTier == SubscriptionTier.FREE,
+          isAnnual = isAnnual,
+          onSelect = { selectedTier = SubscriptionTier.FREE }
+        )
+
+        // Paid Tier 1 (KatKat Plus)
+        val tier1Plan = plans.firstOrNull { it.tier == SubscriptionTier.TIER_1 } ?: SubscriptionPlan.fromTier(SubscriptionTier.TIER_1)
+        CompactTierCard(
+          plan = tier1Plan,
+          isSelected = selectedTier == SubscriptionTier.TIER_1,
+          isCurrent = subscriptionState.currentTier == SubscriptionTier.TIER_1,
+          isAnnual = isAnnual,
+          onSelect = { selectedTier = SubscriptionTier.TIER_1 }
+        )
+
+        // Paid Tier 2 (KatKat VIP)
+        val tier2Plan = plans.firstOrNull { it.tier == SubscriptionTier.TIER_2 } ?: SubscriptionPlan.fromTier(SubscriptionTier.TIER_2)
+        CompactTierCard(
+          plan = tier2Plan,
+          isSelected = selectedTier == SubscriptionTier.TIER_2,
+          isCurrent = subscriptionState.currentTier == SubscriptionTier.TIER_2,
+          isAnnual = isAnnual,
+          onSelect = { selectedTier = SubscriptionTier.TIER_2 }
+        )
       }
 
       Spacer(modifier = Modifier.height(10.dp))
@@ -255,21 +281,23 @@ fun PaywallBottomSheet(
           ) {
             Column {
               Text(
-                text = "${activePlanObj.title} — ${activePlanObj.subtitle}",
+                text = if (activePlanObj.subtitle.isNotBlank()) "${activePlanObj.title} — ${activePlanObj.subtitle}" else activePlanObj.title,
                 style = MaterialTheme.typography.titleSmall.copy(
                   fontWeight = FontWeight.Bold,
                   color = MaterialTheme.colorScheme.onSurface,
                   fontSize = 13.sp
                 )
               )
-              Text(
-                text = "\"${activePlanObj.tagline}\"",
-                style = MaterialTheme.typography.bodySmall.copy(
-                  color = CoralPrimary,
-                  fontWeight = FontWeight.SemiBold,
-                  fontSize = 11.sp
+              if (activePlanObj.tagline.isNotBlank()) {
+                Text(
+                  text = "\"${activePlanObj.tagline}\"",
+                  style = MaterialTheme.typography.bodySmall.copy(
+                    color = CoralPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
+                  )
                 )
-              )
+              }
             }
 
             if (selectedTier != SubscriptionTier.FREE && isAnnual) {
@@ -319,44 +347,40 @@ fun PaywallBottomSheet(
 
           Spacer(modifier = Modifier.height(8.dp))
 
-          // Display perks in a compact format
-          activePlanObj.perks.forEach { perk ->
+          // Display features with green tick for included=true, red tick for included=false
+          activePlanObj.resolvedFeatures.forEach { feature ->
             Row(
               modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 1.5.dp),
               verticalAlignment = Alignment.CenterVertically
             ) {
+              val tickColor = if (feature.included) LikeGreen else Color(0xFFE53935)
+              val tickBg = if (feature.included) LikeGreen.copy(alpha = 0.15f) else Color(0xFFFFEBEE)
+
               Box(
                 modifier = Modifier
                   .size(15.dp)
                   .clip(CircleShape)
-                  .background(
-                    if (perk.contains("Locked", ignoreCase = true) || perk.contains("Ads", ignoreCase = true)) {
-                      MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-                    } else {
-                      LikeGreen.copy(alpha = 0.15f)
-                    }
-                  ),
+                  .background(tickBg),
                 contentAlignment = Alignment.Center
               ) {
                 Icon(
                   imageVector = Icons.Default.Check,
-                  contentDescription = null,
-                  tint = if (perk.contains("Locked", ignoreCase = true) || perk.contains("Ads", ignoreCase = true)) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                  } else {
-                    LikeGreen
-                  },
+                  contentDescription = if (feature.included) "Included" else "Not included",
+                  tint = tickColor,
                   modifier = Modifier.size(10.dp)
                 )
               }
+
               Spacer(modifier = Modifier.width(7.dp))
+
               Text(
-                text = perk,
+                text = feature.text,
                 style = MaterialTheme.typography.bodySmall.copy(
-                  color = MaterialTheme.colorScheme.onSurface,
-                  fontSize = 11.5.sp
+                  color = if (feature.included) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                  fontSize = 11.5.sp,
+                  fontWeight = if (feature.included) FontWeight.Medium else FontWeight.Normal
                 )
               )
             }
@@ -417,33 +441,15 @@ fun PaywallBottomSheet(
         }
       }
 
-      // Footer action links: Restore Purchases & Test Reset
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(top = 2.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        TextButton(
-          onClick = onRestorePurchases,
-          modifier = Modifier.testTag("btn_restore_purchases")
-        ) {
-          Text(
-            text = "Restore Purchases",
-            style = MaterialTheme.typography.labelSmall.copy(
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              fontSize = 11.sp
-            )
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(14.dp))
     }
   }
 }
 
+/**
+ * Compact Tier Card from original design.
+ * Renders the clean emoji, title, subtitles, swipe quotas, dynamic prices, and radio indicator.
+ */
 @Composable
 fun CompactTierCard(
   plan: SubscriptionPlan,
@@ -495,7 +501,7 @@ fun CompactTierCard(
           Text(text = tierEmoji, fontSize = 13.sp)
           Spacer(modifier = Modifier.width(4.dp))
           Text(
-            text = "${plan.title} — ${plan.subtitle}",
+            text = if (plan.subtitle.isNotBlank()) "${plan.title} — ${plan.subtitle}" else plan.title,
             style = MaterialTheme.typography.bodyMedium.copy(
               fontWeight = FontWeight.ExtraBold,
               color = MaterialTheme.colorScheme.onSurface,
@@ -542,29 +548,12 @@ fun CompactTierCard(
               fontWeight = FontWeight.ExtraBold
             )
           }
-
-          if (plan.isBackendProvided) {
-            Spacer(modifier = Modifier.width(3.dp))
-            Box(
-              modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(CoralPrimary.copy(alpha = 0.12f))
-                .padding(horizontal = 4.dp, vertical = 1.dp)
-            ) {
-              Text(
-                text = "CLOUD",
-                color = CoralPrimary,
-                fontSize = 7.5.sp,
-                fontWeight = FontWeight.Bold
-              )
-            }
-          }
         }
 
         Spacer(modifier = Modifier.height(2.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-          // Price display
+          // Price display with dynamic values from database
           if (tier == SubscriptionTier.FREE) {
             Text(
               text = "₹0 • Free forever",
@@ -583,15 +572,17 @@ fun CompactTierCard(
                 fontSize = 11.5.sp
               )
             )
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(
-              text = "(${plan.effectiveMonthlyPrice})",
-              style = MaterialTheme.typography.labelSmall.copy(
-                color = Color(0xFF2E7D32),
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp
+            if (plan.effectiveMonthlyPrice.isNotBlank()) {
+              Spacer(modifier = Modifier.width(5.dp))
+              Text(
+                text = "(${plan.effectiveMonthlyPrice})",
+                style = MaterialTheme.typography.labelSmall.copy(
+                  color = Color(0xFF2E7D32),
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 10.sp
+                )
               )
-            )
+            }
           } else {
             Text(
               text = plan.priceMonthly,
@@ -603,15 +594,17 @@ fun CompactTierCard(
             )
           }
 
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = "• ${plan.tagline}",
-            style = MaterialTheme.typography.bodySmall.copy(
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              fontSize = 10.5.sp
-            ),
-            maxLines = 1
-          )
+          if (plan.tagline.isNotBlank()) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "• ${plan.tagline}",
+              style = MaterialTheme.typography.bodySmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.5.sp
+              ),
+              maxLines = 1
+            )
+          }
         }
       }
 

@@ -17,11 +17,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -33,9 +34,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,34 +50,38 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.SubscriptionPlan
 import com.example.data.model.SubscriptionTier
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 
 /**
- * Razorpay Dedicated Payment Checkout Bottom Sheet.
- * Directs all subscription upgrades exclusively through the official Razorpay payment gateway
- * (supporting UPI, Credit/Debit cards, NetBanking, Cred, and Wallets natively).
+ * Dedicated Razorpay Checkout Bottom Sheet.
+ * Displays dynamic plan pricing directly from the database, keeps AutoPay enabled by default,
+ * and launches Razorpay Payment Gateway directly without any other third-party or mock options.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CheckoutBottomSheet(
-  tier: SubscriptionTier,
+  plan: SubscriptionPlan,
   isAnnual: Boolean,
   isProcessing: Boolean,
   customerName: String? = null,
-  onPayWithRazorpay: () -> Unit,
+  onPayWithRazorpay: (amountInRupees: Int, isAutoPay: Boolean) -> Unit,
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-  val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
+  val tier = plan.tier
+  val amount = if (isAnnual) plan.priceYearlyAmount else plan.priceMonthlyAmount
   val planPeriod = if (isAnnual) "Yearly (12 Months)" else "Monthly (1 Month)"
-  val formattedPrice = if (isAnnual) tier.priceYearly else tier.priceMonthly
+  val formattedPrice = if (isAnnual) plan.priceYearly else plan.priceMonthly
+
+  // AutoPay enabled by default
+  var isAutoPayEnabled by remember { mutableStateOf(true) }
 
   ModalBottomSheet(
     onDismissRequest = { if (!isProcessing) onDismiss() },
@@ -115,14 +126,14 @@ fun CheckoutBottomSheet(
           Spacer(modifier = Modifier.width(10.dp))
           Column {
             Text(
-              text = "Razorpay Secure Checkout",
+              text = "Razorpay Checkout",
               style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
               )
             )
             Text(
-              text = "100% Encrypted • Official Gateway",
+              text = "Encrypted & Verified Payment",
               style = MaterialTheme.typography.labelSmall.copy(
                 color = LikeGreen,
                 fontWeight = FontWeight.SemiBold,
@@ -148,7 +159,7 @@ fun CheckoutBottomSheet(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Order Summary Card
+      // Order Summary Card with Dynamic Pricing from Database
       Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -166,17 +177,17 @@ fun CheckoutBottomSheet(
             Column(modifier = Modifier.weight(1f)) {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                  text = tier.title,
+                  text = plan.title,
                   style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
-                if (tier.badge.isNotBlank()) {
+                if (plan.badge.isNotBlank()) {
                   Spacer(modifier = Modifier.width(8.dp))
                   Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = if (tier == SubscriptionTier.TIER_2) GoldVip.copy(alpha = 0.2f) else CoralPrimary.copy(alpha = 0.12f)
                   ) {
                     Text(
-                      text = tier.badge,
+                      text = plan.badge,
                       modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                       style = MaterialTheme.typography.labelSmall.copy(
                         color = if (tier == SubscriptionTier.TIER_2) Color(0xFFC79100) else CoralPrimary,
@@ -189,7 +200,7 @@ fun CheckoutBottomSheet(
               }
               Spacer(modifier = Modifier.height(2.dp))
               Text(
-                text = "$planPeriod • ${tier.dailySwipes} Swipes/day",
+                text = "$planPeriod • ${plan.dailySwipes} Swipes/day",
                 style = MaterialTheme.typography.bodySmall.copy(
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                   fontSize = 12.sp
@@ -205,9 +216,9 @@ fun CheckoutBottomSheet(
                   color = if (tier == SubscriptionTier.TIER_2) Color(0xFFC79100) else CoralPrimary
                 )
               )
-              if (isAnnual) {
+              if (isAnnual && plan.effectiveMonthlyPrice.isNotBlank()) {
                 Text(
-                  text = tier.effectiveMonthlyPrice,
+                  text = plan.effectiveMonthlyPrice,
                   style = MaterialTheme.typography.labelSmall.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp
@@ -217,14 +228,14 @@ fun CheckoutBottomSheet(
             }
           }
 
-          if (isAnnual && tier.yearlySavings.isNotBlank()) {
+          if (isAnnual && plan.yearlySavings.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Surface(
               shape = RoundedCornerShape(8.dp),
               color = LikeGreen.copy(alpha = 0.12f)
             ) {
               Text(
-                text = "🎉 ${tier.yearlySavings}",
+                text = "🎉 ${plan.yearlySavings}",
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.labelSmall.copy(
                   color = LikeGreen,
@@ -236,21 +247,23 @@ fun CheckoutBottomSheet(
           }
 
           Spacer(modifier = Modifier.height(12.dp))
-          // Included perks
+
+          // Dynamic features with green tick if included, red tick if not included
           Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            tier.perks.forEach { perk ->
+            plan.resolvedFeatures.forEach { feature ->
               Row(verticalAlignment = Alignment.CenterVertically) {
+                val tickColor = if (feature.included) LikeGreen else Color(0xFFE53935)
                 Icon(
-                  imageVector = Icons.Default.CheckCircle,
-                  contentDescription = null,
-                  tint = LikeGreen,
+                  imageVector = Icons.Default.Check,
+                  contentDescription = if (feature.included) "Included" else "Not included",
+                  tint = tickColor,
                   modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                  text = perk,
+                  text = feature.text,
                   style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (feature.included) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                     fontSize = 12.sp
                   )
                 )
@@ -262,82 +275,67 @@ fun CheckoutBottomSheet(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Razorpay Payment Methods Supported Box
+      // AutoPay Renewal Toggle Card (Enabled by default)
       Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-          containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+          containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
       ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
           Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = null,
-                tint = Color(0xFF0C2340),
-                modifier = Modifier.size(16.dp)
-              )
-              Spacer(modifier = Modifier.width(6.dp))
-              Text(
-                text = "Razorpay Supported Methods",
-                style = MaterialTheme.typography.labelMedium.copy(
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onSurface
-                )
-              )
-            }
-
-            Surface(
-              shape = RoundedCornerShape(6.dp),
-              color = Color(0xFF0C2340)
+            Box(
+              modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(LikeGreen.copy(alpha = 0.15f)),
+              contentAlignment = Alignment.Center
             ) {
+              Icon(
+                imageVector = Icons.Default.Autorenew,
+                contentDescription = null,
+                tint = LikeGreen,
+                modifier = Modifier.size(18.dp)
+              )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
               Text(
-                text = "RAZORPAY",
-                color = Color.White,
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                text = "AutoPay Renewal",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = "Enabled by default • Hassle-free renewal",
+                style = MaterialTheme.typography.labelSmall.copy(
+                  color = LikeGreen,
+                  fontWeight = FontWeight.SemiBold,
+                  fontSize = 11.sp
+                )
               )
             }
           }
 
-          Spacer(modifier = Modifier.height(8.dp))
-          Text(
-            text = "Pay seamlessly with Google Pay, PhonePe, Paytm, BHIM UPI, Credit/Debit Cards (Visa/Mastercard/RuPay), Net Banking & Cred.",
-            style = MaterialTheme.typography.bodySmall.copy(
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              fontSize = 11.5.sp,
-              lineHeight = 16.sp
-            )
+          Switch(
+            checked = isAutoPayEnabled,
+            onCheckedChange = { isAutoPayEnabled = it },
+            colors = SwitchDefaults.colors(
+              checkedThumbColor = Color.White,
+              checkedTrackColor = LikeGreen
+            ),
+            modifier = Modifier.testTag("switch_autopay")
           )
-
-          if (!customerName.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Text(
-                text = "Billed to: ",
-                style = MaterialTheme.typography.labelSmall.copy(
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  fontSize = 11.sp
-                )
-              )
-              Text(
-                text = customerName,
-                style = MaterialTheme.typography.labelSmall.copy(
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onSurface,
-                  fontSize = 11.sp
-                )
-              )
-            }
-          }
         }
       }
 
@@ -345,7 +343,7 @@ fun CheckoutBottomSheet(
 
       // Primary Action: Launch Razorpay Checkout
       Button(
-        onClick = onPayWithRazorpay,
+        onClick = { onPayWithRazorpay(amount, isAutoPayEnabled) },
         enabled = !isProcessing,
         modifier = Modifier
           .fillMaxWidth()
@@ -393,30 +391,7 @@ fun CheckoutBottomSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(12.dp))
-
-      // Trust & Security Badges
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-      ) {
-        Icon(
-          imageVector = Icons.Default.Shield,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.size(13.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-          text = "PCI-DSS Level 1 • Powered by Razorpay",
-          style = MaterialTheme.typography.labelSmall.copy(
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.5.sp
-          )
-        )
-      }
-
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(14.dp))
     }
   }
 }

@@ -140,5 +140,24 @@ class ExampleRobolectricTest {
     assertEquals("pay_test_998877", transaction.razorpayPaymentId)
     assertTrue(transaction.formattedDate.isNotBlank())
   }
+
+  @Test
+  fun `verify plan feature parsing strips curly braces and extracts text and included boolean`() {
+    // 1. From map
+    val mapFeature = com.example.data.model.PlanFeature.parse(mapOf("text" to "Unlimited Swipes", "included" to true))
+    assertEquals("Unlimited Swipes", mapFeature.text)
+    assertTrue(mapFeature.included)
+
+    // 2. From raw string with curly braces
+    val curlyFeature = com.example.data.model.PlanFeature.parse("{text=See who liked you, included=false}")
+    assertEquals("See who liked you", curlyFeature.text)
+    assertFalse(curlyFeature.included)
+    assertFalse(curlyFeature.text.contains("{"))
+    assertFalse(curlyFeature.text.contains("}"))
+
+    // 3. From simple string with locked tag
+    val lockedFeature = com.example.data.model.PlanFeature.parse("Likes You → Locked")
+    assertFalse(lockedFeature.included)
+  }
 }
 

@@ -22,8 +22,8 @@ enum class SubscriptionTier(
 ) {
   FREE(
     title = "KatKat Free",
-    subtitle = "Explore",
-    tagline = "Explore and connect with nearby singles",
+    subtitle = "",
+    tagline = "",
     badge = "Free",
     dailySwipes = 50,
     monthlySwipes = 50,
@@ -50,8 +50,8 @@ enum class SubscriptionTier(
   ),
   TIER_1(
     title = "KatKat Plus",
-    subtitle = "Connect",
-    tagline = "More matches, less waiting.",
+    subtitle = "",
+    tagline = "",
     badge = "Popular",
     dailySwipes = 150,
     monthlySwipes = 150,
@@ -77,8 +77,8 @@ enum class SubscriptionTier(
   ),
   TIER_2(
     title = "KatKat VIP",
-    subtitle = "Stand Out",
-    tagline = "Get more visibility and control.",
+    subtitle = "",
+    tagline = "",
     badge = "Best Value",
     dailySwipes = 300,
     monthlySwipes = 300,

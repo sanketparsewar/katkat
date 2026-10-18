@@ -24,6 +24,8 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
   // Track pending payment order info for callback correlation
   private var pendingTier: SubscriptionTier? = null
   private var pendingIsAnnual: Boolean = false
+  private var pendingAmount: Int? = null
+  private var pendingIsAutoPay: Boolean = true
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -39,8 +41,8 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
       KatkatTheme(themeMode = themeMode) {
         MainScreen(
           viewModel = viewModel,
-          onStartRazorpayPayment = { tier, isAnnual, email, phone, name ->
-            launchRazorpayPayment(tier, isAnnual, email, phone, name)
+          onStartRazorpayPayment = { tier, isAnnual, amount, isAutoPay, email, phone, name ->
+            launchRazorpayPayment(tier, isAnnual, amount, isAutoPay, email, phone, name)
           }
         )
       }
@@ -50,17 +52,23 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
   fun launchRazorpayPayment(
     tier: SubscriptionTier,
     isAnnual: Boolean,
+    amountInRupees: Int? = null,
+    isAutoPay: Boolean = true,
     email: String?,
     phone: String?,
     name: String?
   ) {
     pendingTier = tier
     pendingIsAnnual = isAnnual
+    pendingAmount = amountInRupees
+    pendingIsAutoPay = isAutoPay
     try {
       RazorpayPaymentHelper.startPayment(
         activity = this,
         tier = tier,
         isAnnual = isAnnual,
+        amountInRupeesOverride = amountInRupees,
+        isAutoPay = isAutoPay,
         userEmail = email,
         userPhone = phone,
         userName = name
@@ -75,14 +83,17 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     Log.i("MainActivity", "Razorpay payment success! ID: $razorpayPaymentId, Order ID: ${paymentData?.orderId}")
     val tier = pendingTier ?: SubscriptionTier.TIER_1
     val isAnnual = pendingIsAnnual
+    val amount = pendingAmount
     val paymentId = razorpayPaymentId ?: paymentData?.paymentId ?: "pay_${System.currentTimeMillis()}"
     viewModel.onRazorpayPaymentSuccess(
       tier = tier,
       isAnnual = isAnnual,
       razorpayPaymentId = paymentId,
-      razorpayOrderId = paymentData?.orderId
+      razorpayOrderId = paymentData?.orderId,
+      amountInRupees = amount
     )
     pendingTier = null
+    pendingAmount = null
   }
 
   override fun onPaymentError(errorCode: Int, errorDescription: String?, paymentData: PaymentData?) {

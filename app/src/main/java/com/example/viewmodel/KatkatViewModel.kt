@@ -415,7 +415,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     tier: SubscriptionTier,
     isAnnual: Boolean,
     razorpayPaymentId: String,
-    razorpayOrderId: String? = null
+    razorpayOrderId: String? = null,
+    amountInRupees: Int? = null
   ) {
     viewModelScope.launch {
       _isProcessingPayment.value = true
@@ -424,7 +425,8 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
           tier = tier,
           isAnnual = isAnnual,
           razorpayPaymentId = razorpayPaymentId,
-          razorpayOrderId = razorpayOrderId
+          razorpayOrderId = razorpayOrderId,
+          amountInRupeesOverride = amountInRupees
         )
         _lastCompletedTransaction.value = transaction
         _showPaywall.value = false

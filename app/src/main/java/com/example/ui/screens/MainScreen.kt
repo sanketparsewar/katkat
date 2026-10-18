@@ -45,7 +45,7 @@ import com.example.viewmodel.UiEvent
 fun MainScreen(
   viewModel: KatkatViewModel,
   modifier: Modifier = Modifier,
-  onStartRazorpayPayment: (SubscriptionTier, Boolean, String?, String?, String?) -> Unit = { _, _, _, _, _ -> }
+  onStartRazorpayPayment: (SubscriptionTier, Boolean, Int?, Boolean, String?, String?, String?) -> Unit = { _, _, _, _, _, _, _ -> }
 ) {
   val context = LocalContext.current
 
@@ -433,16 +433,19 @@ fun MainScreen(
   // 3. Secure Payment Gateway Checkout Bottom Sheet
   val activeCheckoutTier = checkoutTargetTier
   if (activeCheckoutTier != null) {
+    val selectedPlan = subscriptionPlans.firstOrNull { it.tier == activeCheckoutTier } ?: com.example.data.model.SubscriptionPlan.fromTier(activeCheckoutTier)
     CheckoutBottomSheet(
-      tier = activeCheckoutTier,
+      plan = selectedPlan,
       isAnnual = checkoutIsAnnual,
       isProcessing = isProcessingPayment,
       customerName = userProfile.name,
-      onPayWithRazorpay = {
+      onPayWithRazorpay = { amount, isAutoPay ->
         val userName = userProfile.name
         onStartRazorpayPayment(
           activeCheckoutTier,
           checkoutIsAnnual,
+          amount,
+          isAutoPay,
           null,
           null,
           userName

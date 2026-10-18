@@ -1194,9 +1194,10 @@ class KatkatRepository(
     isAnnual: Boolean,
     razorpayPaymentId: String,
     razorpayOrderId: String? = null,
+    amountInRupeesOverride: Int? = null,
     method: PaymentMethodType = PaymentMethodType.RAZORPAY
   ): PaymentTransaction {
-    val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
+    val amount = amountInRupeesOverride ?: if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
     val txnId = "RZP_${razorpayPaymentId.takeLast(10)}_${System.currentTimeMillis()}"
 
     val transaction = PaymentTransaction(
