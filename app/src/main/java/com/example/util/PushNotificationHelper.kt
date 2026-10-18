@@ -1,6 +1,5 @@
 package com.example.util
 
-import android.util.Log
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
