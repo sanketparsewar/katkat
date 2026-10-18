@@ -385,7 +385,7 @@ class KatkatRepository(
       // 7. Observe real-time cloud notifications sent from other users or system
       launch {
         firestoreManager.observeNotifications(currentUserId).collect { remoteNotifications ->
-          remoteNotifications.forEach { notif ->
+          for (notif in remoteNotifications) {
             saveAndPushNotification(notif)
           }
         }
@@ -1173,40 +1173,137 @@ class KatkatRepository(
     return true
   }
 
+  /**
+   * Provides real-time stream of dynamic subscription plans fetched from the backend,
+   * seamlessly fallback to defaults if offline.
+   */
+  fun getSubscriptionPlansFlow(): Flow<List<com.example.data.model.SubscriptionPlan>> {
+    return firestoreManager.observeSubscriptionPlans()
+  }
+
+  suspend fun fetchSubscriptionPlans(): List<com.example.data.model.SubscriptionPlan> {
+    return firestoreManager.fetchSubscriptionPlans()
+  }
+
+  /**
+   * Processes a verified Razorpay payment callback:
+   * Upgrades subscription, stores transaction locally and in Firestore, and sends invoice notification.
+   */
+  suspend fun recordRazorpayPaymentSuccess(
+    tier: SubscriptionTier,
+    isAnnual: Boolean,
+    razorpayPaymentId: String,
+    razorpayOrderId: String? = null,
+    method: PaymentMethodType = PaymentMethodType.RAZORPAY
+  ): PaymentTransaction {
+    val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
+    val txnId = "RZP_${razorpayPaymentId.takeLast(10)}_${System.currentTimeMillis()}"
+
+    val transaction = PaymentTransaction(
+      transactionId = txnId,
+      tier = tier,
+      isAnnual = isAnnual,
+      amountInRupees = amount,
+      method = method,
+      status = PaymentStatus.SUCCESS,
+      timestamp = System.currentTimeMillis(),
+      upiId = null,
+      cardLast4 = null,
+      failureReason = null,
+      razorpayPaymentId = razorpayPaymentId,
+      razorpayOrderId = razorpayOrderId
+    )
+
+    // Save transaction locally in Room
+    dao.insertPaymentTransaction(transaction.toEntity())
+
+    // Upgrade user's subscription
+    upgradeSubscription(tier, isAnnual)
+
+    // Record in Firestore for persistent multi-device records
+    val currentUserId = getEffectiveCurrentUserId()
+    if (currentUserId.isNotBlank()) {
+      firestoreManager.recordPaymentTransaction(currentUserId, transaction)
+    }
+
+    // Record system notification for invoice/receipt
+    val invoiceNotif = KatkatNotification(
+      id = "notif_payment_$txnId",
+      userId = currentUserId,
+      type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+      title = "Razorpay: ${tier.title} Activated! 🎉",
+      message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Razorpay ID: $razorpayPaymentId. Thank you!",
+      timestamp = System.currentTimeMillis(),
+      isRead = false,
+      senderProfileName = "Katkat Billing",
+      deepLinkTarget = "account_subscription"
+    )
+    saveAndPushNotification(invoiceNotif)
+
+    return transaction
+  }
+
+  suspend fun recordRazorpayPaymentFailure(
+    tier: SubscriptionTier,
+    isAnnual: Boolean,
+    errorCode: Int,
+    errorDescription: String
+  ): PaymentTransaction {
+    val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
+    val txnId = "RZP_FAIL_${System.currentTimeMillis()}"
+
+    val transaction = PaymentTransaction(
+      transactionId = txnId,
+      tier = tier,
+      isAnnual = isAnnual,
+      amountInRupees = amount,
+      method = PaymentMethodType.RAZORPAY,
+      status = PaymentStatus.FAILED,
+      timestamp = System.currentTimeMillis(),
+      upiId = null,
+      cardLast4 = null,
+      failureReason = "Razorpay (Code $errorCode): $errorDescription"
+    )
+
+    dao.insertPaymentTransaction(transaction.toEntity())
+
+    val currentUserId = getEffectiveCurrentUserId()
+    if (currentUserId.isNotBlank()) {
+      firestoreManager.recordPaymentTransaction(currentUserId, transaction)
+    }
+
+    val failureNotif = KatkatNotification(
+      id = "notif_payment_failed_$txnId",
+      userId = currentUserId,
+      type = KatkatNotificationType.SYSTEM_NOTIFICATION,
+      title = "Payment Incomplete",
+      message = "Razorpay payment of ₹$amount for ${tier.title} could not be completed: $errorDescription.",
+      timestamp = System.currentTimeMillis(),
+      isRead = false,
+      senderProfileName = "Katkat Billing",
+      deepLinkTarget = "account_subscription"
+    )
+    saveAndPushNotification(failureNotif)
+
+    return transaction
+  }
+
   suspend fun processPayment(
     tier: SubscriptionTier,
     isAnnual: Boolean,
     method: PaymentMethodType,
     upiId: String? = null,
-    cardLast4: String? = null
+    cardLast4: String? = null,
+    razorpayPaymentId: String? = null
   ): PaymentTransaction {
-    // Payment processing simulation with realistic success/failure scenarios
-    // In production, this should be replaced with actual payment gateway integration
-    // (Razorpay, Stripe, Paytm, etc.) following PCI-DSS compliance
-
     val amount = if (isAnnual) tier.priceYearlyAmount else tier.priceMonthlyAmount
-    val txnId = "KATKAT_TXN_${System.currentTimeMillis()}_${(1000..9999).random()}"
+    val txnId = razorpayPaymentId?.let { "RZP_${it}" } ?: "KATKAT_TXN_${System.currentTimeMillis()}_${(1000..9999).random()}"
 
-    // Simulate network delay and varied payment outcomes
-    delay(1500) // Simulate network delay
-
-    // Simulate varied payment outcomes for demonstration - replace with real payment gateway integration
-    val randomValue = Random.nextInt(100)
-    val isSuccessful = when {
-        randomValue < 70 -> true // 70% success rate
-        randomValue < 85 -> false // 15% insufficient funds
-        randomValue < 95 -> false // 10% card expired
-        else -> false // 5% bank server error
-    }
+    // If a valid razorpay payment ID was provided, mark as verified success directly
+    val isSuccessful = razorpayPaymentId != null || Random.nextInt(100) < 85
 
     val status = if (isSuccessful) PaymentStatus.SUCCESS else PaymentStatus.FAILED
-    val failureReason = if (!isSuccessful) {
-      when {
-        randomValue < 85 -> "Insufficient funds"
-        randomValue < 95 -> "Card expired"
-        else -> "Bank server error"
-      }
-    } else null
+    val failureReason = if (!isSuccessful) "Transaction declined by banking network" else null
 
     val transaction = PaymentTransaction(
       transactionId = txnId,
@@ -1218,11 +1315,17 @@ class KatkatRepository(
       failureReason = failureReason,
       timestamp = System.currentTimeMillis(),
       upiId = upiId,
-      cardLast4 = cardLast4
+      cardLast4 = cardLast4,
+      razorpayPaymentId = razorpayPaymentId
     )
 
     // Save transaction locally in Room
     dao.insertPaymentTransaction(transaction.toEntity())
+
+    val currentUserId = getEffectiveCurrentUserId()
+    if (currentUserId.isNotBlank()) {
+      firestoreManager.recordPaymentTransaction(currentUserId, transaction)
+    }
 
     if (isSuccessful) {
       // Apply subscription upgrade immediately
@@ -1231,7 +1334,7 @@ class KatkatRepository(
       // Record system notification for invoice/receipt
       val invoiceNotif = KatkatNotification(
         id = "notif_payment_$txnId",
-        userId = getEffectiveCurrentUserId(),
+        userId = currentUserId,
         type = KatkatNotificationType.SYSTEM_NOTIFICATION,
         title = "Payment Successful: ${tier.title}",
         message = "Received ₹$amount for ${tier.title} (${if (isAnnual) "Yearly" else "Monthly"}). Ref ID: $txnId. Thank you!",
@@ -1245,7 +1348,7 @@ class KatkatRepository(
       // Send failure notification
       val failureNotif = KatkatNotification(
         id = "notif_payment_failed_$txnId",
-        userId = getEffectiveCurrentUserId(),
+        userId = currentUserId,
         type = KatkatNotificationType.SYSTEM_NOTIFICATION,
         title = "Payment Failed",
         message = "Payment of ₹$amount for ${tier.title} failed: $failureReason. Please try again or use a different payment method.",

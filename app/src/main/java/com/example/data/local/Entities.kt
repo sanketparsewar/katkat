@@ -363,7 +363,9 @@ data class PaymentTransactionEntity(
   val timestamp: Long,
   val upiId: String? = null,
   val cardLast4: String? = null,
-  val failureReason: String? = null
+  val failureReason: String? = null,
+  val razorpayPaymentId: String? = null,
+  val razorpayOrderId: String? = null
 )
 
 fun PaymentTransactionEntity.toDomain(): com.example.data.model.PaymentTransaction =
@@ -392,7 +394,9 @@ fun PaymentTransactionEntity.toDomain(): com.example.data.model.PaymentTransacti
     timestamp = timestamp,
     upiId = upiId,
     cardLast4 = cardLast4,
-    failureReason = failureReason
+    failureReason = failureReason,
+    razorpayPaymentId = razorpayPaymentId,
+    razorpayOrderId = razorpayOrderId
   )
 
 fun com.example.data.model.PaymentTransaction.toEntity(): PaymentTransactionEntity =
@@ -406,7 +410,9 @@ fun com.example.data.model.PaymentTransaction.toEntity(): PaymentTransactionEnti
     timestamp = timestamp,
     upiId = upiId,
     cardLast4 = cardLast4,
-    failureReason = failureReason
+    failureReason = failureReason,
+    razorpayPaymentId = razorpayPaymentId,
+    razorpayOrderId = razorpayOrderId
   )
 
 class Converters {

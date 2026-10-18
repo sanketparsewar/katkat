@@ -94,5 +94,51 @@ class ExampleRobolectricTest {
     val decrypted = com.example.util.EndToEndEncryptionHelper.decryptMessage(context, encryptedOnce, userB, userA)
     assertEquals(messageText, decrypted)
   }
+
+  @Test
+  fun `verify razorpay api key is loaded properly`() {
+    val key = com.example.util.RazorpayPaymentHelper.getApiKey()
+    assertTrue(key.isNotBlank())
+    assertTrue(key.startsWith("rzp_"))
+  }
+
+  @Test
+  fun `verify dynamic subscription plans defaults and serialization`() {
+    val plans = com.example.data.model.SubscriptionPlan.defaultPlans()
+    assertEquals(3, plans.size)
+    val freePlan = plans[0]
+    val tier1Plan = plans[1]
+    val tier2Plan = plans[2]
+
+    assertEquals(SubscriptionTier.FREE, freePlan.tier)
+    assertEquals(SubscriptionTier.TIER_1, tier1Plan.tier)
+    assertEquals(SubscriptionTier.TIER_2, tier2Plan.tier)
+
+    assertEquals(50, freePlan.dailySwipes)
+    assertEquals(150, tier1Plan.dailySwipes)
+    assertEquals(300, tier2Plan.dailySwipes)
+
+    assertTrue(tier1Plan.priceMonthlyAmount > 0)
+    assertTrue(tier2Plan.priceYearlyAmount > tier1Plan.priceYearlyAmount)
+  }
+
+  @Test
+  fun `verify payment transaction model with razorpay method`() {
+    val transaction = com.example.data.model.PaymentTransaction(
+      transactionId = "RZP_test_123456",
+      tier = SubscriptionTier.TIER_2,
+      isAnnual = true,
+      amountInRupees = 4999,
+      method = com.example.data.model.PaymentMethodType.RAZORPAY,
+      status = com.example.data.model.PaymentStatus.SUCCESS,
+      razorpayPaymentId = "pay_test_998877",
+      razorpayOrderId = "order_test_112233"
+    )
+
+    assertEquals(com.example.data.model.PaymentMethodType.RAZORPAY, transaction.method)
+    assertEquals(com.example.data.model.PaymentStatus.SUCCESS, transaction.status)
+    assertEquals("pay_test_998877", transaction.razorpayPaymentId)
+    assertTrue(transaction.formattedDate.isNotBlank())
+  }
 }
 

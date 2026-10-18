@@ -125,6 +125,12 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     initialValue = SubscriptionState()
   )
 
+  val subscriptionPlans: StateFlow<List<com.example.data.model.SubscriptionPlan>> = repository.getSubscriptionPlansFlow().stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = com.example.data.model.SubscriptionPlan.defaultPlans()
+  )
+
   private val _uiEvents = MutableSharedFlow<UiEvent>()
   val uiEvents: SharedFlow<UiEvent> = _uiEvents.asSharedFlow()
 
@@ -404,24 +410,75 @@ class KatkatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun onRazorpayPaymentSuccess(
+    tier: SubscriptionTier,
+    isAnnual: Boolean,
+    razorpayPaymentId: String,
+    razorpayOrderId: String? = null
+  ) {
+    viewModelScope.launch {
+      _isProcessingPayment.value = true
+      try {
+        val transaction = repository.recordRazorpayPaymentSuccess(
+          tier = tier,
+          isAnnual = isAnnual,
+          razorpayPaymentId = razorpayPaymentId,
+          razorpayOrderId = razorpayOrderId
+        )
+        _lastCompletedTransaction.value = transaction
+        _showPaywall.value = false
+        val planBilling = if (isAnnual) "Yearly" else "Monthly"
+        _uiEvents.emit(UiEvent.ShowToast("🎉 Razorpay Payment Successful! ${tier.title} ($planBilling) is now active."))
+        _uiEvents.emit(UiEvent.VibrateFeedback("match"))
+      } catch (e: Exception) {
+        _uiEvents.emit(UiEvent.ShowToast("Error confirming payment: ${e.message}"))
+      } finally {
+        _isProcessingPayment.value = false
+      }
+    }
+  }
+
+  fun onRazorpayPaymentError(
+    tier: SubscriptionTier,
+    isAnnual: Boolean,
+    code: Int,
+    description: String
+  ) {
+    viewModelScope.launch {
+      _isProcessingPayment.value = false
+      try {
+        val transaction = repository.recordRazorpayPaymentFailure(
+          tier = tier,
+          isAnnual = isAnnual,
+          errorCode = code,
+          errorDescription = description
+        )
+        _uiEvents.emit(UiEvent.ShowToast("Razorpay Payment Cancelled / Failed: $description"))
+      } catch (e: Exception) {
+        _uiEvents.emit(UiEvent.ShowToast("Payment incomplete: $description"))
+      }
+    }
+  }
+
   fun executePayment(
     tier: SubscriptionTier,
     isAnnual: Boolean,
     method: PaymentMethodType,
     upiId: String? = null,
-    cardLast4: String? = null
+    cardLast4: String? = null,
+    razorpayPaymentId: String? = null
   ) {
     viewModelScope.launch {
       _isProcessingPayment.value = true
       try {
-        // Simulate realistic secure payment gateway processing latency
-        delay(1200)
+        delay(1000)
         val transaction = repository.processPayment(
           tier = tier,
           isAnnual = isAnnual,
           method = method,
           upiId = upiId,
-          cardLast4 = cardLast4
+          cardLast4 = cardLast4,
+          razorpayPaymentId = razorpayPaymentId
         )
         _lastCompletedTransaction.value = transaction
         _showPaywall.value = false

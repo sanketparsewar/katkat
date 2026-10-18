@@ -28,6 +28,11 @@ enum class PaymentMethodType(
     displayName = "Wallets",
     iconName = "wallet",
     subtitle = "Paytm, PhonePe, Amazon Pay"
+  ),
+  RAZORPAY(
+    displayName = "Razorpay Gateway",
+    iconName = "razorpay",
+    subtitle = "Fast checkout via UPI, Cards, NetBanking"
   )
 }
 
@@ -49,7 +54,9 @@ data class PaymentTransaction(
   val timestamp: Long = System.currentTimeMillis(),
   val upiId: String? = null,
   val cardLast4: String? = null,
-  val failureReason: String? = null
+  val failureReason: String? = null,
+  val razorpayPaymentId: String? = null,
+  val razorpayOrderId: String? = null
 ) {
   val formattedDate: String
     get() {

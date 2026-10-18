@@ -44,7 +44,8 @@ import com.example.viewmodel.UiEvent
 @Composable
 fun MainScreen(
   viewModel: KatkatViewModel,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  onStartRazorpayPayment: (SubscriptionTier, Boolean, String?, String?, String?) -> Unit = { _, _, _, _, _ -> }
 ) {
   val context = LocalContext.current
 
@@ -79,6 +80,7 @@ fun MainScreen(
   val likedMeProfiles by viewModel.likedMeProfiles.collectAsStateWithLifecycle()
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val subscriptionState by viewModel.subscriptionState.collectAsStateWithLifecycle()
+  val subscriptionPlans by viewModel.subscriptionPlans.collectAsStateWithLifecycle()
   val isRefreshingDeck by viewModel.isRefreshingDeck.collectAsStateWithLifecycle()
   val isRefreshingLikes by viewModel.isRefreshingLikes.collectAsStateWithLifecycle()
   val isRefreshingChats by viewModel.isRefreshingChats.collectAsStateWithLifecycle()
@@ -404,6 +406,7 @@ fun MainScreen(
   if (showPaywall) {
     PaywallBottomSheet(
       subscriptionState = subscriptionState,
+      plans = subscriptionPlans,
       onSelectTier = { tier, isAnnual ->
         if (tier == SubscriptionTier.FREE) {
           viewModel.selectTier(tier, isAnnual)
@@ -430,6 +433,16 @@ fun MainScreen(
       tier = activeCheckoutTier,
       isAnnual = checkoutIsAnnual,
       isProcessing = isProcessingPayment,
+      onPayWithRazorpay = {
+        val userName = userProfile.name
+        onStartRazorpayPayment(
+          activeCheckoutTier,
+          checkoutIsAnnual,
+          null,
+          null,
+          userName
+        )
+      },
       onConfirmPayment = { method, upiId, cardLast4 ->
         viewModel.executePayment(
           tier = activeCheckoutTier,

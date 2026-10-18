@@ -74,6 +74,7 @@ fun CheckoutBottomSheet(
   tier: SubscriptionTier,
   isAnnual: Boolean,
   isProcessing: Boolean,
+  onPayWithRazorpay: () -> Unit,
   onConfirmPayment: (PaymentMethodType, upiId: String?, cardLast4: String?) -> Unit,
   onDismiss: () -> Unit
 ) {
@@ -249,13 +250,14 @@ fun CheckoutBottomSheet(
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      PaymentMethodType.values().forEach { method ->
+      PaymentMethodType.values().filter { it != PaymentMethodType.RAZORPAY }.forEach { method ->
         val isSelected = selectedMethod == method
         val methodIcon = when (method) {
           PaymentMethodType.UPI -> Icons.Default.QrCode2
           PaymentMethodType.CARD -> Icons.Default.CreditCard
           PaymentMethodType.NET_BANKING -> Icons.Default.AccountBalance
           PaymentMethodType.WALLET -> Icons.Default.AccountBalanceWallet
+          PaymentMethodType.RAZORPAY -> Icons.Default.Shield
         }
 
         Card(
@@ -546,25 +548,25 @@ fun CheckoutBottomSheet(
             }
           }
         }
+
+        PaymentMethodType.RAZORPAY -> {
+          // Razorpay utilizes the primary gateway button below
+        }
       }
 
       Spacer(modifier = Modifier.height(18.dp))
 
-      // Pay Button
+      // Primary Razorpay Gateway Button (Official SDK Flow)
       Button(
-        onClick = {
-          val resolvedUpi = if (upiId.isNotBlank()) upiId else "$selectedUpiApp@upi"
-          val last4 = if (cardNumber.length >= 4) cardNumber.takeLast(4) else "4242"
-          onConfirmPayment(selectedMethod, resolvedUpi, last4)
-        },
+        onClick = onPayWithRazorpay,
         enabled = !isProcessing,
         modifier = Modifier
           .fillMaxWidth()
-          .height(50.dp)
-          .testTag("btn_pay_now"),
-        shape = RoundedCornerShape(25.dp),
+          .height(52.dp)
+          .testTag("btn_pay_with_razorpay"),
+        shape = RoundedCornerShape(26.dp),
         colors = ButtonDefaults.buttonColors(
-          containerColor = if (tier == SubscriptionTier.TIER_2) GoldVip else CoralPrimary
+          containerColor = if (tier == SubscriptionTier.TIER_2) GoldVip else Color(0xFF0C2340) // Razorpay dark navy
         )
       ) {
         if (isProcessing) {
@@ -576,7 +578,7 @@ fun CheckoutBottomSheet(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-              text = "Authorizing ₹$amount...",
+              text = "Connecting to Razorpay...",
               style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -593,15 +595,44 @@ fun CheckoutBottomSheet(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = "Pay ₹$amount & Activate ${tier.title}",
+              text = "Pay with Razorpay (₹$amount)",
               style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                fontSize = 14.5.sp
+                fontWeight = FontWeight.ExtraBold,
+                color = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White,
+                fontSize = 15.sp
               )
             )
           }
         }
+      }
+
+      Spacer(modifier = Modifier.height(10.dp))
+
+      // Alternative direct authorization button
+      Button(
+        onClick = {
+          val resolvedUpi = if (upiId.isNotBlank()) upiId else "$selectedUpiApp@upi"
+          val last4 = if (cardNumber.length >= 4) cardNumber.takeLast(4) else "4242"
+          onConfirmPayment(selectedMethod, resolvedUpi, last4)
+        },
+        enabled = !isProcessing,
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(44.dp)
+          .testTag("btn_pay_now"),
+        shape = RoundedCornerShape(22.dp),
+        colors = ButtonDefaults.buttonColors(
+          containerColor = CoralPrimary.copy(alpha = 0.9f)
+        )
+      ) {
+        Text(
+          text = "Pay via ${selectedMethod.name} Directly",
+          style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            fontSize = 13.sp
+          )
+        )
       }
 
       Spacer(modifier = Modifier.height(8.dp))

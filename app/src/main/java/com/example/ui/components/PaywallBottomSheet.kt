@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.SubscriptionPlan
 import com.example.data.model.SubscriptionState
 import com.example.data.model.SubscriptionTier
 import com.example.ui.theme.CoralPrimary
@@ -60,6 +61,7 @@ import com.example.ui.theme.LikeGreen
 @Composable
 fun PaywallBottomSheet(
   subscriptionState: SubscriptionState,
+  plans: List<SubscriptionPlan> = SubscriptionPlan.defaultPlans(),
   onSelectTier: (SubscriptionTier, Boolean) -> Unit,
   onRestorePurchases: () -> Unit,
   onDismiss: () -> Unit
@@ -71,6 +73,7 @@ fun PaywallBottomSheet(
     )
   }
   var isAnnual by remember { mutableStateOf(subscriptionState.isAnnualBilling) }
+  val activePlanObj = plans.firstOrNull { it.tier == selectedTier } ?: SubscriptionPlan.fromTier(selectedTier)
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -218,37 +221,20 @@ fun PaywallBottomSheet(
 
       Spacer(modifier = Modifier.height(10.dp))
 
-      // 3 Tiers Cards Comparison (Compact size and reduced padding)
+      // Dynamic Tiers Cards Comparison (from backend or synced models)
       Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(7.dp)
       ) {
-        // Free Tier Card
-        CompactTierCard(
-          tier = SubscriptionTier.FREE,
-          isSelected = selectedTier == SubscriptionTier.FREE,
-          isCurrent = subscriptionState.currentTier == SubscriptionTier.FREE,
-          isAnnual = isAnnual,
-          onSelect = { selectedTier = SubscriptionTier.FREE }
-        )
-
-        // Paid Tier 1 (KatKat Plus)
-        CompactTierCard(
-          tier = SubscriptionTier.TIER_1,
-          isSelected = selectedTier == SubscriptionTier.TIER_1,
-          isCurrent = subscriptionState.currentTier == SubscriptionTier.TIER_1,
-          isAnnual = isAnnual,
-          onSelect = { selectedTier = SubscriptionTier.TIER_1 }
-        )
-
-        // Paid Tier 2 (KatKat VIP)
-        CompactTierCard(
-          tier = SubscriptionTier.TIER_2,
-          isSelected = selectedTier == SubscriptionTier.TIER_2,
-          isCurrent = subscriptionState.currentTier == SubscriptionTier.TIER_2,
-          isAnnual = isAnnual,
-          onSelect = { selectedTier = SubscriptionTier.TIER_2 }
-        )
+        plans.forEach { plan ->
+          CompactTierCard(
+            plan = plan,
+            isSelected = selectedTier == plan.tier,
+            isCurrent = subscriptionState.currentTier == plan.tier,
+            isAnnual = isAnnual,
+            onSelect = { selectedTier = plan.tier }
+          )
+        }
       }
 
       Spacer(modifier = Modifier.height(10.dp))
@@ -269,7 +255,7 @@ fun PaywallBottomSheet(
           ) {
             Column {
               Text(
-                text = "${selectedTier.title} — ${selectedTier.subtitle}",
+                text = "${activePlanObj.title} — ${activePlanObj.subtitle}",
                 style = MaterialTheme.typography.titleSmall.copy(
                   fontWeight = FontWeight.Bold,
                   color = MaterialTheme.colorScheme.onSurface,
@@ -277,7 +263,7 @@ fun PaywallBottomSheet(
                 )
               )
               Text(
-                text = "\"${selectedTier.tagline}\"",
+                text = "\"${activePlanObj.tagline}\"",
                 style = MaterialTheme.typography.bodySmall.copy(
                   color = CoralPrimary,
                   fontWeight = FontWeight.SemiBold,
@@ -294,7 +280,7 @@ fun PaywallBottomSheet(
                   .padding(horizontal = 6.dp, vertical = 2.5.dp)
               ) {
                 Text(
-                  text = selectedTier.effectiveMonthlyPrice,
+                  text = activePlanObj.effectiveMonthlyPrice,
                   color = Color(0xFF2E7D32),
                   fontWeight = FontWeight.Bold,
                   fontSize = 10.sp
@@ -303,7 +289,7 @@ fun PaywallBottomSheet(
             }
           }
 
-          if (isAnnual && selectedTier.yearlySavings.isNotBlank()) {
+          if (isAnnual && activePlanObj.yearlySavings.isNotBlank()) {
             Spacer(modifier = Modifier.height(6.dp))
             Row(
               modifier = Modifier
@@ -321,7 +307,7 @@ fun PaywallBottomSheet(
               )
               Spacer(modifier = Modifier.width(5.dp))
               Text(
-                text = selectedTier.yearlySavings,
+                text = activePlanObj.yearlySavings,
                 style = MaterialTheme.typography.labelSmall.copy(
                   color = Color(0xFFF57F17),
                   fontWeight = FontWeight.Bold,
@@ -334,7 +320,7 @@ fun PaywallBottomSheet(
           Spacer(modifier = Modifier.height(8.dp))
 
           // Display perks in a compact format
-          selectedTier.perks.forEach { perk ->
+          activePlanObj.perks.forEach { perk ->
             Row(
               modifier = Modifier
                 .fillMaxWidth()
@@ -385,8 +371,8 @@ fun PaywallBottomSheet(
       val ctaText = when {
         isCurrentPlanSelected -> "Current Plan Active"
         selectedTier == SubscriptionTier.FREE -> "Switch to Free Tier (₹0)"
-        isAnnual -> "Get ${selectedTier.title} • ${selectedTier.priceYearly}"
-        else -> "Get ${selectedTier.title} • ${selectedTier.priceMonthly}"
+        isAnnual -> "Get ${activePlanObj.title} • ${activePlanObj.priceYearly}"
+        else -> "Get ${activePlanObj.title} • ${activePlanObj.priceMonthly}"
       }
 
       Button(
@@ -460,12 +446,13 @@ fun PaywallBottomSheet(
 
 @Composable
 fun CompactTierCard(
-  tier: SubscriptionTier,
+  plan: SubscriptionPlan,
   isSelected: Boolean,
   isCurrent: Boolean,
   isAnnual: Boolean,
   onSelect: () -> Unit
 ) {
+  val tier = plan.tier
   val borderColor = when {
     isSelected && tier == SubscriptionTier.TIER_2 -> GoldVip
     isSelected && tier == SubscriptionTier.TIER_1 -> Color(0xFF9C27B0)
@@ -508,7 +495,7 @@ fun CompactTierCard(
           Text(text = tierEmoji, fontSize = 13.sp)
           Spacer(modifier = Modifier.width(4.dp))
           Text(
-            text = "${tier.title} — ${tier.subtitle}",
+            text = "${plan.title} — ${plan.subtitle}",
             style = MaterialTheme.typography.bodyMedium.copy(
               fontWeight = FontWeight.ExtraBold,
               color = MaterialTheme.colorScheme.onSurface,
@@ -549,11 +536,28 @@ fun CompactTierCard(
               .padding(horizontal = 4.5.dp, vertical = 1.dp)
           ) {
             Text(
-              text = "${tier.dailySwipes}/DAY",
+              text = "${plan.dailySwipes}/DAY",
               color = if (tier == SubscriptionTier.TIER_2) Color.Black else Color.White,
               fontSize = 8.sp,
               fontWeight = FontWeight.ExtraBold
             )
+          }
+
+          if (plan.isBackendProvided) {
+            Spacer(modifier = Modifier.width(3.dp))
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(CoralPrimary.copy(alpha = 0.12f))
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+            ) {
+              Text(
+                text = "CLOUD",
+                color = CoralPrimary,
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.Bold
+              )
+            }
           }
         }
 
@@ -572,7 +576,7 @@ fun CompactTierCard(
             )
           } else if (isAnnual) {
             Text(
-              text = tier.priceYearly,
+              text = plan.priceYearly,
               style = MaterialTheme.typography.bodySmall.copy(
                 color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.ExtraBold,
@@ -581,7 +585,7 @@ fun CompactTierCard(
             )
             Spacer(modifier = Modifier.width(5.dp))
             Text(
-              text = "(${tier.effectiveMonthlyPrice})",
+              text = "(${plan.effectiveMonthlyPrice})",
               style = MaterialTheme.typography.labelSmall.copy(
                 color = Color(0xFF2E7D32),
                 fontWeight = FontWeight.Bold,
@@ -590,7 +594,7 @@ fun CompactTierCard(
             )
           } else {
             Text(
-              text = tier.priceMonthly,
+              text = plan.priceMonthly,
               style = MaterialTheme.typography.bodySmall.copy(
                 color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.ExtraBold,
@@ -601,7 +605,7 @@ fun CompactTierCard(
 
           Spacer(modifier = Modifier.width(6.dp))
           Text(
-            text = "• ${tier.tagline}",
+            text = "• ${plan.tagline}",
             style = MaterialTheme.typography.bodySmall.copy(
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               fontSize = 10.5.sp

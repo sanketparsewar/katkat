@@ -61,18 +61,13 @@ class KatkatApplication : Application(), ImageLoaderFactory {
       if (FirebaseApp.getApps(this).isEmpty()) {
         FirebaseApp.initializeApp(this)
       }
-    } catch (e: Exception) {
-      Log.w("KatkatApplication", "FirebaseApp initialization notice: ${e.message}")
+    } catch (t: Throwable) {
+      Log.w("KatkatApplication", "FirebaseApp initialization notice: ${t.message}")
     }
     try {
       com.example.util.PushNotificationHelper.createNotificationChannel(this)
-    } catch (e: Exception) {
-      Log.w("KatkatApplication", "Notification channel creation notice: ${e.message}")
-    }
-    try {
-      com.example.service.KatkatNotificationSyncService.startService(this)
-    } catch (e: Exception) {
-      Log.w("KatkatApplication", "Sync service launch notice: ${e.message}")
+    } catch (t: Throwable) {
+      Log.w("KatkatApplication", "Notification channel creation notice: ${t.message}")
     }
   }
 
