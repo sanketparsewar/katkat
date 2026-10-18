@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -34,15 +33,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,9 +52,9 @@ import com.example.ui.theme.GoldVip
 import com.example.ui.theme.LikeGreen
 
 /**
- * Dedicated Razorpay Checkout Bottom Sheet.
- * Displays dynamic plan pricing directly from the database, keeps AutoPay enabled by default,
- * and launches Razorpay Payment Gateway directly without any other third-party or mock options.
+ * Razorpay Dedicated Payment Checkout Bottom Sheet.
+ * Displays dynamic plan pricing with reduced text size, AutoPay enabled by default,
+ * and launches Razorpay Payment Gateway directly without any clutter.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,9 +72,6 @@ fun CheckoutBottomSheet(
   val amount = if (isAnnual) plan.priceYearlyAmount else plan.priceMonthlyAmount
   val planPeriod = if (isAnnual) "Yearly (12 Months)" else "Monthly (1 Month)"
   val formattedPrice = if (isAnnual) plan.priceYearly else plan.priceMonthly
-
-  // AutoPay enabled by default
-  var isAutoPayEnabled by remember { mutableStateOf(true) }
 
   ModalBottomSheet(
     onDismissRequest = { if (!isProcessing) onDismiss() },
@@ -174,11 +164,12 @@ fun CheckoutBottomSheet(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
+            val cleanTitle = plan.title.substringBefore(" — ").substringBefore(" - ").trim()
             Column(modifier = Modifier.weight(1f)) {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                  text = plan.title,
-                  style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                  text = cleanTitle,
+                  style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 )
                 if (plan.badge.isNotBlank()) {
                   Spacer(modifier = Modifier.width(8.dp))
@@ -203,16 +194,18 @@ fun CheckoutBottomSheet(
                 text = "$planPeriod • ${plan.dailySwipes} Swipes/day",
                 style = MaterialTheme.typography.bodySmall.copy(
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  fontSize = 12.sp
+                  fontSize = 11.5.sp
                 )
               )
             }
 
+            // Pricing text size reduced for a refined, balanced UI
             Column(horizontalAlignment = Alignment.End) {
               Text(
                 text = formattedPrice,
-                style = MaterialTheme.typography.headlineSmall.copy(
+                style = MaterialTheme.typography.titleMedium.copy(
                   fontWeight = FontWeight.ExtraBold,
+                  fontSize = 15.sp,
                   color = if (tier == SubscriptionTier.TIER_2) Color(0xFFC79100) else CoralPrimary
                 )
               )
@@ -273,77 +266,11 @@ fun CheckoutBottomSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(14.dp))
-
-      // AutoPay Renewal Toggle Card (Enabled by default)
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-          containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-      ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-          Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Box(
-              modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(LikeGreen.copy(alpha = 0.15f)),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = Icons.Default.Autorenew,
-                contentDescription = null,
-                tint = LikeGreen,
-                modifier = Modifier.size(18.dp)
-              )
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-              Text(
-                text = "AutoPay Renewal",
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-              )
-              Text(
-                text = "Enabled by default • Hassle-free renewal",
-                style = MaterialTheme.typography.labelSmall.copy(
-                  color = LikeGreen,
-                  fontWeight = FontWeight.SemiBold,
-                  fontSize = 11.sp
-                )
-              )
-            }
-          }
-
-          Switch(
-            checked = isAutoPayEnabled,
-            onCheckedChange = { isAutoPayEnabled = it },
-            colors = SwitchDefaults.colors(
-              checkedThumbColor = Color.White,
-              checkedTrackColor = LikeGreen
-            ),
-            modifier = Modifier.testTag("switch_autopay")
-          )
-        }
-      }
-
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Primary Action: Launch Razorpay Checkout
+      // Primary Action: Launch Razorpay Checkout (AutoPay enabled by default = true)
       Button(
-        onClick = { onPayWithRazorpay(amount, isAutoPayEnabled) },
+        onClick = { onPayWithRazorpay(amount, true) },
         enabled = !isProcessing,
         modifier = Modifier
           .fillMaxWidth()
